@@ -155,5 +155,10 @@ export function buildSeed(): SeedData {
     auditLogs: [],
     trainingQuestions: [],
     trainingAttempts: [],
+    formTemplates: [],
+    formAssignments: [],
+    completedForms: [],
+    employeeDocuments: [],
+    controlledSubstanceLogs: [],
   };
 }

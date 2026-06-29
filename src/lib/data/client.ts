@@ -2,13 +2,18 @@ import type {
   AuditLog,
   Benefit,
   CompetencyRecord,
+  CompletedForm,
   ComplianceDocument,
   ComplianceTask,
   ComplianceUserProfile,
+  ControlledSubstanceLog,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
   Employee,
+  EmployeeDocument,
+  FillableFormTemplate,
+  FormAssignment,
   InsurancePolicyRecord,
   InventoryItem,
   OSHARecord,
@@ -72,6 +77,11 @@ export interface DataClient {
   auditLogs: Collection<AuditLog>;
   trainingQuestions: Collection<TrainingQuestion>;
   trainingAttempts: Collection<TrainingAttempt>;
+  formTemplates: Collection<FillableFormTemplate>;
+  formAssignments: Collection<FormAssignment>;
+  completedForms: Collection<CompletedForm>;
+  employeeDocuments: Collection<EmployeeDocument>;
+  controlledSubstanceLogs: Collection<ControlledSubstanceLog>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

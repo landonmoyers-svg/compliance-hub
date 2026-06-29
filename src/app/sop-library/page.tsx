@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { FileText, Plus, Search } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { FileText, Plus, Search, Upload, X, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { uploadFile } from "@/lib/storage";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -14,6 +15,8 @@ import { documentNeedsReview } from "@/lib/compliance";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
+
+const MAX_FILE_MB = 25;
 
 const STATUS_VARIANT = {
   active: "success",
@@ -41,6 +44,7 @@ interface DocForm {
   version: string;
   reviewDate: string;
   requiresAcknowledgment: boolean;
+  fileUrl: string;
 }
 
 const EMPTY: DocForm = {
@@ -53,6 +57,7 @@ const EMPTY: DocForm = {
   version: "1.0",
   reviewDate: "",
   requiresAcknowledgment: false,
+  fileUrl: "",
 };
 
 function DocDialog({
@@ -78,14 +83,36 @@ function DocDialog({
           version: initial.version,
           reviewDate: initial.reviewDate ?? "",
           requiresAcknowledgment: initial.requiresAcknowledgment,
+          fileUrl: initial.fileUrl ?? "",
         }
       : EMPTY,
   );
+  const [uploading, setUploading] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set =
     (k: keyof DocForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  async function handleFile(file: File) {
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`File too large (max ${MAX_FILE_MB}MB).`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadFile(file, "sop");
+      setForm((p) => ({ ...p, fileUrl: url }));
+      setFileName(file.name);
+      toast.success("File uploaded");
+    } catch {
+      toast.error("Upload failed. Save without a file or try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div
@@ -144,6 +171,31 @@ function DocDialog({
               placeholder="Brief description"
             />
           </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Document file (PDF/DOC)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+            />
+            {form.fileUrl ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-secondary/20 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 truncate">
+                  <FileText className="size-4 shrink-0 text-primary" />
+                  <span className="truncate">{fileName || "Attached file"}</span>
+                </span>
+                <button onClick={() => { setForm((p) => ({ ...p, fileUrl: "" })); setFileName(""); }} className="text-muted-foreground hover:text-destructive">
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <Button type="button" variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? "Uploading…" : <><Upload className="size-4" /> Upload file</>}
+              </Button>
+            )}
+          </div>
           <div className="flex items-center gap-2 sm:col-span-2">
             <input
               id="ack"
@@ -157,7 +209,7 @@ function DocDialog({
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.title.trim() || saving}>
+          <Button onClick={() => onSave(form)} disabled={!form.title.trim() || saving || uploading}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -204,6 +256,7 @@ export default function SOPLibraryPage() {
         version: form.version.trim() || "1.0",
         reviewDate: form.reviewDate ? dateInputToISO(form.reviewDate) : undefined,
         requiresAcknowledgment: form.requiresAcknowledgment,
+        fileUrl: form.fileUrl || null,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -346,7 +399,14 @@ export default function SOPLibraryPage() {
                           </Badge>
                         </td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
+                          <div className="flex items-center gap-1">
+                            {d.fileUrl && (
+                              <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" aria-label={`View ${d.title}`}>
+                                <ExternalLink className="size-3.5" /> View
+                              </a>
+                            )}
+                            <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
+                          </div>
                         </td>
                       </tr>
                     );

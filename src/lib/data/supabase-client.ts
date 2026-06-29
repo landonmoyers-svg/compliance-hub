@@ -15,13 +15,19 @@ import type {
   AuditLog,
   Benefit,
   CompetencyRecord,
+  CompletedForm,
   ComplianceDocument,
   ComplianceTask,
   ComplianceUserProfile,
+  ControlledSubstanceLog,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
   Employee,
+  EmployeeDocument,
+  FillableFormTemplate,
+  FormAssignment,
+  FormField,
   InsurancePolicyRecord,
   InventoryItem,
   OSHARecord,
@@ -866,6 +872,138 @@ function attemptTo(d: Partial<TrainingAttempt>) {
   };
 }
 
+function formTemplateFrom(r: Record<string, unknown>): FillableFormTemplate {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    category: r.category as FillableFormTemplate["category"],
+    description: r.description as string | undefined,
+    fields: (r.fields as FormField[] | null) ?? [],
+    status: r.status as FillableFormTemplate["status"],
+    requiresSignature: r.requires_signature as boolean,
+    sensitive: r.sensitive as boolean,
+    isDraft: r.is_draft as boolean,
+    fileUrl: r.file_url as string | undefined,
+  };
+}
+function formTemplateTo(d: Partial<FillableFormTemplate>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.description !== undefined && { description: d.description }),
+    ...(d.fields !== undefined && { fields: d.fields }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.requiresSignature !== undefined && { requires_signature: d.requiresSignature }),
+    ...(d.sensitive !== undefined && { sensitive: d.sensitive }),
+    ...(d.isDraft !== undefined && { is_draft: d.isDraft }),
+    ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
+  };
+}
+
+function formAssignmentFrom(r: Record<string, unknown>): FormAssignment {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    templateId: r.template_id as string,
+    templateTitle: r.template_title as string,
+    assignedToUserId: r.assigned_to_user_id as string | undefined,
+    assignedToName: r.assigned_to_name as string,
+    status: r.status as FormAssignment["status"],
+    dueDate: toISO(r.due_date as string),
+    completedFormId: r.completed_form_id as string | undefined,
+  };
+}
+function formAssignmentTo(d: Partial<FormAssignment>) {
+  return {
+    ...(d.templateId !== undefined && { template_id: d.templateId }),
+    ...(d.templateTitle !== undefined && { template_title: d.templateTitle }),
+    ...(d.assignedToUserId !== undefined && { assigned_to_user_id: d.assignedToUserId }),
+    ...(d.assignedToName !== undefined && { assigned_to_name: d.assignedToName }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.dueDate !== undefined && { due_date: d.dueDate }),
+    ...(d.completedFormId !== undefined && { completed_form_id: d.completedFormId }),
+  };
+}
+
+function completedFormFrom(r: Record<string, unknown>): CompletedForm {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    templateId: r.template_id as string,
+    templateTitle: r.template_title as string,
+    employeeId: r.employee_id as string | undefined,
+    employeeName: r.employee_name as string,
+    fieldValues: (r.field_values as Record<string, string> | null) ?? {},
+    signedByName: r.signed_by_name as string | undefined,
+    completedAt: toISO(r.completed_at as string),
+  };
+}
+function completedFormTo(d: Partial<CompletedForm>) {
+  return {
+    ...(d.templateId !== undefined && { template_id: d.templateId }),
+    ...(d.templateTitle !== undefined && { template_title: d.templateTitle }),
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.fieldValues !== undefined && { field_values: d.fieldValues }),
+    ...(d.signedByName !== undefined && { signed_by_name: d.signedByName }),
+    ...(d.completedAt !== undefined && { completed_at: d.completedAt }),
+  };
+}
+
+function employeeDocFrom(r: Record<string, unknown>): EmployeeDocument {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string | undefined,
+    employeeName: r.employee_name as string,
+    documentType: r.document_type as EmployeeDocument["documentType"],
+    title: r.title as string,
+    fileUrl: r.file_url as string | undefined,
+    sensitive: r.sensitive as boolean,
+    uploadedByName: r.uploaded_by_name as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function employeeDocTo(d: Partial<EmployeeDocument>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.documentType !== undefined && { document_type: d.documentType }),
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
+    ...(d.sensitive !== undefined && { sensitive: d.sensitive }),
+    ...(d.uploadedByName !== undefined && { uploaded_by_name: d.uploadedByName }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function csLogFrom(r: Record<string, unknown>): ControlledSubstanceLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    substanceName: r.substance_name as string,
+    scheduleClass: r.schedule_class as ControlledSubstanceLog["scheduleClass"],
+    transactionType: r.transaction_type as ControlledSubstanceLog["transactionType"],
+    quantity: r.quantity as number,
+    balanceAfter: r.balance_after as number,
+    patientRef: r.patient_ref as string | undefined,
+    prescriberName: r.prescriber_name as string | undefined,
+    witnessName: r.witness_name as string | undefined,
+    transactionDate: toISO(r.transaction_date as string),
+    notes: r.notes as string | undefined,
+  };
+}
+function csLogTo(d: Partial<ControlledSubstanceLog>) {
+  return {
+    ...(d.substanceName !== undefined && { substance_name: d.substanceName }),
+    ...(d.scheduleClass !== undefined && { schedule_class: d.scheduleClass }),
+    ...(d.transactionType !== undefined && { transaction_type: d.transactionType }),
+    ...(d.quantity !== undefined && { quantity: d.quantity }),
+    ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.patientRef !== undefined && { patient_ref: d.patientRef }),
+    ...(d.prescriberName !== undefined && { prescriber_name: d.prescriberName }),
+    ...(d.witnessName !== undefined && { witness_name: d.witnessName }),
+    ...(d.transactionDate !== undefined && { transaction_date: d.transactionDate }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -899,5 +1037,10 @@ export function createSupabaseDataClient(): DataClient {
     auditLogs:          makeCollection(supabase, "audit_logs",          auditFrom,              auditTo),
     trainingQuestions:  makeCollection(supabase, "training_questions",  questionFrom,           questionTo),
     trainingAttempts:   makeCollection(supabase, "training_attempts",   attemptFrom,            attemptTo),
+    formTemplates:      makeCollection(supabase, "form_templates",      formTemplateFrom,       formTemplateTo),
+    formAssignments:    makeCollection(supabase, "form_assignments",    formAssignmentFrom,     formAssignmentTo),
+    completedForms:     makeCollection(supabase, "completed_forms",     completedFormFrom,      completedFormTo),
+    employeeDocuments:  makeCollection(supabase, "employee_documents",  employeeDocFrom,        employeeDocTo),
+    controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
   };
 }

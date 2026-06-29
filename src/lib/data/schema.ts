@@ -632,3 +632,116 @@ export const TrainingAttempt = z.object({
   completedAt: z.string().nullable().optional(),
 });
 export type TrainingAttempt = z.infer<typeof TrainingAttempt>;
+
+/* ----------------------- fillable forms ---------------------------- */
+
+export const formCategories = [
+  "hr_onboarding",
+  "hr_discipline",
+  "hipaa",
+  "osha_safety",
+  "training",
+  "credentialing",
+  "insurance_risk",
+  "emergency",
+  "policy_review",
+  "other",
+] as const;
+export const FormCategory = z.enum(formCategories);
+export type FormCategory = z.infer<typeof FormCategory>;
+
+export const FormField = z.object({
+  key: z.string(),
+  label: z.string(),
+  type: z.enum(["text", "textarea", "date", "number", "checkbox", "select"]).default("text"),
+  required: z.boolean().default(false),
+  options: z.array(z.string()).default([]),
+});
+export type FormField = z.infer<typeof FormField>;
+
+export const FillableFormTemplate = z.object({
+  ...base,
+  title: z.string(),
+  category: FormCategory.default("other"),
+  description: z.string().optional(),
+  fields: z.array(FormField).default([]),
+  status: z.enum(["draft", "active", "archived"]).default("active"),
+  requiresSignature: z.boolean().default(false),
+  sensitive: z.boolean().default(false),
+  isDraft: z.boolean().default(false), // AI/auto-generated draft pending HR review
+  fileUrl: z.string().nullable().optional(),
+});
+export type FillableFormTemplate = z.infer<typeof FillableFormTemplate>;
+
+export const FormAssignment = z.object({
+  ...base,
+  templateId: z.string(),
+  templateTitle: z.string(),
+  assignedToUserId: z.string().nullable().optional(),
+  assignedToName: z.string(),
+  status: z.enum(["assigned", "in_progress", "completed"]).default("assigned"),
+  dueDate: z.string().nullable().optional(),
+  completedFormId: z.string().nullable().optional(),
+});
+export type FormAssignment = z.infer<typeof FormAssignment>;
+
+export const CompletedForm = z.object({
+  ...base,
+  templateId: z.string(),
+  templateTitle: z.string(),
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string(),
+  fieldValues: z.record(z.string(), z.string()).default({}),
+  signedByName: z.string().optional(),
+  completedAt: z.string().nullable().optional(),
+});
+export type CompletedForm = z.infer<typeof CompletedForm>;
+
+/* --------------------- employee documents -------------------------- */
+
+export const employeeDocTypes = [
+  "offer_letter",
+  "employment_contract",
+  "i9",
+  "w4",
+  "performance_review",
+  "disciplinary",
+  "termination",
+  "benefit_enrollment",
+  "training_certificate",
+  "other",
+] as const;
+export const EmployeeDocType = z.enum(employeeDocTypes);
+export type EmployeeDocType = z.infer<typeof EmployeeDocType>;
+
+export const EmployeeDocument = z.object({
+  ...base,
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string(),
+  documentType: EmployeeDocType.default("other"),
+  title: z.string(),
+  fileUrl: z.string().nullable().optional(),
+  sensitive: z.boolean().default(false),
+  uploadedByName: z.string().optional(),
+  notes: z.string().optional(),
+});
+export type EmployeeDocument = z.infer<typeof EmployeeDocument>;
+
+/* ----------------- controlled substances log ----------------------- */
+
+export const ControlledSubstanceLog = z.object({
+  ...base,
+  substanceName: z.string(),
+  scheduleClass: z.enum(["II", "III", "IV", "V"]).default("II"),
+  transactionType: z
+    .enum(["receive", "dispense", "return", "dispose", "adjustment"])
+    .default("dispense"),
+  quantity: z.number().default(0),
+  balanceAfter: z.number().default(0),
+  patientRef: z.string().optional(),
+  prescriberName: z.string().optional(),
+  witnessName: z.string().optional(),
+  transactionDate: z.string().nullable().optional(),
+  notes: z.string().optional(),
+});
+export type ControlledSubstanceLog = z.infer<typeof ControlledSubstanceLog>;

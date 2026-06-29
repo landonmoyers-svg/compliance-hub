@@ -95,5 +95,10 @@ export function createMockDataClient(): DataClient {
     auditLogs: new MemoryCollection(seed.auditLogs),
     trainingQuestions: new MemoryCollection(seed.trainingQuestions),
     trainingAttempts: new MemoryCollection(seed.trainingAttempts),
+    formTemplates: new MemoryCollection(seed.formTemplates),
+    formAssignments: new MemoryCollection(seed.formAssignments),
+    completedForms: new MemoryCollection(seed.completedForms),
+    employeeDocuments: new MemoryCollection(seed.employeeDocuments),
+    controlledSubstanceLogs: new MemoryCollection(seed.controlledSubstanceLogs),
   };
 }

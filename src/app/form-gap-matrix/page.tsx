@@ -1,161 +1,416 @@
 "use client";
 
-import { useMemo } from "react";
-import { Grid3x3, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
-import { useCollection } from "@/lib/data/hooks";
+import { useMemo, useState } from "react";
+import {
+  Grid3x3,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Sparkles,
+  Loader2,
+} from "lucide-react";
+import { useCollection, useCreate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import Link from "next/link";
+import type {
+  FillableFormTemplate,
+  FormCategory,
+  FormField,
+} from "@/lib/data/schema";
+import { toast } from "sonner";
 
-// The gap matrix maps required regulatory areas to their corresponding documents.
-// Each row is a requirement; each column is a document type.
-// Green = document exists and is current. Red = missing. Yellow = exists but needs review.
+/**
+ * Form Gap Matrix
+ * ---------------
+ * Cross-references the forms a behavioral-health practice SHOULD have (the
+ * REQUIRED_FORMS audit list below, grouped by compliance area) against the
+ * fillable form templates that actually exist in the "formTemplates"
+ * collection. Surfaces which required forms are MISSING and lets an admin
+ * generate a clearly-marked DRAFT template for any gap.
+ */
 
-interface RequirementRow {
-  area: string;
-  requirement: string;
-  regulatoryBasis: string;
-  docTypes: string[];
+interface RequiredForm {
+  name: string;
+  category: FormCategory;
+  description: string;
 }
 
-const REQUIREMENTS: RequirementRow[] = [
-  { area: "HIPAA", requirement: "Notice of Privacy Practices", regulatoryBasis: "45 CFR §164.520", docTypes: ["policy"] },
-  { area: "HIPAA", requirement: "HIPAA Security Policy", regulatoryBasis: "45 CFR §164.308", docTypes: ["policy"] },
-  { area: "HIPAA", requirement: "Breach Notification Policy", regulatoryBasis: "45 CFR §164.400", docTypes: ["policy"] },
-  { area: "HIPAA", requirement: "Business Associate Agreement template", regulatoryBasis: "45 CFR §164.314", docTypes: ["form"] },
-  { area: "OSHA", requirement: "Hazard Communication Program", regulatoryBasis: "29 CFR 1910.1200", docTypes: ["sop", "policy"] },
-  { area: "OSHA", requirement: "Bloodborne Pathogen Exposure Control Plan", regulatoryBasis: "29 CFR 1910.1030", docTypes: ["policy", "sop"] },
-  { area: "OSHA", requirement: "Emergency Action Plan", regulatoryBasis: "29 CFR 1910.38", docTypes: ["policy"] },
-  { area: "DEA", requirement: "Controlled Substance Disposal Policy", regulatoryBasis: "21 CFR §1317", docTypes: ["policy", "sop"] },
-  { area: "CMHC", requirement: "Informed Consent for Treatment", regulatoryBasis: "State BHO Rules", docTypes: ["form"] },
-  { area: "CMHC", requirement: "Client Rights Policy", regulatoryBasis: "State BHO Rules", docTypes: ["policy"] },
-  { area: "HR", requirement: "Equal Employment Opportunity Policy", regulatoryBasis: "Title VII / EEOC", docTypes: ["policy"] },
-  { area: "HR", requirement: "Anti-Harassment Policy", regulatoryBasis: "EEOC Guidelines", docTypes: ["policy"] },
-  { area: "HR", requirement: "FMLA Policy", regulatoryBasis: "29 CFR Part 825", docTypes: ["policy"] },
-  { area: "General", requirement: "Records Retention Schedule", regulatoryBasis: "State/Federal", docTypes: ["reference"] },
-  { area: "General", requirement: "Confidentiality / Non-Disclosure Policy", regulatoryBasis: "General", docTypes: ["policy"] },
+// The compliance audit baseline. Each entry is a form the practice is expected
+// to maintain; the matrix compares these against actual templates by category.
+const REQUIRED_FORMS: RequiredForm[] = [
+  // HIPAA
+  { name: "Notice of Privacy Practices Acknowledgment", category: "hipaa", description: "Patient signature confirming receipt of the practice's Notice of Privacy Practices (45 CFR §164.520)." },
+  { name: "Authorization to Release PHI", category: "hipaa", description: "Patient authorization permitting disclosure of protected health information to a named third party." },
+  { name: "Business Associate Agreement", category: "hipaa", description: "Contract binding vendors with PHI access to HIPAA safeguards (45 CFR §164.314)." },
+  { name: "Breach Notification Form", category: "hipaa", description: "Internal record documenting a suspected or confirmed PHI breach and the response taken." },
+
+  // OSHA / Safety
+  { name: "Bloodborne Pathogen Exposure Report", category: "osha_safety", description: "Documents employee exposure incidents under the Bloodborne Pathogens standard (29 CFR 1910.1030)." },
+  { name: "OSHA 300 Injury Log", category: "osha_safety", description: "Annual log of recordable work-related injuries and illnesses (29 CFR 1904)." },
+  { name: "Hazard Communication Acknowledgment", category: "osha_safety", description: "Employee attestation of HazCom training and SDS access (29 CFR 1910.1200)." },
+  { name: "Safety Incident Report", category: "osha_safety", description: "General workplace safety incident or near-miss report for corrective tracking." },
+
+  // HR Onboarding
+  { name: "I-9 Employment Eligibility", category: "hr_onboarding", description: "Federal verification of identity and authorization to work in the United States." },
+  { name: "W-4 Withholding", category: "hr_onboarding", description: "Employee's federal income-tax withholding election." },
+  { name: "Direct Deposit Authorization", category: "hr_onboarding", description: "Authorizes payroll deposit to the employee's designated bank account." },
+  { name: "Employee Handbook Acknowledgment", category: "hr_onboarding", description: "Confirms the employee received and reviewed the current employee handbook." },
+  { name: "Emergency Contact Form", category: "hr_onboarding", description: "Collects emergency contact information for each employee." },
+
+  // HR Discipline
+  { name: "Verbal Warning Record", category: "hr_discipline", description: "Documents a verbal coaching or warning conversation for the personnel file." },
+  { name: "Written Warning", category: "hr_discipline", description: "Formal written disciplinary notice describing the issue and expectations." },
+  { name: "Performance Improvement Plan", category: "hr_discipline", description: "Structured plan with measurable goals and a review timeline for underperformance." },
+  { name: "Termination Checklist", category: "hr_discipline", description: "Offboarding checklist covering access removal, equipment return, and final pay." },
+
+  // Credentialing
+  { name: "License Verification Form", category: "credentialing", description: "Records primary-source verification of a clinician's professional license." },
+  { name: "DEA Registration Record", category: "credentialing", description: "Tracks DEA registration numbers and expiration for prescribing staff." },
+  { name: "Malpractice Insurance Verification", category: "credentialing", description: "Confirms active malpractice coverage limits and policy dates per provider." },
+
+  // Emergency
+  { name: "Fire Drill Record", category: "emergency", description: "Logs fire-drill dates, participants, and evacuation timing (29 CFR 1910.38)." },
+  { name: "Emergency Action Plan Acknowledgment", category: "emergency", description: "Employee attestation of review of the site Emergency Action Plan." },
+
+  // Training
+  { name: "Annual HIPAA Training Attestation", category: "training", description: "Annual attestation that the employee completed required HIPAA privacy/security training." },
+  { name: "Annual Compliance Training Record", category: "training", description: "Records completion of the practice's yearly compliance training curriculum." },
+
+  // Insurance / Risk
+  { name: "Incident/Risk Report", category: "insurance_risk", description: "Captures clinical or operational incidents for risk-management review." },
+  { name: "Insurance Certificate Log", category: "insurance_risk", description: "Tracks certificates of insurance and renewal dates for the practice and vendors." },
 ];
 
-function docTypeMatch(docTitle: string, reqType: string): boolean {
-  const t = docTitle.toLowerCase();
-  if (reqType === "policy" && (t.includes("policy") || t.includes("plan") || t.includes("program"))) return true;
-  if (reqType === "sop" && (t.includes("procedure") || t.includes("sop") || t.includes("protocol"))) return true;
-  if (reqType === "form" && (t.includes("form") || t.includes("consent") || t.includes("agreement"))) return true;
-  if (reqType === "reference" && (t.includes("reference") || t.includes("schedule") || t.includes("manual") || t.includes("handbook"))) return true;
-  return false;
+const CATEGORY_LABEL: Record<FormCategory, string> = {
+  hr_onboarding: "HR — Onboarding",
+  hr_discipline: "HR — Discipline",
+  hipaa: "HIPAA",
+  osha_safety: "OSHA / Safety",
+  training: "Training",
+  credentialing: "Credentialing",
+  insurance_risk: "Insurance / Risk",
+  emergency: "Emergency",
+  policy_review: "Policy Review",
+  other: "Other",
+};
+
+type GapStatus = "missing" | "draft" | "covered";
+
+const STATUS_VARIANT: Record<GapStatus, "destructive" | "warning" | "success"> = {
+  missing: "destructive",
+  draft: "warning",
+  covered: "success",
+};
+
+const STATUS_LABEL: Record<GapStatus, string> = {
+  missing: "Missing",
+  draft: "Draft — needs review",
+  covered: "Covered",
+};
+
+const STATUS_ICON: Record<GapStatus, React.ReactNode> = {
+  missing: <XCircle className="size-4 text-destructive" />,
+  draft: <AlertTriangle className="size-4 text-warning" />,
+  covered: <CheckCircle2 className="size-4 text-success" />,
+};
+
+// Default field set applied to every generated draft template.
+const DEFAULT_FIELDS: FormField[] = [
+  { key: "employee_name", label: "Employee Name", type: "text", required: true, options: [] },
+  { key: "date", label: "Date", type: "date", required: true, options: [] },
+  { key: "notes", label: "Notes", type: "textarea", required: false, options: [] },
+];
+
+const FILTERS: { key: "all" | GapStatus; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "missing", label: "Missing" },
+  { key: "draft", label: "Drafts" },
+  { key: "covered", label: "Covered" },
+];
+
+/** Normalize a title for fuzzy comparison: lowercase, strip non-alphanumerics. */
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function requirementMatch(doc: { title: string }, req: RequirementRow): boolean {
-  const t = doc.title.toLowerCase();
-  const key = req.requirement.toLowerCase();
-  const words = key.split(" ").filter((w) => w.length > 4);
-  return words.filter((w) => t.includes(w)).length >= 2;
+/**
+ * Fuzzy match a required form name against an existing template title within
+ * the same category. Considered a match when either string contains the other,
+ * or they share a strong majority of meaningful (>3 char) words.
+ */
+function titleMatches(requiredName: string, templateTitle: string): boolean {
+  const a = norm(requiredName);
+  const b = norm(templateTitle);
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aWords = a.split(" ").filter((w) => w.length > 3);
+  const bSet = new Set(b.split(" ").filter((w) => w.length > 3));
+  if (aWords.length === 0) return false;
+  const overlap = aWords.filter((w) => bSet.has(w)).length;
+  return overlap / aWords.length >= 0.6;
 }
 
-type GapStatus = "covered" | "partial" | "missing";
+interface MatrixRow {
+  required: RequiredForm;
+  status: GapStatus;
+  match: FillableFormTemplate | null;
+}
 
 export default function FormGapMatrixPage() {
-  const { data, isLoading } = useCollection("documents");
-  const docs = useMemo(() => (data ?? []).filter((d) => d.status === "active"), [data]);
+  const templatesQ = useCollection("formTemplates");
+  // Documents are loaded for cross-reference context (not required for the match).
+  useCollection("documents");
+  const createTemplate = useCreate("formTemplates");
 
-  const matrix = useMemo(() => {
-    return REQUIREMENTS.map((req) => {
-      const matches = docs.filter((d) => requirementMatch(d, req));
-      const typeMatches = docs.filter((d) => req.docTypes.some((t) => docTypeMatch(d.title, t)));
-      let status: GapStatus;
-      if (matches.length > 0) status = "covered";
-      else if (typeMatches.length > 0) status = "partial";
-      else status = "missing";
-      return { req, status, matchCount: matches.length, docs: matches };
+  const [filter, setFilter] = useState<"all" | GapStatus>("all");
+  const [busyName, setBusyName] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
+
+  const matrix = useMemo<MatrixRow[]>(() => {
+    return REQUIRED_FORMS.map((required) => {
+      const candidates = templates.filter(
+        (t) => t.category === required.category && titleMatches(required.name, t.title),
+      );
+      if (candidates.length === 0) {
+        return { required, status: "missing", match: null };
+      }
+      // Prefer an active (covered) template; otherwise treat as draft.
+      const active = candidates.find((t) => t.status === "active" && !t.isDraft);
+      const match = active ?? candidates[0];
+      const status: GapStatus =
+        active ? "covered" : "draft";
+      return { required, status, match };
     });
-  }, [docs]);
+  }, [templates]);
 
-  const stats = useMemo(() => ({
-    covered: matrix.filter((r) => r.status === "covered").length,
-    partial: matrix.filter((r) => r.status === "partial").length,
-    missing: matrix.filter((r) => r.status === "missing").length,
-  }), [matrix]);
+  const stats = useMemo(
+    () => ({
+      total: matrix.length,
+      covered: matrix.filter((r) => r.status === "covered").length,
+      draft: matrix.filter((r) => r.status === "draft").length,
+      missing: matrix.filter((r) => r.status === "missing").length,
+    }),
+    [matrix],
+  );
 
-  const areas = [...new Set(REQUIREMENTS.map((r) => r.area))];
+  const filtered = useMemo(
+    () => (filter === "all" ? matrix : matrix.filter((r) => r.status === filter)),
+    [matrix, filter],
+  );
 
-  const STATUS_ICON: Record<GapStatus, React.ReactNode> = {
-    covered: <CheckCircle2 className="size-4 text-success" />,
-    partial: <MinusCircle className="size-4 text-warning" />,
-    missing: <XCircle className="size-4 text-destructive" />,
-  };
+  // Categories present in the (filtered) view, in REQUIRED_FORMS order.
+  const categories = useMemo(() => {
+    const seen = new Set<FormCategory>();
+    const ordered: FormCategory[] = [];
+    for (const row of filtered) {
+      if (!seen.has(row.required.category)) {
+        seen.add(row.required.category);
+        ordered.push(row.required.category);
+      }
+    }
+    return ordered;
+  }, [filtered]);
 
-  const STATUS_VARIANT: Record<GapStatus, "success" | "warning" | "destructive"> = {
-    covered: "success",
-    partial: "warning",
-    missing: "destructive",
-  };
+  function buildDraft(required: RequiredForm): Omit<FillableFormTemplate, "id" | "createdDate"> {
+    return {
+      title: required.name,
+      category: required.category,
+      description: `${required.description} (Auto-generated draft — needs HR/Compliance review.)`,
+      fields: DEFAULT_FIELDS,
+      status: "draft",
+      requiresSignature: true,
+      sensitive: false,
+      isDraft: true,
+      fileUrl: null,
+    };
+  }
+
+  async function generateDraft(required: RequiredForm) {
+    setBusyName(required.name);
+    try {
+      await createTemplate.mutateAsync(buildDraft(required));
+      toast.success(`Draft created: ${required.name}`, {
+        description: "Marked DRAFT — needs HR/Compliance review.",
+      });
+    } catch {
+      toast.error(`Failed to generate draft for ${required.name}.`);
+    } finally {
+      setBusyName(null);
+    }
+  }
+
+  async function generateAllMissing() {
+    const missing = matrix.filter((r) => r.status === "missing").map((r) => r.required);
+    if (missing.length === 0) {
+      toast.info("No missing forms to generate.");
+      return;
+    }
+    setBulkBusy(true);
+    const toastId = toast.loading(`Generating ${missing.length} draft templates…`);
+    let created = 0;
+    try {
+      for (const required of missing) {
+        try {
+          await createTemplate.mutateAsync(buildDraft(required));
+          created += 1;
+          toast.loading(`Generating drafts… ${created}/${missing.length}`, { id: toastId });
+        } catch {
+          // continue with the rest; report partial result at the end
+        }
+      }
+      if (created === missing.length) {
+        toast.success(`Generated ${created} draft templates.`, {
+          id: toastId,
+          description: "All marked DRAFT — needs HR/Compliance review.",
+        });
+      } else {
+        toast.warning(`Generated ${created} of ${missing.length} drafts.`, {
+          id: toastId,
+          description: "Some templates could not be created — try again.",
+        });
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  if (templatesQ.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Form Gap Matrix" />
+        <ErrorState
+          message="We couldn't load form templates."
+          onRetry={() => void templatesQ.refetch()}
+        />
+      </div>
+    );
+  }
+
+  const loading = templatesQ.isLoading;
+  const anyBusy = bulkBusy || busyName !== null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Form Gap Matrix"
-        description="Maps regulatory requirements to existing documents. Identifies what is covered, partial, or missing in your SOP Library."
+        description="Audits the forms your practice should maintain against the templates that actually exist. Generate a clearly-marked draft for any gap."
         actions={
-          <Link href="/sop-library" className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-secondary/30 transition-colors">
-            Open SOP Library
-          </Link>
+          <Button onClick={generateAllMissing} disabled={loading || anyBusy || stats.missing === 0}>
+            {bulkBusy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            Generate all missing
+          </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Requirements covered" value={stats.covered} icon={Grid3x3} tone="success" loading={isLoading} />
-        <StatCard label="Partial coverage" value={stats.partial} icon={Grid3x3} tone="warning" loading={isLoading} />
-        <StatCard label="Missing documents" value={stats.missing} icon={Grid3x3} tone="destructive" loading={isLoading} />
+      <div className="grid gap-4 sm:grid-cols-4">
+        <StatCard label="Total required" value={stats.total} icon={Grid3x3} loading={loading} />
+        <StatCard label="Covered" value={stats.covered} icon={CheckCircle2} tone="success" loading={loading} />
+        <StatCard label="Drafts" value={stats.draft} icon={AlertTriangle} tone="warning" loading={loading} />
+        <StatCard label="Missing" value={stats.missing} icon={XCircle} tone="destructive" loading={loading} />
       </div>
 
-      {stats.missing > 0 && (
+      {!loading && stats.missing > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {stats.missing} regulatory requirement{stats.missing > 1 ? "s are" : " is"} not covered by any document in your SOP Library. Add the missing documents to close these gaps.
+          {stats.missing} required form{stats.missing > 1 ? "s are" : " is"} missing.
+          Generate drafts to close these gaps, then route them to HR/Compliance for review.
         </div>
       )}
 
-      {isLoading ? (
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => {
+          const count =
+            f.key === "all"
+              ? stats.total
+              : f.key === "covered"
+                ? stats.covered
+                : f.key === "draft"
+                  ? stats.draft
+                  : stats.missing;
+          const active = filter === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors " +
+                (active
+                  ? "border-primary bg-primary/15 text-primary"
+                  : "border-border text-muted-foreground hover:bg-secondary/40")
+              }
+            >
+              {f.label}
+              <span className="tabular-nums text-xs opacity-70">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No required forms match this filter.
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6">
-          {areas.map((area) => {
-            const rows = matrix.filter((r) => r.req.area === area);
+          {categories.map((category) => {
+            const rows = filtered.filter((r) => r.required.category === category);
             return (
-              <Card key={area}>
+              <Card key={category}>
                 <CardHeader>
-                  <CardTitle className="text-sm">{area}</CardTitle>
+                  <CardTitle className="text-sm">{CATEGORY_LABEL[category]}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {rows.map(({ req, status, docs: matched }) => (
-                      <div key={req.requirement} className="flex items-start gap-3 rounded-lg p-3 hover:bg-secondary/20">
-                        <div className="mt-0.5">{STATUS_ICON[status]}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-medium text-sm">{req.requirement}</p>
-                            <Badge variant={STATUS_VARIANT[status]} className="shrink-0 text-xs capitalize">
-                              {status === "partial" ? "Partial" : status}
+                    {rows.map(({ required, status, match }) => (
+                      <div
+                        key={required.name}
+                        className="flex items-start gap-3 rounded-lg p-3 hover:bg-secondary/20"
+                      >
+                        <div className="mt-0.5 shrink-0">{STATUS_ICON[status]}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <p className="text-sm font-medium">{required.name}</p>
+                            <Badge variant={STATUS_VARIANT[status]} className="shrink-0 text-xs">
+                              {STATUS_LABEL[status]}
                             </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{req.regulatoryBasis}</p>
-                          {matched.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {matched.map((d) => (
-                                <span key={d.id} className="inline-flex items-center rounded-md border border-border bg-secondary px-2 py-0.5 text-xs">
-                                  {d.title}
-                                </span>
-                              ))}
-                            </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{required.description}</p>
+                          {match && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Matched template:{" "}
+                              <span className="text-foreground">{match.title}</span>
+                            </p>
                           )}
-                          {status === "missing" && (
-                            <Link href="/sop-library" className="mt-1.5 inline-flex items-center text-xs text-primary hover:underline">
-                              Add document →
-                            </Link>
+                          {status !== "covered" && (
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => generateDraft(required)}
+                                disabled={anyBusy}
+                              >
+                                {busyName === required.name ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="size-3" />
+                                )}
+                                Generate draft
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
