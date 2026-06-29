@@ -16,7 +16,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [totpCode, setTotpCode] = useState("");
-  const [factorId, setFactorId] = useState("");
+  const [factorId, setFactorId] = useState("");   // the TOTP factor UUID
+  const [challengeId, setChallengeId] = useState(""); // the challenge UUID
   const [qrCode, setQrCode] = useState("");
   const [secret, setSecret] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,7 +55,8 @@ export default function LoginPage() {
           return;
         }
 
-        setFactorId(challengeData.id);
+        setFactorId(totpFactor.id);
+        setChallengeId(challengeData.id);
         setStep("mfa");
       } else if (data.user) {
         // No MFA enrolled yet — prompt enrollment for security
@@ -111,8 +113,8 @@ export default function LoginPage() {
       } else {
         // Verify existing challenge
         const { error: verifyError } = await supabase.auth.mfa.verify({
-          factorId: "", // factorId here is the challengeId
-          challengeId: factorId,
+          factorId,
+          challengeId,
           code: totpCode.replace(/\s/g, ""),
         });
         if (verifyError) { setError(verifyError.message); setLoading(false); return; }
@@ -278,7 +280,7 @@ export default function LoginPage() {
                 </Button>
                 <button
                   type="button"
-                  onClick={() => { setStep("credentials"); setTotpCode(""); setError(""); }}
+                  onClick={() => { setStep("credentials"); setTotpCode(""); setError(""); setChallengeId(""); setFactorId(""); }}
                   className="w-full text-sm text-muted-foreground hover:text-foreground"
                 >
                   ← Back to login
