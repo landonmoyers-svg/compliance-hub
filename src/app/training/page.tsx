@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GraduationCap, Plus, Search } from "lucide-react";
+import { GraduationCap, Plus, Search, ListChecks, X, Check } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil, dateInputToISO } from "@/lib/dates";
-import type { TrainingAssignment } from "@/lib/data/schema";
+import type { TrainingAssignment, TrainingModule, TrainingQuestion } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 /* ----------------------------- dialog ------------------------------- */
@@ -90,13 +91,113 @@ function AssignDialog({
   );
 }
 
+/* --------------------------- take quiz ------------------------------ */
+
+function TakeQuizDialog({
+  assignment,
+  module,
+  questions,
+  onClose,
+  onPassed,
+}: {
+  assignment: TrainingAssignment;
+  module: TrainingModule | undefined;
+  questions: TrainingQuestion[];
+  onClose: () => void;
+  onPassed: (assignment: TrainingAssignment, score: number, answers: number[]) => Promise<void>;
+}) {
+  const passingScore = module?.passingScore ?? 80;
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const allAnswered = questions.every((q) => answers[q.id] !== undefined);
+
+  async function submit() {
+    const correct = questions.filter((q) => answers[q.id] === q.correctIndex).length;
+    const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+    const passed = score >= passingScore;
+    setResult({ score, passed });
+    if (passed) {
+      setBusy(true);
+      try {
+        await onPassed(assignment, score, questions.map((q) => answers[q.id] ?? -1));
+      } finally {
+        setBusy(false);
+      }
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="font-semibold">{assignment.moduleTitle}</h2>
+            <p className="text-xs text-muted-foreground">{questions.length} question{questions.length !== 1 ? "s" : ""} · pass at {passingScore}%</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+
+        <div className="space-y-5 p-5">
+          {result ? (
+            <div className={`rounded-lg border p-5 text-center ${result.passed ? "border-success/40 bg-success/10" : "border-destructive/40 bg-destructive/10"}`}>
+              <p className="text-3xl font-bold tabular-nums">{result.score}%</p>
+              <p className={`mt-1 font-medium ${result.passed ? "text-success" : "text-destructive"}`}>
+                {result.passed ? "Passed — assignment marked complete" : `Not passed — ${passingScore}% required. You can retake.`}
+              </p>
+            </div>
+          ) : (
+            questions.map((q, i) => (
+              <div key={q.id} className="space-y-2">
+                <p className="text-sm font-medium">{i + 1}. {q.prompt}</p>
+                <div className="space-y-1.5">
+                  {q.options.map((opt, oi) => (
+                    <label key={oi} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${answers[q.id] === oi ? "border-primary bg-primary/10" : "border-border hover:bg-secondary/30"}`}>
+                      <input type="radio" name={q.id} checked={answers[q.id] === oi} onChange={() => setAnswers((p) => ({ ...p, [q.id]: oi }))} className="size-4" />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          {result ? (
+            result.passed ? (
+              <Button onClick={onClose} disabled={busy}><Check className="size-4" /> Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={onClose}>Close</Button>
+                <Button onClick={() => setResult(null)}>Retake</Button>
+              </>
+            )
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={submit} disabled={!allAnswered || busy}>Submit answers</Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------------- page --------------------------------- */
 
 export default function TrainingPage() {
+  const { profile, user } = useAuth();
   const modulesQ = useCollection("trainingModules");
   const assignQ = useCollection("trainingAssignments");
+  const questionsQ = useCollection("trainingQuestions");
   const createMut = useCreate("trainingAssignments");
   const updateMut = useUpdate("trainingAssignments");
+  const createAttempt = useCreate("trainingAttempts");
+
+  const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pending" | "overdue" | "completed">("all");
@@ -105,9 +206,13 @@ export default function TrainingPage() {
 
   const modules = useMemo(() => modulesQ.data ?? [], [modulesQ.data]);
   const assignments = useMemo(() => assignQ.data ?? [], [assignQ.data]);
+  const questions = useMemo(() => questionsQ.data ?? [], [questionsQ.data]);
 
   const isLoading = modulesQ.isLoading || assignQ.isLoading;
   const isError = modulesQ.isError || assignQ.isError;
+
+  /** Questions for a given assignment's module. */
+  const questionsFor = (a: TrainingAssignment) => questions.filter((q) => q.trainingModuleId === a.trainingModuleId);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -160,6 +265,30 @@ export default function TrainingPage() {
     }
   }
 
+  /** Called when a quiz is passed: record the attempt and complete the assignment. */
+  async function handleQuizPassed(a: TrainingAssignment, score: number, answers: number[]) {
+    try {
+      await createAttempt.mutateAsync({
+        assignmentId: a.id,
+        trainingModuleId: a.trainingModuleId,
+        moduleTitle: a.moduleTitle,
+        userId: profile?.userId ?? user?.id ?? a.assignedToUserId,
+        userName: profile?.fullName ?? user?.fullName ?? a.assignedToName,
+        score,
+        passed: true,
+        answers,
+        completedAt: new Date().toISOString(),
+      });
+      await updateMut.mutateAsync({
+        id: a.id,
+        patch: { status: "completed", completedAt: new Date().toISOString(), score },
+      });
+      toast.success(`Passed with ${score}% — training complete`);
+    } catch {
+      toast.error("Saved your score, but updating the assignment failed.");
+    }
+  }
+
   if (isError) {
     return (
       <div className="space-y-6">
@@ -180,6 +309,16 @@ export default function TrainingPage() {
           onClose={() => setShowAssign(false)}
           onSave={handleAssign}
           saving={saving}
+        />
+      )}
+
+      {takingQuiz && (
+        <TakeQuizDialog
+          assignment={takingQuiz}
+          module={modules.find((m) => m.id === takingQuiz.trainingModuleId)}
+          questions={questionsFor(takingQuiz)}
+          onClose={() => setTakingQuiz(null)}
+          onPassed={handleQuizPassed}
         />
       )}
 
@@ -284,13 +423,21 @@ export default function TrainingPage() {
                         </td>
                         <td className="py-3">
                           {a.status !== "completed" && (
-                            <Button size="sm" variant="outline" onClick={() => markComplete(a)}>
-                              Mark complete
-                            </Button>
+                            <div className="flex gap-1.5">
+                              {questionsFor(a).length > 0 ? (
+                                <Button size="sm" onClick={() => setTakingQuiz(a)}>
+                                  <ListChecks className="size-4" /> Take quiz
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => markComplete(a)}>
+                                  Mark complete
+                                </Button>
+                              )}
+                            </div>
                           )}
-                          {a.status === "completed" && a.completedAt && (
+                          {a.status === "completed" && (
                             <span className="text-xs text-muted-foreground">
-                              {formatDate(a.completedAt)}
+                              {a.score != null ? `${a.score}% · ` : ""}{a.completedAt ? formatDate(a.completedAt) : "Done"}
                             </span>
                           )}
                         </td>

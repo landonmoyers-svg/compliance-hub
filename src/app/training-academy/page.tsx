@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GraduationCap, Plus, Search } from "lucide-react";
-import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { GraduationCap, Plus, Search, ListChecks, Trash2, X, Check } from "lucide-react";
+import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
-import type { TrainingModule } from "@/lib/data/schema";
+import type { TrainingModule, TrainingQuestion } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 interface ModuleForm {
@@ -117,11 +117,163 @@ function ModuleDialog({
   );
 }
 
+/* ----------------------------- quiz builder ------------------------------- */
+
+function QuizBuilderDialog({ module, onClose }: { module: TrainingModule; onClose: () => void }) {
+  const { data, isLoading } = useCollection("trainingQuestions");
+  const createQ = useCreate("trainingQuestions");
+  const removeQ = useRemove("trainingQuestions");
+
+  const questions = useMemo(
+    () => (data ?? []).filter((q) => q.trainingModuleId === module.id).sort((a, b) => a.orderIndex - b.orderIndex),
+    [data, module.id],
+  );
+
+  const [qType, setQType] = useState<TrainingQuestion["questionType"]>("multiple_choice");
+  const [prompt, setPrompt] = useState("");
+  const [options, setOptions] = useState<string[]>(["", ""]);
+  const [correctIndex, setCorrectIndex] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  const effectiveOptions = qType === "true_false" ? ["True", "False"] : options;
+
+  function reset() {
+    setPrompt(""); setOptions(["", ""]); setCorrectIndex(0); setQType("multiple_choice");
+  }
+
+  async function addQuestion() {
+    if (!prompt.trim()) { toast.error("Enter a question prompt."); return; }
+    const opts = effectiveOptions.map((o) => o.trim()).filter(Boolean);
+    if (qType === "multiple_choice" && opts.length < 2) { toast.error("Add at least two options."); return; }
+    if (correctIndex >= opts.length) { toast.error("Mark which option is correct."); return; }
+    setBusy(true);
+    try {
+      await createQ.mutateAsync({
+        trainingModuleId: module.id,
+        prompt: prompt.trim(),
+        questionType: qType,
+        options: opts,
+        correctIndex,
+        orderIndex: questions.length,
+      });
+      reset();
+      toast.success("Question added");
+    } catch {
+      toast.error("Failed to add question.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteQuestion(id: string) {
+    try {
+      await removeQ.mutateAsync(id);
+      toast.success("Question removed");
+    } catch {
+      toast.error("Failed to remove question.");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="font-semibold">Quiz · {module.title}</h2>
+            <p className="text-xs text-muted-foreground">Passing score {module.passingScore}% · {questions.length} question{questions.length !== 1 ? "s" : ""}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          {/* Existing questions */}
+          {isLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : questions.length === 0 ? (
+            <p className="rounded-md bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">No questions yet. Add some below — staff must pass this quiz to complete the module.</p>
+          ) : (
+            <ol className="space-y-2">
+              {questions.map((q, i) => (
+                <li key={q.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium">{i + 1}. {q.prompt}</p>
+                    <button onClick={() => deleteQuestion(q.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                  </div>
+                  <ul className="mt-2 space-y-1">
+                    {q.options.map((opt, oi) => (
+                      <li key={oi} className={`flex items-center gap-2 text-xs ${oi === q.correctIndex ? "text-success" : "text-muted-foreground"}`}>
+                        {oi === q.correctIndex ? <Check className="size-3" /> : <span className="inline-block size-3" />}
+                        {opt}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {/* Add-question form */}
+          <div className="space-y-3 rounded-lg border border-dashed border-border p-4">
+            <p className="text-sm font-medium">Add a question</p>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Question</label>
+              <input className="input w-full" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Question prompt" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select className="input w-full" value={qType} onChange={(e) => { setQType(e.target.value as TrainingQuestion["questionType"]); setCorrectIndex(0); }}>
+                <option value="multiple_choice">Multiple choice</option>
+                <option value="true_false">True / False</option>
+              </select>
+            </div>
+            {qType === "multiple_choice" ? (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Options (select the correct one)</label>
+                {options.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input type="radio" name="correct" checked={correctIndex === i} onChange={() => setCorrectIndex(i)} className="size-4" />
+                    <input className="input flex-1" value={opt} onChange={(e) => setOptions((p) => p.map((o, oi) => (oi === i ? e.target.value : o)))} placeholder={`Option ${i + 1}`} />
+                    {options.length > 2 && (
+                      <button onClick={() => { setOptions((p) => p.filter((_, oi) => oi !== i)); if (correctIndex >= i && correctIndex > 0) setCorrectIndex((c) => c - 1); }} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+                    )}
+                  </div>
+                ))}
+                <Button size="sm" variant="outline" onClick={() => setOptions((p) => [...p, ""])}>Add option</Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Correct answer</label>
+                <div className="flex gap-2">
+                  {["True", "False"].map((label, i) => (
+                    <button key={label} onClick={() => setCorrectIndex(i)} className={`rounded-md px-4 py-1.5 text-sm font-medium ${correctIndex === i ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button onClick={addQuestion} disabled={busy || !prompt.trim()}><Plus className="size-4" /> Add question</Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose}>Done</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- page ------------------------------------ */
+
 export default function TrainingAcademyPage() {
   const { data, isLoading, isError, refetch } = useCollection("trainingModules");
   const assignQ = useCollection("trainingAssignments");
+  const questionsQ = useCollection("trainingQuestions");
   const createMut = useCreate("trainingModules");
   const updateMut = useUpdate("trainingModules");
+
+  const [quizModule, setQuizModule] = useState<TrainingModule | null>(null);
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<TrainingModule | null | "new">(null);
@@ -129,6 +281,7 @@ export default function TrainingAcademyPage() {
 
   const modules = useMemo(() => data ?? [], [data]);
   const assignments = useMemo(() => assignQ.data ?? [], [assignQ.data]);
+  const questions = useMemo(() => questionsQ.data ?? [], [questionsQ.data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -182,6 +335,8 @@ export default function TrainingAcademyPage() {
         />
       )}
 
+      {quizModule && <QuizBuilderDialog module={quizModule} onClose={() => setQuizModule(null)} />}
+
       <PageHeader
         title="Training Academy"
         description="Build and manage training modules. Assign them to staff from the Training Center."
@@ -226,6 +381,7 @@ export default function TrainingAcademyPage() {
             <div className="space-y-3">
               {filtered.map((m) => {
                 const assignCount = assignments.filter((a) => a.trainingModuleId === m.id).length;
+                const quizCount = questions.filter((q) => q.trainingModuleId === m.id).length;
                 return (
                   <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-border p-4 hover:border-border/80">
                     <div className="min-w-0 flex-1">
@@ -233,6 +389,7 @@ export default function TrainingAcademyPage() {
                         <p className="font-medium">{m.title}</p>
                         {!m.active && <Badge variant="secondary">Inactive</Badge>}
                         <Badge variant="outline" className="capitalize">{m.trainingType}</Badge>
+                        {quizCount > 0 && <Badge variant="secondary">{quizCount} quiz Q{quizCount !== 1 ? "s" : ""}</Badge>}
                       </div>
                       {m.description && (
                         <p className="mt-1 text-sm text-muted-foreground line-clamp-1">{m.description}</p>
@@ -243,7 +400,10 @@ export default function TrainingAcademyPage() {
                         <span>{assignCount} assignment{assignCount !== 1 ? "s" : ""}</span>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(m)}>Edit</Button>
+                    <div className="flex shrink-0 gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setQuizModule(m)}><ListChecks className="size-4" /> Quiz</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(m)}>Edit</Button>
+                    </div>
                   </div>
                 );
               })}
