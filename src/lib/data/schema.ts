@@ -328,3 +328,307 @@ export const InventoryItem = z.object({
   removedFromInventory: z.boolean().default(false),
 });
 export type InventoryItem = z.infer<typeof InventoryItem>;
+
+/* ------------------------- HR: time clock -------------------------- */
+
+export const TimeClockEntry = z.object({
+  ...base,
+  userId: z.string(),
+  userName: z.string(),
+  clockInAt: z.string(), // ISO timestamp
+  clockOutAt: z.string().nullable().optional(),
+  totalMinutes: z.number().nullable().optional(),
+  status: z.enum(["active", "completed", "edited"]).default("active"),
+  editNote: z.string().nullable().optional(),
+  editedByName: z.string().nullable().optional(),
+});
+export type TimeClockEntry = z.infer<typeof TimeClockEntry>;
+
+/* ------------------------- HR: time off ---------------------------- */
+
+export const timeOffTypes = [
+  "pto",
+  "sick",
+  "fmla",
+  "maternity",
+  "paternity",
+  "bereavement",
+  "jury_duty",
+  "unpaid",
+  "holiday",
+  "other",
+] as const;
+export const TimeOffType = z.enum(timeOffTypes);
+export type TimeOffType = z.infer<typeof TimeOffType>;
+
+export const TimeOffRequest = z.object({
+  ...base,
+  userId: z.string(),
+  userName: z.string(),
+  requestType: TimeOffType.default("pto"),
+  startDate: z.string(),
+  endDate: z.string(),
+  hours: z.number().default(0),
+  reason: z.string().optional(),
+  status: z.enum(["pending", "approved", "denied", "cancelled"]).default("pending"),
+  reviewerName: z.string().nullable().optional(),
+  reviewNote: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
+});
+export type TimeOffRequest = z.infer<typeof TimeOffRequest>;
+
+export const PTOBalance = z.object({
+  ...base,
+  userId: z.string(),
+  userName: z.string(),
+  year: z.number(),
+  ptoAccruedHours: z.number().default(0),
+  ptoUsedHours: z.number().default(0),
+  sickAccruedHours: z.number().default(0),
+  sickUsedHours: z.number().default(0),
+  holidayAllottedHours: z.number().default(0),
+  holidayUsedHours: z.number().default(0),
+  carryOverHours: z.number().default(0),
+});
+export type PTOBalance = z.infer<typeof PTOBalance>;
+
+/* ------------------------- HR: payroll ----------------------------- */
+
+export const PayrollRecord = z.object({
+  ...base,
+  employeeId: z.string(),
+  employeeName: z.string(),
+  periodStart: z.string(),
+  periodEnd: z.string(),
+  regularHours: z.number().default(0),
+  otHours: z.number().default(0),
+  ptoHours: z.number().default(0),
+  grossPayCents: z.number().default(0),
+  federalTaxCents: z.number().default(0),
+  stateTaxCents: z.number().default(0),
+  socialSecurityCents: z.number().default(0),
+  medicareCents: z.number().default(0),
+  healthInsuranceCents: z.number().default(0),
+  retirement401kCents: z.number().default(0),
+  otherDeductionsCents: z.number().default(0),
+  netPayCents: z.number().default(0),
+  paymentMethod: z.enum(["direct_deposit", "check", "cash"]).default("direct_deposit"),
+  status: z.enum(["draft", "approved", "paid", "voided"]).default("draft"),
+});
+export type PayrollRecord = z.infer<typeof PayrollRecord>;
+
+/* --------------------- HR: performance reviews --------------------- */
+
+export const reviewTypes = [
+  "quarterly",
+  "annual",
+  "mid_year",
+  "probationary",
+  "ninety_day",
+  "pip",
+  "exit",
+] as const;
+export const ReviewType = z.enum(reviewTypes);
+export type ReviewType = z.infer<typeof ReviewType>;
+
+export const PerformanceRock = z.object({
+  title: z.string(),
+  status: z.enum(["on_track", "complete", "off_track"]).default("on_track"),
+});
+export type PerformanceRock = z.infer<typeof PerformanceRock>;
+
+export const PerformanceReview = z.object({
+  ...base,
+  employeeId: z.string(),
+  employeeName: z.string(),
+  reviewType: ReviewType.default("quarterly"),
+  reviewDate: z.string().nullable().optional(),
+  getsIt: z.boolean().default(false),
+  wantsIt: z.boolean().default(false),
+  hasCapacity: z.boolean().default(false),
+  rightPersonRightSeat: z
+    .enum(["yes", "wrong_seat", "wrong_person", "no"])
+    .default("yes"),
+  overallRating: z
+    .enum(["exceeds_expectations", "meets_expectations", "needs_improvement", "unsatisfactory"])
+    .default("meets_expectations"),
+  rocks: z.array(PerformanceRock).default([]),
+  notes: z.string().optional(),
+  reviewerName: z.string().optional(),
+  status: z.enum(["scheduled", "in_progress", "completed"]).default("scheduled"),
+});
+export type PerformanceReview = z.infer<typeof PerformanceReview>;
+
+/* ----------------------- HR: disciplinary -------------------------- */
+
+export const DisciplinaryAction = z.object({
+  ...base,
+  employeeId: z.string(),
+  employeeName: z.string(),
+  actionType: z
+    .enum([
+      "verbal_warning",
+      "written_warning",
+      "final_warning",
+      "pip",
+      "suspension",
+      "termination",
+      "other",
+    ])
+    .default("verbal_warning"),
+  reason: z.string(),
+  description: z.string().optional(),
+  witnessNames: z.array(z.string()).default([]),
+  issuedDate: z.string().nullable().optional(),
+  followUpDate: z.string().nullable().optional(),
+  issuedByName: z.string().optional(),
+  status: z.enum(["active", "resolved", "escalated", "archived"]).default("active"),
+  resolutionNote: z.string().nullable().optional(),
+});
+export type DisciplinaryAction = z.infer<typeof DisciplinaryAction>;
+
+/* ------------------------- HR: benefits ---------------------------- */
+
+export const Benefit = z.object({
+  ...base,
+  benefitType: z
+    .enum([
+      "health",
+      "dental",
+      "vision",
+      "life_insurance",
+      "disability",
+      "retirement_401k",
+      "pto",
+      "fsa",
+      "hsa",
+      "other",
+    ])
+    .default("health"),
+  provider: z.string().optional(),
+  planName: z.string(),
+  policyNumber: z.string().optional(),
+  employerContributionCents: z.number().default(0),
+  employeeContributionCents: z.number().default(0),
+  eligibilityRules: z.string().optional(),
+  enrollmentDeadline: z.string().nullable().optional(),
+  renewalDate: z.string().nullable().optional(),
+  contactPhone: z.string().optional(),
+  enrollmentUrl: z.string().nullable().optional(),
+  enrolledCount: z.number().default(0),
+  eligibleCount: z.number().default(0),
+  active: z.boolean().default(true),
+});
+export type Benefit = z.infer<typeof Benefit>;
+
+/* --------------------------- vendors ------------------------------- */
+
+export const VendorRecord = z.object({
+  ...base,
+  vendorName: z.string(),
+  vendorType: z
+    .enum([
+      "business_associate",
+      "contractor",
+      "supplier",
+      "service_provider",
+      "consultant",
+      "other",
+    ])
+    .default("service_provider"),
+  contactName: z.string().optional(),
+  contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
+  hasAccessToPHI: z.boolean().default(false),
+  baaRequired: z.boolean().default(false),
+  baaStatus: z
+    .enum(["not_required", "pending", "signed", "expired", "under_review"])
+    .default("not_required"),
+  baaSignedDate: z.string().nullable().optional(),
+  insuranceExpirationDate: z.string().nullable().optional(),
+  nextReviewDate: z.string().nullable().optional(),
+  status: z
+    .enum(["active", "pending", "suspended", "terminated", "under_review"])
+    .default("active"),
+  notes: z.string().optional(),
+});
+export type VendorRecord = z.infer<typeof VendorRecord>;
+
+/* ------------------------- competency ------------------------------ */
+
+export const CompetencyRecord = z.object({
+  ...base,
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string(),
+  competencyName: z.string(),
+  competencyType: z
+    .enum(["clinical", "safety", "technical", "administrative", "other"])
+    .default("clinical"),
+  evaluatorName: z.string().optional(),
+  assessmentDate: z.string().nullable().optional(),
+  validUntil: z.string().nullable().optional(),
+  score: z.number().nullable().optional(),
+  status: z
+    .enum(["pending", "evaluated", "passed", "failed", "expired"])
+    .default("pending"),
+  notes: z.string().optional(),
+});
+export type CompetencyRecord = z.infer<typeof CompetencyRecord>;
+
+/* ------------------------- audit log ------------------------------- */
+
+export const auditActions = [
+  "view",
+  "create",
+  "update",
+  "delete",
+  "export",
+  "login",
+  "logout",
+  "failed_login",
+  "acknowledge",
+  "sign",
+] as const;
+export const AuditAction = z.enum(auditActions);
+
+export const AuditLog = z.object({
+  ...base,
+  actorName: z.string(),
+  actorEmail: z.string().optional(),
+  action: AuditAction.default("view"),
+  entityType: z.string().optional(),
+  entityId: z.string().nullable().optional(),
+  entityLabel: z.string().optional(),
+  details: z.string().optional(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]).default("low"),
+  flagged: z.boolean().default(false),
+  flagReason: z.string().nullable().optional(),
+});
+export type AuditLog = z.infer<typeof AuditLog>;
+
+/* --------------------- training quiz/attempts ---------------------- */
+
+export const TrainingQuestion = z.object({
+  ...base,
+  trainingModuleId: z.string(),
+  prompt: z.string(),
+  questionType: z.enum(["multiple_choice", "true_false"]).default("multiple_choice"),
+  options: z.array(z.string()).default([]),
+  correctIndex: z.number().default(0),
+  orderIndex: z.number().default(0),
+});
+export type TrainingQuestion = z.infer<typeof TrainingQuestion>;
+
+export const TrainingAttempt = z.object({
+  ...base,
+  assignmentId: z.string().nullable().optional(),
+  trainingModuleId: z.string(),
+  moduleTitle: z.string().optional(),
+  userId: z.string(),
+  userName: z.string(),
+  score: z.number().default(0),
+  passed: z.boolean().default(false),
+  answers: z.array(z.number()).default([]),
+  completedAt: z.string().nullable().optional(),
+});
+export type TrainingAttempt = z.infer<typeof TrainingAttempt>;

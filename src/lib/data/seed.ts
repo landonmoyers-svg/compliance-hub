@@ -143,5 +143,17 @@ export function buildSeed(): SeedData {
       { id: "inv-4", createdDate: days(-120), itemName: "Office Laptop", itemType: "electronics", status: "active", condition: "new", locationId: "loc-3", removedFromInventory: false },
       { id: "inv-5", createdDate: days(-90), itemName: "Waiting Room Chair", itemType: "furniture", status: "removed", condition: "poor", locationId: "loc-2", removedFromInventory: true },
     ],
+    timeClockEntries: [],
+    timeOffRequests: [],
+    ptoBalances: [],
+    payrollRecords: [],
+    performanceReviews: [],
+    disciplinaryActions: [],
+    benefits: [],
+    vendors: [],
+    competencyRecords: [],
+    auditLogs: [],
+    trainingQuestions: [],
+    trainingAttempts: [],
   };
 }

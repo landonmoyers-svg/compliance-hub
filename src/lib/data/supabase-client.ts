@@ -12,21 +12,34 @@ import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Collection, DataClient } from "./client";
 import type {
+  AuditLog,
+  Benefit,
+  CompetencyRecord,
   ComplianceDocument,
   ComplianceTask,
   ComplianceUserProfile,
   CredentialRecord,
+  DisciplinaryAction,
   EmergencyDrill,
   Employee,
   InsurancePolicyRecord,
   InventoryItem,
   OSHARecord,
+  PayrollRecord,
+  PerformanceReview,
+  PerformanceRock,
   PolicyAcknowledgment,
+  PTOBalance,
   RegulatorySource,
   RiskManagementCase,
   SDSRecord,
+  TimeClockEntry,
+  TimeOffRequest,
   TrainingAssignment,
+  TrainingAttempt,
   TrainingModule,
+  TrainingQuestion,
+  VendorRecord,
   WorkLocation,
 } from "./schema";
 
@@ -481,6 +494,378 @@ function inventoryTo(d: Partial<InventoryItem>) {
   };
 }
 
+function timeClockFrom(r: Record<string, unknown>): TimeClockEntry {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string, userName: r.user_name as string,
+    clockInAt: r.clock_in_at as string,
+    clockOutAt: toISO(r.clock_out_at as string),
+    totalMinutes: r.total_minutes as number | undefined,
+    status: r.status as TimeClockEntry["status"],
+    editNote: r.edit_note as string | undefined,
+    editedByName: r.edited_by_name as string | undefined,
+  };
+}
+function timeClockTo(d: Partial<TimeClockEntry>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.userName !== undefined && { user_name: d.userName }),
+    ...(d.clockInAt !== undefined && { clock_in_at: d.clockInAt }),
+    ...(d.clockOutAt !== undefined && { clock_out_at: d.clockOutAt }),
+    ...(d.totalMinutes !== undefined && { total_minutes: d.totalMinutes }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.editNote !== undefined && { edit_note: d.editNote }),
+    ...(d.editedByName !== undefined && { edited_by_name: d.editedByName }),
+  };
+}
+
+function timeOffFrom(r: Record<string, unknown>): TimeOffRequest {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string, userName: r.user_name as string,
+    requestType: r.request_type as TimeOffRequest["requestType"],
+    startDate: r.start_date as string, endDate: r.end_date as string,
+    hours: r.hours as number, reason: r.reason as string | undefined,
+    status: r.status as TimeOffRequest["status"],
+    reviewerName: r.reviewer_name as string | undefined,
+    reviewNote: r.review_note as string | undefined,
+    reviewedAt: toISO(r.reviewed_at as string),
+  };
+}
+function timeOffTo(d: Partial<TimeOffRequest>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.userName !== undefined && { user_name: d.userName }),
+    ...(d.requestType !== undefined && { request_type: d.requestType }),
+    ...(d.startDate !== undefined && { start_date: d.startDate }),
+    ...(d.endDate !== undefined && { end_date: d.endDate }),
+    ...(d.hours !== undefined && { hours: d.hours }),
+    ...(d.reason !== undefined && { reason: d.reason }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.reviewerName !== undefined && { reviewer_name: d.reviewerName }),
+    ...(d.reviewNote !== undefined && { review_note: d.reviewNote }),
+    ...(d.reviewedAt !== undefined && { reviewed_at: d.reviewedAt }),
+  };
+}
+
+function ptoBalanceFrom(r: Record<string, unknown>): PTOBalance {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string, userName: r.user_name as string,
+    year: r.year as number,
+    ptoAccruedHours: r.pto_accrued_hours as number,
+    ptoUsedHours: r.pto_used_hours as number,
+    sickAccruedHours: r.sick_accrued_hours as number,
+    sickUsedHours: r.sick_used_hours as number,
+    holidayAllottedHours: r.holiday_allotted_hours as number,
+    holidayUsedHours: r.holiday_used_hours as number,
+    carryOverHours: r.carry_over_hours as number,
+  };
+}
+function ptoBalanceTo(d: Partial<PTOBalance>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.userName !== undefined && { user_name: d.userName }),
+    ...(d.year !== undefined && { year: d.year }),
+    ...(d.ptoAccruedHours !== undefined && { pto_accrued_hours: d.ptoAccruedHours }),
+    ...(d.ptoUsedHours !== undefined && { pto_used_hours: d.ptoUsedHours }),
+    ...(d.sickAccruedHours !== undefined && { sick_accrued_hours: d.sickAccruedHours }),
+    ...(d.sickUsedHours !== undefined && { sick_used_hours: d.sickUsedHours }),
+    ...(d.holidayAllottedHours !== undefined && { holiday_allotted_hours: d.holidayAllottedHours }),
+    ...(d.holidayUsedHours !== undefined && { holiday_used_hours: d.holidayUsedHours }),
+    ...(d.carryOverHours !== undefined && { carry_over_hours: d.carryOverHours }),
+  };
+}
+
+function payrollFrom(r: Record<string, unknown>): PayrollRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string, employeeName: r.employee_name as string,
+    periodStart: r.period_start as string, periodEnd: r.period_end as string,
+    regularHours: r.regular_hours as number, otHours: r.ot_hours as number,
+    ptoHours: r.pto_hours as number,
+    grossPayCents: r.gross_pay_cents as number,
+    federalTaxCents: r.federal_tax_cents as number,
+    stateTaxCents: r.state_tax_cents as number,
+    socialSecurityCents: r.social_security_cents as number,
+    medicareCents: r.medicare_cents as number,
+    healthInsuranceCents: r.health_insurance_cents as number,
+    retirement401kCents: r.retirement_401k_cents as number,
+    otherDeductionsCents: r.other_deductions_cents as number,
+    netPayCents: r.net_pay_cents as number,
+    paymentMethod: r.payment_method as PayrollRecord["paymentMethod"],
+    status: r.status as PayrollRecord["status"],
+  };
+}
+function payrollTo(d: Partial<PayrollRecord>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.periodStart !== undefined && { period_start: d.periodStart }),
+    ...(d.periodEnd !== undefined && { period_end: d.periodEnd }),
+    ...(d.regularHours !== undefined && { regular_hours: d.regularHours }),
+    ...(d.otHours !== undefined && { ot_hours: d.otHours }),
+    ...(d.ptoHours !== undefined && { pto_hours: d.ptoHours }),
+    ...(d.grossPayCents !== undefined && { gross_pay_cents: d.grossPayCents }),
+    ...(d.federalTaxCents !== undefined && { federal_tax_cents: d.federalTaxCents }),
+    ...(d.stateTaxCents !== undefined && { state_tax_cents: d.stateTaxCents }),
+    ...(d.socialSecurityCents !== undefined && { social_security_cents: d.socialSecurityCents }),
+    ...(d.medicareCents !== undefined && { medicare_cents: d.medicareCents }),
+    ...(d.healthInsuranceCents !== undefined && { health_insurance_cents: d.healthInsuranceCents }),
+    ...(d.retirement401kCents !== undefined && { retirement_401k_cents: d.retirement401kCents }),
+    ...(d.otherDeductionsCents !== undefined && { other_deductions_cents: d.otherDeductionsCents }),
+    ...(d.netPayCents !== undefined && { net_pay_cents: d.netPayCents }),
+    ...(d.paymentMethod !== undefined && { payment_method: d.paymentMethod }),
+    ...(d.status !== undefined && { status: d.status }),
+  };
+}
+
+function reviewFrom(r: Record<string, unknown>): PerformanceReview {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string, employeeName: r.employee_name as string,
+    reviewType: r.review_type as PerformanceReview["reviewType"],
+    reviewDate: toISO(r.review_date as string),
+    getsIt: r.gets_it as boolean, wantsIt: r.wants_it as boolean,
+    hasCapacity: r.has_capacity as boolean,
+    rightPersonRightSeat: r.right_person_right_seat as PerformanceReview["rightPersonRightSeat"],
+    overallRating: r.overall_rating as PerformanceReview["overallRating"],
+    rocks: (r.rocks as PerformanceRock[] | null) ?? [],
+    notes: r.notes as string | undefined,
+    reviewerName: r.reviewer_name as string | undefined,
+    status: r.status as PerformanceReview["status"],
+  };
+}
+function reviewTo(d: Partial<PerformanceReview>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.reviewType !== undefined && { review_type: d.reviewType }),
+    ...(d.reviewDate !== undefined && { review_date: d.reviewDate }),
+    ...(d.getsIt !== undefined && { gets_it: d.getsIt }),
+    ...(d.wantsIt !== undefined && { wants_it: d.wantsIt }),
+    ...(d.hasCapacity !== undefined && { has_capacity: d.hasCapacity }),
+    ...(d.rightPersonRightSeat !== undefined && { right_person_right_seat: d.rightPersonRightSeat }),
+    ...(d.overallRating !== undefined && { overall_rating: d.overallRating }),
+    ...(d.rocks !== undefined && { rocks: d.rocks }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.reviewerName !== undefined && { reviewer_name: d.reviewerName }),
+    ...(d.status !== undefined && { status: d.status }),
+  };
+}
+
+function disciplinaryFrom(r: Record<string, unknown>): DisciplinaryAction {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string, employeeName: r.employee_name as string,
+    actionType: r.action_type as DisciplinaryAction["actionType"],
+    reason: r.reason as string, description: r.description as string | undefined,
+    witnessNames: (r.witness_names as string[] | null) ?? [],
+    issuedDate: toISO(r.issued_date as string),
+    followUpDate: toISO(r.follow_up_date as string),
+    issuedByName: r.issued_by_name as string | undefined,
+    status: r.status as DisciplinaryAction["status"],
+    resolutionNote: r.resolution_note as string | undefined,
+  };
+}
+function disciplinaryTo(d: Partial<DisciplinaryAction>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.actionType !== undefined && { action_type: d.actionType }),
+    ...(d.reason !== undefined && { reason: d.reason }),
+    ...(d.description !== undefined && { description: d.description }),
+    ...(d.witnessNames !== undefined && { witness_names: d.witnessNames }),
+    ...(d.issuedDate !== undefined && { issued_date: d.issuedDate }),
+    ...(d.followUpDate !== undefined && { follow_up_date: d.followUpDate }),
+    ...(d.issuedByName !== undefined && { issued_by_name: d.issuedByName }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.resolutionNote !== undefined && { resolution_note: d.resolutionNote }),
+  };
+}
+
+function benefitFrom(r: Record<string, unknown>): Benefit {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    benefitType: r.benefit_type as Benefit["benefitType"],
+    provider: r.provider as string | undefined,
+    planName: r.plan_name as string,
+    policyNumber: r.policy_number as string | undefined,
+    employerContributionCents: r.employer_contribution_cents as number,
+    employeeContributionCents: r.employee_contribution_cents as number,
+    eligibilityRules: r.eligibility_rules as string | undefined,
+    enrollmentDeadline: toISO(r.enrollment_deadline as string),
+    renewalDate: toISO(r.renewal_date as string),
+    contactPhone: r.contact_phone as string | undefined,
+    enrollmentUrl: r.enrollment_url as string | undefined,
+    enrolledCount: r.enrolled_count as number,
+    eligibleCount: r.eligible_count as number,
+    active: r.active as boolean,
+  };
+}
+function benefitTo(d: Partial<Benefit>) {
+  return {
+    ...(d.benefitType !== undefined && { benefit_type: d.benefitType }),
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.planName !== undefined && { plan_name: d.planName }),
+    ...(d.policyNumber !== undefined && { policy_number: d.policyNumber }),
+    ...(d.employerContributionCents !== undefined && { employer_contribution_cents: d.employerContributionCents }),
+    ...(d.employeeContributionCents !== undefined && { employee_contribution_cents: d.employeeContributionCents }),
+    ...(d.eligibilityRules !== undefined && { eligibility_rules: d.eligibilityRules }),
+    ...(d.enrollmentDeadline !== undefined && { enrollment_deadline: d.enrollmentDeadline }),
+    ...(d.renewalDate !== undefined && { renewal_date: d.renewalDate }),
+    ...(d.contactPhone !== undefined && { contact_phone: d.contactPhone }),
+    ...(d.enrollmentUrl !== undefined && { enrollment_url: d.enrollmentUrl }),
+    ...(d.enrolledCount !== undefined && { enrolled_count: d.enrolledCount }),
+    ...(d.eligibleCount !== undefined && { eligible_count: d.eligibleCount }),
+    ...(d.active !== undefined && { active: d.active }),
+  };
+}
+
+function vendorFrom(r: Record<string, unknown>): VendorRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    vendorName: r.vendor_name as string,
+    vendorType: r.vendor_type as VendorRecord["vendorType"],
+    contactName: r.contact_name as string | undefined,
+    contactEmail: r.contact_email as string | undefined,
+    contactPhone: r.contact_phone as string | undefined,
+    hasAccessToPHI: r.has_access_to_phi as boolean,
+    baaRequired: r.baa_required as boolean,
+    baaStatus: r.baa_status as VendorRecord["baaStatus"],
+    baaSignedDate: toISO(r.baa_signed_date as string),
+    insuranceExpirationDate: toISO(r.insurance_expiration_date as string),
+    nextReviewDate: toISO(r.next_review_date as string),
+    status: r.status as VendorRecord["status"],
+    notes: r.notes as string | undefined,
+  };
+}
+function vendorTo(d: Partial<VendorRecord>) {
+  return {
+    ...(d.vendorName !== undefined && { vendor_name: d.vendorName }),
+    ...(d.vendorType !== undefined && { vendor_type: d.vendorType }),
+    ...(d.contactName !== undefined && { contact_name: d.contactName }),
+    ...(d.contactEmail !== undefined && { contact_email: d.contactEmail }),
+    ...(d.contactPhone !== undefined && { contact_phone: d.contactPhone }),
+    ...(d.hasAccessToPHI !== undefined && { has_access_to_phi: d.hasAccessToPHI }),
+    ...(d.baaRequired !== undefined && { baa_required: d.baaRequired }),
+    ...(d.baaStatus !== undefined && { baa_status: d.baaStatus }),
+    ...(d.baaSignedDate !== undefined && { baa_signed_date: d.baaSignedDate }),
+    ...(d.insuranceExpirationDate !== undefined && { insurance_expiration_date: d.insuranceExpirationDate }),
+    ...(d.nextReviewDate !== undefined && { next_review_date: d.nextReviewDate }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function competencyFrom(r: Record<string, unknown>): CompetencyRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string | undefined,
+    employeeName: r.employee_name as string,
+    competencyName: r.competency_name as string,
+    competencyType: r.competency_type as CompetencyRecord["competencyType"],
+    evaluatorName: r.evaluator_name as string | undefined,
+    assessmentDate: toISO(r.assessment_date as string),
+    validUntil: toISO(r.valid_until as string),
+    score: r.score as number | undefined,
+    status: r.status as CompetencyRecord["status"],
+    notes: r.notes as string | undefined,
+  };
+}
+function competencyTo(d: Partial<CompetencyRecord>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.competencyName !== undefined && { competency_name: d.competencyName }),
+    ...(d.competencyType !== undefined && { competency_type: d.competencyType }),
+    ...(d.evaluatorName !== undefined && { evaluator_name: d.evaluatorName }),
+    ...(d.assessmentDate !== undefined && { assessment_date: d.assessmentDate }),
+    ...(d.validUntil !== undefined && { valid_until: d.validUntil }),
+    ...(d.score !== undefined && { score: d.score }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function auditFrom(r: Record<string, unknown>): AuditLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    actorName: r.actor_name as string,
+    actorEmail: r.actor_email as string | undefined,
+    action: r.action as AuditLog["action"],
+    entityType: r.entity_type as string | undefined,
+    entityId: r.entity_id as string | undefined,
+    entityLabel: r.entity_label as string | undefined,
+    details: r.details as string | undefined,
+    riskLevel: r.risk_level as AuditLog["riskLevel"],
+    flagged: r.flagged as boolean,
+    flagReason: r.flag_reason as string | undefined,
+  };
+}
+function auditTo(d: Partial<AuditLog>) {
+  return {
+    ...(d.actorName !== undefined && { actor_name: d.actorName }),
+    ...(d.actorEmail !== undefined && { actor_email: d.actorEmail }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.entityType !== undefined && { entity_type: d.entityType }),
+    ...(d.entityId !== undefined && { entity_id: d.entityId }),
+    ...(d.entityLabel !== undefined && { entity_label: d.entityLabel }),
+    ...(d.details !== undefined && { details: d.details }),
+    ...(d.riskLevel !== undefined && { risk_level: d.riskLevel }),
+    ...(d.flagged !== undefined && { flagged: d.flagged }),
+    ...(d.flagReason !== undefined && { flag_reason: d.flagReason }),
+  };
+}
+
+function questionFrom(r: Record<string, unknown>): TrainingQuestion {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    trainingModuleId: r.training_module_id as string,
+    prompt: r.prompt as string,
+    questionType: r.question_type as TrainingQuestion["questionType"],
+    options: (r.options as string[] | null) ?? [],
+    correctIndex: r.correct_index as number,
+    orderIndex: r.order_index as number,
+  };
+}
+function questionTo(d: Partial<TrainingQuestion>) {
+  return {
+    ...(d.trainingModuleId !== undefined && { training_module_id: d.trainingModuleId }),
+    ...(d.prompt !== undefined && { prompt: d.prompt }),
+    ...(d.questionType !== undefined && { question_type: d.questionType }),
+    ...(d.options !== undefined && { options: d.options }),
+    ...(d.correctIndex !== undefined && { correct_index: d.correctIndex }),
+    ...(d.orderIndex !== undefined && { order_index: d.orderIndex }),
+  };
+}
+
+function attemptFrom(r: Record<string, unknown>): TrainingAttempt {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    assignmentId: r.assignment_id as string | undefined,
+    trainingModuleId: r.training_module_id as string,
+    moduleTitle: r.module_title as string | undefined,
+    userId: r.user_id as string, userName: r.user_name as string,
+    score: r.score as number, passed: r.passed as boolean,
+    answers: (r.answers as number[] | null) ?? [],
+    completedAt: toISO(r.completed_at as string),
+  };
+}
+function attemptTo(d: Partial<TrainingAttempt>) {
+  return {
+    ...(d.assignmentId !== undefined && { assignment_id: d.assignmentId }),
+    ...(d.trainingModuleId !== undefined && { training_module_id: d.trainingModuleId }),
+    ...(d.moduleTitle !== undefined && { module_title: d.moduleTitle }),
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.userName !== undefined && { user_name: d.userName }),
+    ...(d.score !== undefined && { score: d.score }),
+    ...(d.passed !== undefined && { passed: d.passed }),
+    ...(d.answers !== undefined && { answers: d.answers }),
+    ...(d.completedAt !== undefined && { completed_at: d.completedAt }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -502,5 +887,17 @@ export function createSupabaseDataClient(): DataClient {
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),
     inventory:          makeCollection(supabase, "inventory",           inventoryFrom,          inventoryTo),
+    timeClockEntries:   makeCollection(supabase, "time_clock_entries",  timeClockFrom,          timeClockTo),
+    timeOffRequests:    makeCollection(supabase, "time_off_requests",   timeOffFrom,            timeOffTo),
+    ptoBalances:        makeCollection(supabase, "pto_balances",        ptoBalanceFrom,         ptoBalanceTo),
+    payrollRecords:     makeCollection(supabase, "payroll_records",     payrollFrom,            payrollTo),
+    performanceReviews: makeCollection(supabase, "performance_reviews", reviewFrom,             reviewTo),
+    disciplinaryActions:makeCollection(supabase, "disciplinary_actions",disciplinaryFrom,       disciplinaryTo),
+    benefits:           makeCollection(supabase, "benefits",            benefitFrom,            benefitTo),
+    vendors:            makeCollection(supabase, "vendors",             vendorFrom,             vendorTo),
+    competencyRecords:  makeCollection(supabase, "competency_records",  competencyFrom,         competencyTo),
+    auditLogs:          makeCollection(supabase, "audit_logs",          auditFrom,              auditTo),
+    trainingQuestions:  makeCollection(supabase, "training_questions",  questionFrom,           questionTo),
+    trainingAttempts:   makeCollection(supabase, "training_attempts",   attemptFrom,            attemptTo),
   };
 }

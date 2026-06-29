@@ -54,3 +54,12 @@ export function useUpdate<K extends CollectionName>(name: K) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [name] }),
   });
 }
+
+/** Delete a record from a collection and refresh its query on success. */
+export function useRemove<K extends CollectionName>(name: K) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => (db()[name] as DataClient[K]).remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [name] }),
+  });
+}

@@ -3,20 +3,16 @@
 import { useState, useMemo } from "react";
 import { Clock, LogIn, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
+import type { TimeClockEntry } from "@/lib/data/schema";
 import { toast } from "sonner";
-
-interface TimeEntry {
-  id: string;
-  employeeName: string;
-  clockIn: string;
-  clockOut?: string;
-  totalMinutes?: number;
-}
 
 function minutesToHours(m: number): string {
   const h = Math.floor(m / 60);
@@ -24,90 +20,137 @@ function minutesToHours(m: number): string {
   return `${h}h ${min}m`;
 }
 
-function offsetHours(hours: number): string {
-  const d = new Date();
-  d.setHours(d.getHours() - hours, Math.floor(Math.random() * 30));
-  return d.toISOString();
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
 }
 
-const SEED: TimeEntry[] = [
-  { id: "t1", employeeName: "Sarah Mitchell", clockIn: offsetHours(6), clockOut: offsetHours(0), totalMinutes: 360 },
-  { id: "t2", employeeName: "Mike Carter", clockIn: offsetHours(8), clockOut: offsetHours(0.5), totalMinutes: 450 },
-  { id: "t3", employeeName: "Emily Torres", clockIn: offsetHours(5), totalMinutes: undefined },
-  { id: "t4", employeeName: "David Lee", clockIn: offsetHours(7.5), clockOut: offsetHours(1), totalMinutes: 390 },
-];
+function fmt(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
 
 export default function TimeClockPage() {
-  const { profile } = useAuth();
-  const myName = profile?.fullName ?? "Jane Doe";
+  const { profile, user, isAdmin } = useAuth();
+  const myUserId = profile?.userId ?? user?.id ?? "";
+  const myName = profile?.fullName ?? user?.fullName ?? "Me";
 
-  const [entries, setEntries] = useState<TimeEntry[]>(SEED);
-  const [filterEmployee, setFilterEmployee] = useState("all");
+  const { data, isLoading, isError, refetch } = useCollection("timeClockEntries");
+  const createMut = useCreate("timeClockEntries");
+  const updateMut = useUpdate("timeClockEntries");
 
-  const isClockedIn = entries.some((e) => e.employeeName === myName && !e.clockOut);
+  const [filterScope, setFilterScope] = useState<"today" | "week" | "all">("today");
+  const [busy, setBusy] = useState(false);
 
-  function clockIn() {
-    const now = new Date().toISOString();
-    setEntries((prev) => [
-      { id: `t-${Date.now()}`, employeeName: myName, clockIn: now },
-      ...prev,
-    ]);
-    toast.success("Clocked in at " + new Date().toLocaleTimeString());
-  }
+  const entries = useMemo(() => data ?? [], [data]);
 
-  function clockOut() {
-    const now = new Date().toISOString();
-    setEntries((prev) =>
-      prev.map((e) => {
-        if (e.employeeName !== myName || e.clockOut) return e;
-        const inMs = new Date(e.clockIn).getTime();
-        const outMs = new Date(now).getTime();
-        return { ...e, clockOut: now, totalMinutes: Math.round((outMs - inMs) / 60_000) };
-      }),
-    );
-    toast.success("Clocked out at " + new Date().toLocaleTimeString());
-  }
-
-  const filtered = useMemo(
-    () => (filterEmployee === "all" ? entries : entries.filter((e) => e.employeeName === filterEmployee)),
-    [entries, filterEmployee],
+  // My open (active) shift, if any
+  const myActive = useMemo(
+    () => entries.find((e) => e.userId === myUserId && e.status === "active"),
+    [entries, myUserId],
   );
 
+  // What this user is allowed to see: admins see everyone, staff see only themselves
+  const visible = useMemo(() => {
+    let rows = isAdmin ? entries : entries.filter((e) => e.userId === myUserId);
+    if (filterScope === "today") rows = rows.filter((e) => isToday(e.clockInAt));
+    else if (filterScope === "week") {
+      const weekAgo = Date.now() - 7 * 86_400_000;
+      rows = rows.filter((e) => new Date(e.clockInAt).getTime() >= weekAgo);
+    }
+    return rows;
+  }, [entries, isAdmin, myUserId, filterScope]);
+
   const stats = useMemo(() => {
-    const activeNow = entries.filter((e) => !e.clockOut).length;
-    const todayMinutes = entries
-      .filter((e) => e.totalMinutes)
+    const scope = isAdmin ? entries : entries.filter((e) => e.userId === myUserId);
+    const activeNow = scope.filter((e) => e.status === "active").length;
+    const todayMinutes = scope
+      .filter((e) => isToday(e.clockInAt) && e.totalMinutes)
       .reduce((s, e) => s + (e.totalMinutes ?? 0), 0);
     return { activeNow, todayMinutes };
-  }, [entries]);
+  }, [entries, isAdmin, myUserId]);
 
-  const names = [...new Set(SEED.map((e) => e.employeeName))].sort();
+  async function clockIn() {
+    if (myActive) {
+      toast.error("You're already clocked in.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await createMut.mutateAsync({
+        userId: myUserId,
+        userName: myName,
+        clockInAt: new Date().toISOString(),
+        clockOutAt: null,
+        totalMinutes: null,
+        status: "active",
+        editNote: null,
+        editedByName: null,
+      });
+      toast.success("Clocked in at " + new Date().toLocaleTimeString());
+    } catch {
+      toast.error("Failed to clock in.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  function fmt(iso: string) {
-    return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  async function clockOut() {
+    if (!myActive) return;
+    setBusy(true);
+    try {
+      const out = new Date();
+      const totalMinutes = Math.max(
+        0,
+        Math.round((out.getTime() - new Date(myActive.clockInAt).getTime()) / 60_000),
+      );
+      await updateMut.mutateAsync({
+        id: myActive.id,
+        patch: { clockOutAt: out.toISOString(), totalMinutes, status: "completed" },
+      });
+      toast.success("Clocked out — " + minutesToHours(totalMinutes) + " logged");
+    } catch {
+      toast.error("Failed to clock out.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Time Clock" />
+        <ErrorState message="We couldn't load time entries." onRetry={() => void refetch()} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Time Clock"
-        description="Employee clock in/out and daily timesheet. In production this records real timestamps with IP and location data."
+        description="Clock in and out; entries are saved to your timesheet. Admins can review all staff hours."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Currently clocked in" value={stats.activeNow} icon={Clock} tone={stats.activeNow > 0 ? "success" : "default"} />
-        <StatCard label="Total hours today (completed shifts)" value={minutesToHours(stats.todayMinutes)} icon={Clock} />
-        <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-card p-6 gap-3">
+        <StatCard label="Currently clocked in" value={stats.activeNow} icon={Clock} tone={stats.activeNow > 0 ? "success" : "default"} loading={isLoading} />
+        <StatCard label="Hours today (completed)" value={minutesToHours(stats.todayMinutes)} icon={Clock} loading={isLoading} />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card p-6">
           <p className="text-sm font-medium text-muted-foreground">My clock status</p>
-          <Badge variant={isClockedIn ? "success" : "secondary"} className="text-sm px-3">
-            {isClockedIn ? "Clocked in" : "Clocked out"}
+          <Badge variant={myActive ? "success" : "secondary"} className="px-3 text-sm">
+            {myActive ? `Clocked in since ${fmt(myActive.clockInAt)}` : "Clocked out"}
           </Badge>
           <Button
-            onClick={isClockedIn ? clockOut : clockIn}
-            variant={isClockedIn ? "outline" : "default"}
+            onClick={myActive ? clockOut : clockIn}
+            variant={myActive ? "outline" : "default"}
             className="w-full"
+            disabled={busy || isLoading}
           >
-            {isClockedIn ? <><LogOut className="size-4" /> Clock out</> : <><LogIn className="size-4" /> Clock in</>}
+            {myActive ? <><LogOut className="size-4" /> Clock out</> : <><LogIn className="size-4" /> Clock in</>}
           </Button>
         </div>
       </div>
@@ -115,42 +158,63 @@ export default function TimeClockPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Today&apos;s timesheet</CardTitle>
-            <select className="input w-48" value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)}>
-              <option value="all">All employees</option>
-              {names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <CardTitle>{isAdmin ? "Timesheet" : "My timesheet"}</CardTitle>
+            <div className="flex gap-1">
+              {(["today", "week", "all"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilterScope(s)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    filterScope === s
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {s === "today" ? "Today" : s === "week" ? "This week" : "All"}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Employee</th>
-                  <th className="pb-2 pr-4 font-medium">Clock in</th>
-                  <th className="pb-2 pr-4 font-medium">Clock out</th>
-                  <th className="pb-2 pr-4 font-medium">Total</th>
-                  <th className="pb-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((e) => (
-                  <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                    <td className="py-3 pr-4 font-medium">{e.employeeName}</td>
-                    <td className="py-3 pr-4">{fmt(e.clockIn)}</td>
-                    <td className="py-3 pr-4">{e.clockOut ? fmt(e.clockOut) : <span className="text-muted-foreground">—</span>}</td>
-                    <td className="py-3 pr-4">{e.totalMinutes ? minutesToHours(e.totalMinutes) : <span className="text-muted-foreground">Active</span>}</td>
-                    <td className="py-3">
-                      <Badge variant={e.clockOut ? "secondary" : "success"}>
-                        {e.clockOut ? "Completed" : "Active"}
-                      </Badge>
-                    </td>
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No time entries for this period.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    {isAdmin && <th className="pb-2 pr-4 font-medium">Employee</th>}
+                    <th className="pb-2 pr-4 font-medium">Date</th>
+                    <th className="pb-2 pr-4 font-medium">Clock in</th>
+                    <th className="pb-2 pr-4 font-medium">Clock out</th>
+                    <th className="pb-2 pr-4 font-medium">Total</th>
+                    <th className="pb-2 font-medium">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visible.map((e: TimeClockEntry) => (
+                    <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
+                      {isAdmin && <td className="py-3 pr-4 font-medium">{e.userName}</td>}
+                      <td className="py-3 pr-4 text-muted-foreground">{new Date(e.clockInAt).toLocaleDateString()}</td>
+                      <td className="py-3 pr-4">{fmt(e.clockInAt)}</td>
+                      <td className="py-3 pr-4">{e.clockOutAt ? fmt(e.clockOutAt) : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="py-3 pr-4">{e.totalMinutes != null ? minutesToHours(e.totalMinutes) : <span className="text-muted-foreground">Active</span>}</td>
+                      <td className="py-3">
+                        <Badge variant={e.status === "active" ? "success" : e.status === "edited" ? "warning" : "secondary"}>
+                          {e.status === "active" ? "Active" : e.status === "edited" ? "Edited" : "Completed"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

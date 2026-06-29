@@ -1,159 +1,306 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { DollarSign, Download } from "lucide-react";
-import { useCollection } from "@/lib/data/hooks";
+import { DollarSign, Download, Plus, X } from "lucide-react";
+import { useAuth } from "@/lib/auth/context";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { logAudit } from "@/lib/data/audit";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/shared/states";
-
-// Payroll records. In production these come from a payroll integration.
-// We derive seed records from the employee list so the data stays consistent.
-interface PayrollRecord {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  payPeriodStart: string;
-  payPeriodEnd: string;
-  payDate: string;
-  grossPayCents: number;
-  taxesCents: number;
-  deductionsCents: number;
-  netPayCents: number;
-  status: "processed" | "pending" | "void";
-  payType: "salary" | "hourly";
-}
+import { EmptyState, ErrorState } from "@/components/shared/states";
+import type { PayrollRecord } from "@/lib/data/schema";
+import { toast } from "sonner";
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
-
-function dateRange(weeksAgo: number): { start: string; end: string; payDate: string } {
-  const end = new Date();
-  end.setDate(end.getDate() - weeksAgo * 7);
-  const start = new Date(end);
-  start.setDate(start.getDate() - 13);
-  const payDate = new Date(end);
-  payDate.setDate(payDate.getDate() + 3);
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
-    payDate: payDate.toISOString().slice(0, 10),
-  };
+function toCents(dollars: string): number {
+  const n = parseFloat(dollars);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+function toDollars(cents: number): string {
+  return (cents / 100).toFixed(2);
 }
 
-const BASE_SALARIES: Record<string, number> = {
-  "Jane Doe": 9500_00,
-  "Sarah Mitchell": 7200_00,
-  "Mike Carter": 6800_00,
-  "Emily Torres": 7800_00,
-  "David Lee": 5500_00,
+const STATUS_VARIANT: Record<PayrollRecord["status"], "success" | "warning" | "secondary" | "destructive"> = {
+  paid: "success",
+  approved: "warning",
+  draft: "secondary",
+  voided: "destructive",
 };
 
-function seedRecords(): PayrollRecord[] {
-  const records: PayrollRecord[] = [];
-  const employees = Object.entries(BASE_SALARIES);
-  for (let w = 0; w < 3; w++) {
-    const range = dateRange(w * 2);
-    employees.forEach(([name, gross], idx) => {
-      const taxes = Math.round(gross * 0.22);
-      const deductions = Math.round(gross * 0.05);
-      records.push({
-        id: `pay-${w}-${idx}`,
-        employeeId: `emp-${idx}`,
-        employeeName: name,
-        payPeriodStart: range.start,
-        payPeriodEnd: range.end,
-        payDate: range.payDate,
-        grossPayCents: gross,
-        taxesCents: taxes,
-        deductionsCents: deductions,
-        netPayCents: gross - taxes - deductions,
-        status: w === 0 ? "pending" : "processed",
-        payType: "salary",
-      });
-    });
-  }
-  return records;
+const DEDUCTION_FIELDS = [
+  ["federalTaxCents", "Federal tax"],
+  ["stateTaxCents", "State tax"],
+  ["socialSecurityCents", "Social Security"],
+  ["medicareCents", "Medicare"],
+  ["healthInsuranceCents", "Health insurance"],
+  ["retirement401kCents", "401(k)"],
+  ["otherDeductionsCents", "Other"],
+] as const;
+
+type DeductionKey = (typeof DEDUCTION_FIELDS)[number][0];
+
+interface FormState {
+  employeeId: string;
+  periodStart: string;
+  periodEnd: string;
+  regularHours: string;
+  otHours: string;
+  ptoHours: string;
+  grossPay: string;
+  paymentMethod: PayrollRecord["paymentMethod"];
+  deductions: Record<DeductionKey, string>;
 }
 
-const SEED_RECORDS = seedRecords();
-
-const STATUS_VARIANT: Record<PayrollRecord["status"], "success" | "warning" | "secondary"> = {
-  processed: "success",
-  pending: "warning",
-  void: "secondary",
+const EMPTY_FORM: FormState = {
+  employeeId: "",
+  periodStart: "",
+  periodEnd: "",
+  regularHours: "0",
+  otHours: "0",
+  ptoHours: "0",
+  grossPay: "",
+  paymentMethod: "direct_deposit",
+  deductions: {
+    federalTaxCents: "",
+    stateTaxCents: "",
+    socialSecurityCents: "",
+    medicareCents: "",
+    healthInsuranceCents: "",
+    retirement401kCents: "",
+    otherDeductionsCents: "",
+  },
 };
 
 export default function PayrollPage() {
+  const { profile, user } = useAuth();
+  const actorName = profile?.fullName ?? user?.fullName ?? "Unknown";
+  const actorEmail = profile?.email ?? user?.email;
+
   const empQ = useCollection("employees");
-  const employees = empQ.data ?? [];
+  const payQ = useCollection("payrollRecords");
+  const createMut = useCreate("payrollRecords");
+  const updateMut = useUpdate("payrollRecords");
+
+  const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
+  const records = useMemo(() => payQ.data ?? [], [payQ.data]);
 
   const [filterEmployee, setFilterEmployee] = useState("all");
   const [filterStatus, setFilterStatus] = useState<"all" | PayrollRecord["status"]>("all");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [busy, setBusy] = useState(false);
 
-  const records = SEED_RECORDS;
+  const grossCents = toCents(form.grossPay);
+  const totalDeductionCents = DEDUCTION_FIELDS.reduce((s, [k]) => s + toCents(form.deductions[k]), 0);
+  const netCents = grossCents - totalDeductionCents;
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
-      if (filterEmployee !== "all" && r.employeeName !== filterEmployee) return false;
+      if (filterEmployee !== "all" && r.employeeId !== filterEmployee) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       return true;
     });
   }, [records, filterEmployee, filterStatus]);
 
   const stats = useMemo(() => {
-    const processed = records.filter((r) => r.status === "processed");
+    const paid = records.filter((r) => r.status === "paid");
     return {
-      totalProcessed: processed.reduce((s, r) => s + r.netPayCents, 0),
-      pending: records.filter((r) => r.status === "pending").length,
-      headcount: new Set(records.map((r) => r.employeeName)).size,
+      totalPaid: paid.reduce((s, r) => s + r.netPayCents, 0),
+      pending: records.filter((r) => r.status === "draft" || r.status === "approved").length,
+      draft: records.filter((r) => r.status === "draft").length,
     };
   }, [records]);
 
+  async function saveRecord() {
+    const emp = employees.find((e) => e.id === form.employeeId);
+    if (!emp) { toast.error("Choose an employee."); return; }
+    if (!form.periodStart || !form.periodEnd) { toast.error("Set the pay period dates."); return; }
+    if (form.periodEnd < form.periodStart) { toast.error("Period end must be after start."); return; }
+    if (grossCents <= 0) { toast.error("Gross pay must be greater than zero."); return; }
+    if (netCents < 0) { toast.error("Deductions exceed gross pay — net would be negative."); return; }
+    setBusy(true);
+    try {
+      await createMut.mutateAsync({
+        employeeId: emp.id,
+        employeeName: `${emp.firstName} ${emp.lastName}`,
+        periodStart: form.periodStart,
+        periodEnd: form.periodEnd,
+        regularHours: parseFloat(form.regularHours) || 0,
+        otHours: parseFloat(form.otHours) || 0,
+        ptoHours: parseFloat(form.ptoHours) || 0,
+        grossPayCents: grossCents,
+        federalTaxCents: toCents(form.deductions.federalTaxCents),
+        stateTaxCents: toCents(form.deductions.stateTaxCents),
+        socialSecurityCents: toCents(form.deductions.socialSecurityCents),
+        medicareCents: toCents(form.deductions.medicareCents),
+        healthInsuranceCents: toCents(form.deductions.healthInsuranceCents),
+        retirement401kCents: toCents(form.deductions.retirement401kCents),
+        otherDeductionsCents: toCents(form.deductions.otherDeductionsCents),
+        netPayCents: netCents,
+        paymentMethod: form.paymentMethod,
+        status: "draft",
+      });
+      await logAudit({
+        actorName, actorEmail, action: "create", entityType: "payroll_record",
+        entityLabel: `${emp.firstName} ${emp.lastName} ${form.periodStart}–${form.periodEnd}`,
+        details: `Draft payroll created, net ${formatCents(netCents)}`, riskLevel: "high",
+      });
+      setShowForm(false);
+      setForm(EMPTY_FORM);
+      toast.success("Payroll draft created");
+    } catch {
+      toast.error("Failed to create payroll record.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function transition(r: PayrollRecord, status: PayrollRecord["status"], label: string) {
+    setBusy(true);
+    try {
+      await updateMut.mutateAsync({ id: r.id, patch: { status } });
+      await logAudit({
+        actorName, actorEmail, action: "update", entityType: "payroll_record",
+        entityId: r.id, entityLabel: `${r.employeeName} ${r.periodStart}–${r.periodEnd}`,
+        details: `Payroll ${label} (net ${formatCents(r.netPayCents)})`,
+        riskLevel: status === "paid" || status === "voided" ? "critical" : "high",
+      });
+      toast.success(`Payroll ${label}`);
+    } catch {
+      toast.error("Failed to update payroll record.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function exportCSV() {
-    const header = ["Employee", "Pay Period Start", "Pay Period End", "Pay Date", "Gross Pay", "Taxes", "Deductions", "Net Pay", "Status"];
+    const header = ["Employee", "Period Start", "Period End", "Gross", "Deductions", "Net Pay", "Method", "Status"];
     const rows = filtered.map((r) => [
-      r.employeeName,
-      r.payPeriodStart,
-      r.payPeriodEnd,
-      r.payDate,
-      (r.grossPayCents / 100).toFixed(2),
-      (r.taxesCents / 100).toFixed(2),
-      (r.deductionsCents / 100).toFixed(2),
-      (r.netPayCents / 100).toFixed(2),
-      r.status,
+      r.employeeName, r.periodStart, r.periodEnd,
+      toDollars(r.grossPayCents),
+      toDollars(r.grossPayCents - r.netPayCents),
+      toDollars(r.netPayCents),
+      r.paymentMethod, r.status,
     ]);
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const csv = [header, ...rows].map((row) => row.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = "payroll.csv"; a.click();
     URL.revokeObjectURL(url);
+    void logAudit({ actorName, actorEmail, action: "export", entityType: "payroll_record", details: `Exported ${filtered.length} payroll rows`, riskLevel: "high" });
   }
 
-  const employeeNames = [...new Set(records.map((r) => r.employeeName))].sort();
+  if (payQ.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Payroll" />
+        <ErrorState message="We couldn't load payroll records." onRetry={() => void payQ.refetch()} />
+      </div>
+    );
+  }
+
+  const loading = payQ.isLoading || empQ.isLoading;
 
   return (
     <div className="space-y-6">
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="font-semibold">New payroll record</h2>
+              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Employee *</label>
+                <select className="input w-full" value={form.employeeId} onChange={(e) => setForm((p) => ({ ...p, employeeId: e.target.value }))}>
+                  <option value="">Select employee…</option>
+                  {employees.map((e) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Period start *</label>
+                  <input type="date" className="input w-full" value={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Period end *</label>
+                  <input type="date" className="input w-full" value={form.periodEnd} min={form.periodStart} onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Reg. hours</label>
+                  <input type="number" min="0" step="0.5" className="input w-full" value={form.regularHours} onChange={(e) => setForm((p) => ({ ...p, regularHours: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">OT hours</label>
+                  <input type="number" min="0" step="0.5" className="input w-full" value={form.otHours} onChange={(e) => setForm((p) => ({ ...p, otHours: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">PTO hours</label>
+                  <input type="number" min="0" step="0.5" className="input w-full" value={form.ptoHours} onChange={(e) => setForm((p) => ({ ...p, ptoHours: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Gross pay ($) *</label>
+                <input type="number" min="0" step="0.01" className="input w-full" value={form.grossPay} onChange={(e) => setForm((p) => ({ ...p, grossPay: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium">Deductions ($)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {DEDUCTION_FIELDS.map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <label className="text-xs text-muted-foreground">{label}</label>
+                      <input type="number" min="0" step="0.01" className="input w-full" value={form.deductions[key]}
+                        onChange={(e) => setForm((p) => ({ ...p, deductions: { ...p.deductions, [key]: e.target.value } }))} placeholder="0.00" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Payment method</label>
+                <select className="input w-full" value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value as PayrollRecord["paymentMethod"] }))}>
+                  <option value="direct_deposit">Direct deposit</option>
+                  <option value="check">Check</option>
+                  <option value="cash">Cash</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-secondary/30 px-4 py-3 text-sm">
+                <span className="text-muted-foreground">Net pay</span>
+                <span className={`font-semibold tabular-nums ${netCents < 0 ? "text-destructive" : ""}`}>{formatCents(netCents)}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <Button variant="outline" onClick={() => setShowForm(false)} disabled={busy}>Cancel</Button>
+              <Button onClick={saveRecord} disabled={busy}>Create draft</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Payroll"
-        description="Payroll records by pay period. In production this integrates with your payroll provider via API."
+        description="Pay-period records with a draft → approved → paid workflow. All changes are written to the audit trail."
         actions={
-          <Button variant="outline" onClick={exportCSV}>
-            <Download className="size-4" /> Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportCSV}><Download className="size-4" /> Export CSV</Button>
+            <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> New record</Button>
+          </div>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Net pay processed (last 2 periods)" value={formatCents(stats.totalProcessed)} icon={DollarSign} tone="success" loading={empQ.isLoading} />
-        <StatCard label="Pending payrolls" value={stats.pending} icon={DollarSign} tone={stats.pending > 0 ? "warning" : "default"} loading={empQ.isLoading} />
-        <StatCard label="Active payees" value={stats.headcount} icon={DollarSign} loading={empQ.isLoading} />
+        <StatCard label="Net pay paid (all time)" value={formatCents(stats.totalPaid)} icon={DollarSign} tone="success" loading={loading} />
+        <StatCard label="Awaiting payment" value={stats.pending} icon={DollarSign} tone={stats.pending > 0 ? "warning" : "default"} loading={loading} />
+        <StatCard label="Drafts" value={stats.draft} icon={DollarSign} loading={loading} />
       </div>
 
       <Card>
@@ -161,23 +308,22 @@ export default function PayrollPage() {
           <div className="flex flex-wrap gap-3">
             <select className="input" value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)}>
               <option value="all">All employees</option>
-              {employeeNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
             </select>
             <select className="input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
               <option value="all">All statuses</option>
-              <option value="processed">Processed</option>
-              <option value="pending">Pending</option>
-              <option value="void">Void</option>
+              <option value="draft">Draft</option>
+              <option value="approved">Approved</option>
+              <option value="paid">Paid</option>
+              <option value="voided">Voided</option>
             </select>
           </div>
         </CardHeader>
         <CardContent>
-          {empQ.isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </div>
+          {loading ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           ) : filtered.length === 0 ? (
-            <EmptyState icon={DollarSign} title="No payroll records" description="No records match the current filters." />
+            <EmptyState icon={DollarSign} title="No payroll records" description="Create a payroll record to get started." action={<Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> New record</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -185,24 +331,36 @@ export default function PayrollPage() {
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Employee</th>
                     <th className="pb-2 pr-4 font-medium">Pay period</th>
-                    <th className="pb-2 pr-4 font-medium">Pay date</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Gross</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Taxes</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Net pay</th>
-                    <th className="pb-2 font-medium">Status</th>
+                    <th className="pb-2 pr-4 text-right font-medium">Gross</th>
+                    <th className="pb-2 pr-4 text-right font-medium">Net pay</th>
+                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td className="py-3 pr-4 font-medium">{r.employeeName}</td>
-                      <td className="py-3 pr-4 text-muted-foreground whitespace-nowrap">{r.payPeriodStart} – {r.payPeriodEnd}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{r.payDate}</td>
-                      <td className="py-3 pr-4 tabular-nums text-right">{formatCents(r.grossPayCents)}</td>
-                      <td className="py-3 pr-4 tabular-nums text-right text-muted-foreground">{formatCents(r.taxesCents)}</td>
-                      <td className="py-3 pr-4 tabular-nums text-right font-medium">{formatCents(r.netPayCents)}</td>
+                      <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>
+                      <td className="py-3 pr-4 text-right tabular-nums">{formatCents(r.grossPayCents)}</td>
+                      <td className="py-3 pr-4 text-right font-medium tabular-nums">{formatCents(r.netPayCents)}</td>
+                      <td className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
                       <td className="py-3">
-                        <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
+                        <div className="flex gap-1.5">
+                          {r.status === "draft" && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => transition(r, "approved", "approved")} disabled={busy}>Approve</Button>
+                              <Button size="sm" variant="ghost" onClick={() => transition(r, "voided", "voided")} disabled={busy}>Void</Button>
+                            </>
+                          )}
+                          {r.status === "approved" && (
+                            <>
+                              <Button size="sm" onClick={() => transition(r, "paid", "marked paid")} disabled={busy}>Mark paid</Button>
+                              <Button size="sm" variant="ghost" onClick={() => transition(r, "voided", "voided")} disabled={busy}>Void</Button>
+                            </>
+                          )}
+                          {(r.status === "paid" || r.status === "voided") && <span className="text-xs text-muted-foreground">—</span>}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -212,12 +370,6 @@ export default function PayrollPage() {
           )}
         </CardContent>
       </Card>
-
-      {employees.length > 0 && (
-        <div className="text-xs text-muted-foreground">
-          Showing demo payroll data. Connect a payroll integration to pull live records.
-        </div>
-      )}
     </div>
   );
 }

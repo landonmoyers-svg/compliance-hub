@@ -1,19 +1,31 @@
 import type {
+  AuditLog,
+  Benefit,
+  CompetencyRecord,
   ComplianceDocument,
   ComplianceTask,
   ComplianceUserProfile,
   CredentialRecord,
+  DisciplinaryAction,
   EmergencyDrill,
   Employee,
   InsurancePolicyRecord,
   InventoryItem,
   OSHARecord,
+  PayrollRecord,
+  PerformanceReview,
   PolicyAcknowledgment,
+  PTOBalance,
   RegulatorySource,
   RiskManagementCase,
   SDSRecord,
+  TimeClockEntry,
+  TimeOffRequest,
   TrainingAssignment,
+  TrainingAttempt,
   TrainingModule,
+  TrainingQuestion,
+  VendorRecord,
   WorkLocation,
 } from "./schema";
 
@@ -48,6 +60,18 @@ export interface DataClient {
   emergencyDrills: Collection<EmergencyDrill>;
   employees: Collection<Employee>;
   inventory: Collection<InventoryItem>;
+  timeClockEntries: Collection<TimeClockEntry>;
+  timeOffRequests: Collection<TimeOffRequest>;
+  ptoBalances: Collection<PTOBalance>;
+  payrollRecords: Collection<PayrollRecord>;
+  performanceReviews: Collection<PerformanceReview>;
+  disciplinaryActions: Collection<DisciplinaryAction>;
+  benefits: Collection<Benefit>;
+  vendors: Collection<VendorRecord>;
+  competencyRecords: Collection<CompetencyRecord>;
+  auditLogs: Collection<AuditLog>;
+  trainingQuestions: Collection<TrainingQuestion>;
+  trainingAttempts: Collection<TrainingAttempt>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

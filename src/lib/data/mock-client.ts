@@ -83,5 +83,17 @@ export function createMockDataClient(): DataClient {
     emergencyDrills: new MemoryCollection(seed.emergencyDrills),
     employees: new MemoryCollection(seed.employees),
     inventory: new MemoryCollection(seed.inventory),
+    timeClockEntries: new MemoryCollection(seed.timeClockEntries),
+    timeOffRequests: new MemoryCollection(seed.timeOffRequests),
+    ptoBalances: new MemoryCollection(seed.ptoBalances),
+    payrollRecords: new MemoryCollection(seed.payrollRecords),
+    performanceReviews: new MemoryCollection(seed.performanceReviews),
+    disciplinaryActions: new MemoryCollection(seed.disciplinaryActions),
+    benefits: new MemoryCollection(seed.benefits),
+    vendors: new MemoryCollection(seed.vendors),
+    competencyRecords: new MemoryCollection(seed.competencyRecords),
+    auditLogs: new MemoryCollection(seed.auditLogs),
+    trainingQuestions: new MemoryCollection(seed.trainingQuestions),
+    trainingAttempts: new MemoryCollection(seed.trainingAttempts),
   };
 }
