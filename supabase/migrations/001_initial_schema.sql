@@ -312,3 +312,11 @@ create table public.inventory (
 );
 alter table public.inventory enable row level security;
 create policy "inventory_all" on public.inventory for all using (true);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- GRANTS — allow authenticated users to read/write all tables
+-- ─────────────────────────────────────────────────────────────────────────────
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant select on all tables in schema public to anon;
+grant usage on all sequences in schema public to authenticated;
+grant usage on all sequences in schema public to anon;
