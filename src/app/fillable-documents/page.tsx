@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine } from "lucide-react";
+import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { downloadCompletedFormPdf } from "@/lib/pdf";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -750,7 +751,8 @@ export default function FillableDocumentsPage() {
                       <th className="pb-2 pr-4 font-medium">Form</th>
                       <th className="pb-2 pr-4 font-medium">Employee</th>
                       <th className="pb-2 pr-4 font-medium">Signed by</th>
-                      <th className="pb-2 font-medium">Completed</th>
+                      <th className="pb-2 pr-4 font-medium">Completed</th>
+                      <th className="pb-2 font-medium">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -759,8 +761,13 @@ export default function FillableDocumentsPage() {
                         <td className="py-3 pr-4 font-medium">{c.templateTitle}</td>
                         <td className="py-3 pr-4 text-muted-foreground">{c.employeeName}</td>
                         <td className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
-                        <td className="whitespace-nowrap py-3 text-muted-foreground">
+                        <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        </td>
+                        <td className="py-3">
+                          <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId))}>
+                            <Download className="size-4" /> PDF
+                          </Button>
                         </td>
                       </tr>
                     ))}
