@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { UserCircle, GraduationCap, FileText, BadgeCheck, Umbrella, CheckCircle2, AlertTriangle } from "lucide-react";
+import { UserCircle, GraduationCap, FileText, BadgeCheck, Umbrella, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
@@ -35,6 +35,7 @@ export default function StaffPortalPage() {
   const timeOffQ = useCollection("timeOffRequests");
   const balQ = useCollection("ptoBalances");
   const acksQ = useCollection("policyAcks");
+  const insuranceQ = useCollection("insurancePolicies");
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const credentials = useMemo(() => credsQ.data ?? [], [credsQ.data]);
@@ -65,6 +66,11 @@ export default function StaffPortalPage() {
   const myBalance = useMemo(
     () => balances.find((b) => b.userId === myUserId && b.year === year),
     [balances, myUserId, year],
+  );
+  const insurance = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
+  const myInsurance = useMemo(
+    () => insurance.filter((p) => (myUserId && p.holderUserId === myUserId) || (myName && p.holderName === myName)),
+    [insurance, myUserId, myName],
   );
 
   // Documents requiring acknowledgment, split into pending vs done for this user
@@ -236,6 +242,31 @@ export default function StaffPortalPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* My insurance */}
+        {myInsurance.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Shield className="size-4 text-muted-foreground" /> My insurance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="divide-y divide-border">
+                {myInsurance.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">{p.policyName}</p>
+                      <p className="text-xs capitalize text-muted-foreground">{[p.policyType, p.carrierName].filter(Boolean).join(" · ")}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {p.renewalDate && <span className="text-xs text-muted-foreground">Renews {formatDate(p.renewalDate)}</span>}
+                      {p.documentUrl && <a href={p.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         {/* My time off */}
         <Card>

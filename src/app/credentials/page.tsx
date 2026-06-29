@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, bySoonest } from "@/lib/compliance";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
+import { PersonSelect } from "@/components/shared/person-select";
 import type { CredentialRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -46,6 +47,7 @@ const CRED_TYPES = [
 /* ------------------------------ form -------------------------------- */
 
 interface FormState {
+  employeeUserId: string | null;
   employeeName: string;
   credentialName: string;
   credentialType: string;
@@ -56,6 +58,7 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
+  employeeUserId: null,
   employeeName: "",
   credentialName: "",
   credentialType: "license",
@@ -81,6 +84,7 @@ function CredentialDialog({
   const [form, setForm] = useState<FormState>(
     initial
       ? {
+          employeeUserId: initial.employeeUserId ?? null,
           employeeName: initial.employeeName,
           credentialName: initial.credentialName,
           credentialType: initial.credentialType,
@@ -117,13 +121,12 @@ function CredentialDialog({
           </button>
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-sm font-medium">Employee name *</label>
-            <input
-              className="input w-full"
-              value={form.employeeName}
-              onChange={set("employeeName")}
-              placeholder="Full name"
+          <div className="sm:col-span-2">
+            <PersonSelect
+              label="Employee"
+              required
+              value={{ userId: form.employeeUserId, name: form.employeeName }}
+              onChange={(v) => setForm((p) => ({ ...p, employeeUserId: v.userId, employeeName: v.name }))}
             />
           </div>
           <div className="space-y-1.5">
@@ -218,6 +221,7 @@ export default function CredentialsPage() {
     setSaving(true);
     try {
       const payload = {
+        employeeUserId: form.employeeUserId,
         employeeName: form.employeeName.trim(),
         credentialName: form.credentialName.trim(),
         credentialType: form.credentialType as CredentialRecord["credentialType"],

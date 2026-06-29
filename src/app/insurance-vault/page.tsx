@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
+import { PersonSelect } from "@/components/shared/person-select";
 import type { InsurancePolicyRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -29,6 +30,8 @@ interface PolicyForm {
   coverageAmountCents: string;
   annualPremiumCents: string;
   renewalDate: string;
+  holderUserId: string | null;
+  holderName: string;
 }
 
 const EMPTY: PolicyForm = {
@@ -39,6 +42,8 @@ const EMPTY: PolicyForm = {
   coverageAmountCents: "",
   annualPremiumCents: "",
   renewalDate: "",
+  holderUserId: null,
+  holderName: "",
 };
 
 function PolicyDialog({
@@ -62,6 +67,8 @@ function PolicyDialog({
           coverageAmountCents: initial.coverageAmountCents != null ? String(initial.coverageAmountCents / 100) : "",
           annualPremiumCents: initial.annualPremiumCents != null ? String(initial.annualPremiumCents / 100) : "",
           renewalDate: initial.renewalDate ?? "",
+          holderUserId: initial.holderUserId ?? null,
+          holderName: initial.holderName ?? "",
         }
       : EMPTY,
   );
@@ -117,6 +124,13 @@ function PolicyDialog({
             <label className="text-sm font-medium">Annual premium ($)</label>
             <input type="number" min="0" className="input w-full" value={form.annualPremiumCents} onChange={set("annualPremiumCents")} placeholder="0" />
             {!premiumValid && <p className="text-xs text-destructive">Must be a positive number</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <PersonSelect
+              label="Individual holder (optional — leave blank for org-wide policies)"
+              value={{ userId: form.holderUserId, name: form.holderName }}
+              onChange={(v) => setForm((p) => ({ ...p, holderUserId: v.userId, holderName: v.name }))}
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
@@ -177,6 +191,8 @@ export default function InsuranceVaultPage() {
         coverageAmountCents: tooCents(form.coverageAmountCents),
         annualPremiumCents: tooCents(form.annualPremiumCents),
         renewalDate: form.renewalDate ? dateInputToISO(form.renewalDate) : undefined,
+        holderUserId: form.holderUserId,
+        holderName: form.holderName.trim() || null,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -276,7 +292,10 @@ export default function InsuranceVaultPage() {
                     const expiringSoon = days !== null && days >= 0 && days <= 60;
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{p.policyName}</td>
+                        <td className="py-3 pr-4 font-medium">
+                          <div>{p.policyName}</div>
+                          {p.holderName && <div className="text-xs font-normal text-muted-foreground">Holder: {p.holderName}</div>}
+                        </td>
                         <td className="py-3 pr-4">
                           <div className="capitalize">{p.policyType}</div>
                           {p.carrierName && <div className="text-xs text-muted-foreground">{p.carrierName}</div>}

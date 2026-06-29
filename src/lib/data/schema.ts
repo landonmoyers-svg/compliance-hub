@@ -284,6 +284,11 @@ export const InsurancePolicyRecord = z.object({
   coverageAmountCents: z.number().nullable().optional(),
   annualPremiumCents: z.number().nullable().optional(),
   renewalDate: z.string().nullable().optional(),
+  // Optional individual holder — for policies tied to a person (e.g. an
+  // individual malpractice rider). Org-wide policies leave these blank.
+  holderUserId: z.string().nullable().optional(),
+  holderName: z.string().nullable().optional(),
+  documentUrl: z.string().nullable().optional(),
 });
 export type InsurancePolicyRecord = z.infer<typeof InsurancePolicyRecord>;
 

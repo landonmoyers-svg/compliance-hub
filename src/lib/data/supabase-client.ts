@@ -422,6 +422,9 @@ function insuranceFrom(r: Record<string, unknown>): InsurancePolicyRecord {
     coverageAmountCents: r.coverage_amount_cents as number | undefined,
     annualPremiumCents: r.annual_premium_cents as number | undefined,
     renewalDate: r.renewal_date as string | undefined,
+    holderUserId: r.holder_user_id as string | undefined,
+    holderName: r.holder_name as string | undefined,
+    documentUrl: r.document_url as string | undefined,
   };
 }
 function insuranceTo(d: Partial<InsurancePolicyRecord>) {
@@ -433,6 +436,9 @@ function insuranceTo(d: Partial<InsurancePolicyRecord>) {
     ...(d.coverageAmountCents !== undefined && { coverage_amount_cents: d.coverageAmountCents }),
     ...(d.annualPremiumCents !== undefined && { annual_premium_cents: d.annualPremiumCents }),
     ...(d.renewalDate !== undefined && { renewal_date: d.renewalDate }),
+    ...(d.holderUserId !== undefined && { holder_user_id: d.holderUserId }),
+    ...(d.holderName !== undefined && { holder_name: d.holderName }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
   };
 }
 

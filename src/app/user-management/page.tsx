@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, X, FolderOpen } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { roleLabel } from "@/lib/auth/roles";
 import { accountRoles } from "@/lib/data/schema";
 import type { ComplianceUserProfile } from "@/lib/data/schema";
@@ -135,6 +136,7 @@ export default function UserManagementPage() {
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ComplianceUserProfile | null | "new">(null);
+  const [viewingRecords, setViewingRecords] = useState<ComplianceUserProfile | null>(null);
   const [saving, setSaving] = useState(false);
 
   const profiles = useMemo(() => data ?? [], [data]);
@@ -207,6 +209,23 @@ export default function UserManagementPage() {
         />
       )}
 
+      {viewingRecords && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setViewingRecords(null)}>
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h2 className="font-semibold">{viewingRecords.fullName}</h2>
+                <p className="text-xs text-muted-foreground">{viewingRecords.email} · all linked compliance records</p>
+              </div>
+              <button onClick={() => setViewingRecords(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            </div>
+            <div className="overflow-y-auto p-5">
+              <PersonRecordsPanel userId={viewingRecords.userId} name={viewingRecords.fullName} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="User Management"
         description="Manage user accounts and role assignments. All roles use a single source of truth: accountRole."
@@ -277,7 +296,10 @@ export default function UserManagementPage() {
                           </Badge>
                         </td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => setViewingRecords(p)}><FolderOpen className="size-3.5" /> Records</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+                          </div>
                         </td>
                       </tr>
                     );

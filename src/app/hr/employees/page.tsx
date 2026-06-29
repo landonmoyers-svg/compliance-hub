@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, X, FolderOpen } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -164,6 +165,7 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<Employee["employmentStatus"] | "all">("all");
   const [editing, setEditing] = useState<Employee | null | "new">(null);
+  const [viewingRecords, setViewingRecords] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
 
   const employees = useMemo(() => data ?? [], [data]);
@@ -229,6 +231,23 @@ export default function EmployeesPage() {
           onSave={handleSave}
           saving={saving}
         />
+      )}
+
+      {viewingRecords && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setViewingRecords(null)}>
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h2 className="font-semibold">{viewingRecords.firstName} {viewingRecords.lastName}</h2>
+                <p className="text-xs text-muted-foreground">{viewingRecords.email} · all linked compliance records</p>
+              </div>
+              <button onClick={() => setViewingRecords(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            </div>
+            <div className="overflow-y-auto p-5">
+              <PersonRecordsPanel userId={null} name={`${viewingRecords.firstName} ${viewingRecords.lastName}`} />
+            </div>
+          </div>
+        </div>
       )}
 
       <PageHeader
@@ -321,7 +340,10 @@ export default function EmployeesPage() {
                         </Badge>
                       </td>
                       <td className="py-3">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>Edit</Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setViewingRecords(e)}><FolderOpen className="size-3.5" /> Records</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>Edit</Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
