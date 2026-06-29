@@ -12,6 +12,8 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { roleLabel } from "@/lib/auth/roles";
 import { accountRoles } from "@/lib/data/schema";
 import type { ComplianceUserProfile } from "@/lib/data/schema";
+import { useAuth } from "@/lib/auth/context";
+import { logAudit } from "@/lib/data/audit";
 import { toast } from "sonner";
 
 interface ProfileForm {
@@ -123,6 +125,10 @@ function ProfileDialog({
 }
 
 export default function UserManagementPage() {
+  const { profile, user } = useAuth();
+  const actorName = profile?.fullName ?? user?.fullName ?? "Unknown";
+  const actorEmail = profile?.email ?? user?.email;
+
   const { data, isLoading, isError, refetch } = useCollection("profiles");
   const createMut = useCreate("profiles");
   const updateMut = useUpdate("profiles");
@@ -152,10 +158,25 @@ export default function UserManagementPage() {
         active: form.active,
       };
       if (editing && editing !== "new") {
+        const roleChanged = editing.accountRole !== payload.accountRole;
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
+        await logAudit({
+          actorName, actorEmail, action: "update", entityType: "user_profile",
+          entityId: editing.id, entityLabel: payload.fullName,
+          details: roleChanged
+            ? `Role changed: ${roleLabel(editing.accountRole)} → ${roleLabel(payload.accountRole)}`
+            : `Profile updated${payload.active !== editing.active ? (payload.active ? " (reactivated)" : " (deactivated)") : ""}`,
+          riskLevel: roleChanged || payload.active !== editing.active ? "high" : "medium",
+        });
         toast.success("User updated");
       } else {
         await createMut.mutateAsync({ ...payload, userId: `user-${Date.now()}` });
+        await logAudit({
+          actorName, actorEmail, action: "create", entityType: "user_profile",
+          entityLabel: payload.fullName,
+          details: `New user created with role ${roleLabel(payload.accountRole)}`,
+          riskLevel: "high",
+        });
         toast.success("User added");
       }
       setEditing(null);

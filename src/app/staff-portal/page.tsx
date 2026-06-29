@@ -1,50 +1,81 @@
 "use client";
 
 import { useMemo } from "react";
-import { UserCircle, GraduationCap, FileText, BadgeCheck } from "lucide-react";
+import { UserCircle, GraduationCap, FileText, BadgeCheck, Umbrella, CheckCircle2, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { roleLabel } from "@/lib/auth/roles";
 
+const TIMEOFF_STATUS_VARIANT = {
+  pending: "warning",
+  approved: "success",
+  denied: "destructive",
+  cancelled: "secondary",
+} as const;
+
 export default function StaffPortalPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const myUserId = profile?.userId ?? user?.id ?? "";
+  const myName = profile?.fullName ?? user?.fullName ?? "";
+  const year = new Date().getFullYear();
+
   const trainingQ = useCollection("trainingAssignments");
   const credsQ = useCollection("credentials");
   const docsQ = useCollection("documents");
+  const timeOffQ = useCollection("timeOffRequests");
+  const balQ = useCollection("ptoBalances");
+  const acksQ = useCollection("policyAcks");
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const credentials = useMemo(() => credsQ.data ?? [], [credsQ.data]);
   const documents = useMemo(() => docsQ.data ?? [], [docsQ.data]);
+  const timeOff = useMemo(() => timeOffQ.data ?? [], [timeOffQ.data]);
+  const balances = useMemo(() => balQ.data ?? [], [balQ.data]);
+  const acks = useMemo(() => acksQ.data ?? [], [acksQ.data]);
 
   const loading = trainingQ.isLoading || credsQ.isLoading || docsQ.isLoading;
   const isError = trainingQ.isError || credsQ.isError || docsQ.isError;
 
-  const myName = profile ? `${profile.fullName}` : "";
-
-  // Filter training to this employee (matched by name since we use mock data)
   const myTraining = useMemo(
-    () => training.filter((a) => a.assignedToName === myName),
-    [training, myName],
+    () => training.filter((a) => a.assignedToUserId === myUserId || a.assignedToName === myName),
+    [training, myUserId, myName],
   );
-
-  // Filter credentials to this employee
   const myCreds = useMemo(
-    () => credentials.filter((c) => c.employeeName === myName),
-    [credentials, myName],
+    () => credentials.filter((c) => c.employeeUserId === myUserId || c.employeeName === myName),
+    [credentials, myUserId, myName],
   );
-
-  // Active documents accessible to all staff
   const staffDocs = useMemo(
     () => documents.filter((d) => d.status === "active" && d.accessLevel === "all_staff"),
     [documents],
+  );
+  const myTimeOff = useMemo(
+    () => timeOff.filter((r) => r.userId === myUserId).slice(0, 5),
+    [timeOff, myUserId],
+  );
+  const myBalance = useMemo(
+    () => balances.find((b) => b.userId === myUserId && b.year === year),
+    [balances, myUserId, year],
+  );
+
+  // Documents requiring acknowledgment, split into pending vs done for this user
+  const ackDocs = useMemo(() => documents.filter((d) => d.status === "active" && d.requiresAcknowledgment), [documents]);
+  const myAckedDocIds = useMemo(
+    () => new Set(acks.filter((a) => a.userId === myUserId && a.status === "acknowledged").map((a) => a.documentId)),
+    [acks, myUserId],
+  );
+  const pendingAcks = useMemo(
+    () => ackDocs.filter((d) => !myAckedDocIds.has(d.id)),
+    [ackDocs, myAckedDocIds],
   );
 
   const myTrainingStats = useMemo(() => ({
@@ -53,17 +84,27 @@ export default function StaffPortalPage() {
     pending: myTraining.filter((a) => a.status !== "completed" && !assignmentIsOverdue(a)).length,
   }), [myTraining]);
 
+  const expiringCreds = useMemo(
+    () => myCreds.filter((c) => { const s = credentialStatus(c); return s === "expiring_soon" || s === "expired"; }).length,
+    [myCreds],
+  );
+
+  // Combined action items
+  const actionItems = useMemo(() => {
+    const items: { label: string; href: string; tone: "destructive" | "warning" }[] = [];
+    if (myTrainingStats.overdue > 0) items.push({ label: `${myTrainingStats.overdue} overdue training assignment${myTrainingStats.overdue > 1 ? "s" : ""}`, href: "/training", tone: "destructive" });
+    if (expiringCreds > 0) items.push({ label: `${expiringCreds} credential${expiringCreds > 1 ? "s" : ""} expiring or expired`, href: "/credentials", tone: "warning" });
+    if (pendingAcks.length > 0) items.push({ label: `${pendingAcks.length} polic${pendingAcks.length > 1 ? "ies" : "y"} awaiting your acknowledgment`, href: "/policy-attestation", tone: "warning" });
+    return items;
+  }, [myTrainingStats.overdue, expiringCreds, pendingAcks.length]);
+
   if (isError) {
     return (
       <div className="space-y-6">
         <PageHeader title="My Portal" />
         <ErrorState
           message="We couldn't load your portal."
-          onRetry={() => {
-            void trainingQ.refetch();
-            void credsQ.refetch();
-            void docsQ.refetch();
-          }}
+          onRetry={() => { void trainingQ.refetch(); void credsQ.refetch(); void docsQ.refetch(); }}
         />
       </div>
     );
@@ -73,10 +114,9 @@ export default function StaffPortalPage() {
     <div className="space-y-6">
       <PageHeader
         title="My Portal"
-        description="Your personal compliance dashboard — training, credentials, and documents."
+        description="Your personal compliance dashboard — action items, training, credentials, time off, and acknowledgments."
       />
 
-      {/* Profile card */}
       {profile && (
         <Card>
           <CardContent className="pt-5">
@@ -98,27 +138,43 @@ export default function StaffPortalPage() {
         </Card>
       )}
 
-      {/* Training stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Action items */}
+      {!loading && actionItems.length > 0 && (
+        <Card className="border-warning/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-warning" /> Action needed
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {actionItems.map((item, i) => (
+                <li key={i} className="flex items-center justify-between gap-3">
+                  <span className={`text-sm ${item.tone === "destructive" ? "text-destructive" : "text-foreground"}`}>{item.label}</span>
+                  <Link href={item.href}><Button size="sm" variant="outline">Resolve</Button></Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Training completed" value={myTrainingStats.completed} icon={GraduationCap} tone="success" loading={loading} />
-        <StatCard label="Pending" value={myTrainingStats.pending} icon={GraduationCap} tone="warning" loading={loading} />
-        <StatCard label="Overdue" value={myTrainingStats.overdue} icon={GraduationCap} tone={myTrainingStats.overdue ? "destructive" : "default"} loading={loading} />
+        <StatCard label="Training pending" value={myTrainingStats.pending} icon={GraduationCap} tone="warning" loading={loading} />
+        <StatCard label="Training overdue" value={myTrainingStats.overdue} icon={GraduationCap} tone={myTrainingStats.overdue ? "destructive" : "default"} loading={loading} />
+        <StatCard label="PTO available (hrs)" value={myBalance ? myBalance.ptoAccruedHours + myBalance.carryOverHours - myBalance.ptoUsedHours : 0} icon={Umbrella} tone="success" loading={balQ.isLoading} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* My training */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GraduationCap className="size-4 text-muted-foreground" />
-              My training
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><GraduationCap className="size-4 text-muted-foreground" /> My training</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-              </div>
+              <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : myTraining.length === 0 ? (
               <EmptyState icon={GraduationCap} title="No training assigned" description="Training assigned to you will appear here." />
             ) : (
@@ -134,22 +190,12 @@ export default function StaffPortalPage() {
                           <p className="text-xs text-muted-foreground">
                             Due {formatDate(a.dueDate)}
                             {days !== null && a.status !== "completed" && (
-                              <span className={overdue ? " text-destructive" : ""}>
-                                {" "}({days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "today" : `${days}d left`})
-                              </span>
+                              <span className={overdue ? " text-destructive" : ""}> ({days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "today" : `${days}d left`})</span>
                             )}
                           </p>
                         )}
                       </div>
-                      <Badge
-                        variant={
-                          a.status === "completed"
-                            ? "success"
-                            : overdue
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
+                      <Badge variant={a.status === "completed" ? "success" : overdue ? "destructive" : "secondary"}>
                         {a.status === "completed" ? "Done" : overdue ? "Overdue" : a.status === "in_progress" ? "In progress" : "Assigned"}
                       </Badge>
                     </li>
@@ -163,16 +209,11 @@ export default function StaffPortalPage() {
         {/* My credentials */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BadgeCheck className="size-4 text-muted-foreground" />
-              My credentials
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><BadgeCheck className="size-4 text-muted-foreground" /> My credentials</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-              </div>
+              <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : myCreds.length === 0 ? (
               <EmptyState icon={BadgeCheck} title="No credentials on file" description="Credentials assigned to you will appear here." />
             ) : (
@@ -183,20 +224,86 @@ export default function StaffPortalPage() {
                     <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div>
                         <p className="text-sm font-medium">{c.credentialName}</p>
-                        {c.expirationDate && (
-                          <p className="text-xs text-muted-foreground">Expires {formatDate(c.expirationDate)}</p>
-                        )}
+                        {c.expirationDate && <p className="text-xs text-muted-foreground">Expires {formatDate(c.expirationDate)}</p>}
                       </div>
-                      <Badge
-                        variant={
-                          st === "active" ? "success"
-                          : st === "expiring_soon" ? "warning"
-                          : st === "expired" ? "destructive"
-                          : "secondary"
-                        }
-                      >
+                      <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
                         {st === "no_expiry" ? "No expiry" : st.replace("_", " ")}
                       </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* My time off */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Umbrella className="size-4 text-muted-foreground" /> My time off</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {myBalance && (
+              <div className="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="rounded-md bg-secondary/30 py-2">
+                  <p className="font-semibold tabular-nums">{myBalance.ptoAccruedHours + myBalance.carryOverHours - myBalance.ptoUsedHours}h</p>
+                  <p className="text-muted-foreground">PTO left</p>
+                </div>
+                <div className="rounded-md bg-secondary/30 py-2">
+                  <p className="font-semibold tabular-nums">{myBalance.sickAccruedHours - myBalance.sickUsedHours}h</p>
+                  <p className="text-muted-foreground">Sick left</p>
+                </div>
+                <div className="rounded-md bg-secondary/30 py-2">
+                  <p className="font-semibold tabular-nums">{myBalance.holidayAllottedHours - myBalance.holidayUsedHours}h</p>
+                  <p className="text-muted-foreground">Holiday</p>
+                </div>
+              </div>
+            )}
+            {timeOffQ.isLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : myTimeOff.length === 0 ? (
+              <div className="py-2 text-center">
+                <p className="mb-2 text-sm text-muted-foreground">No time-off requests yet.</p>
+                <Link href="/hr/time-off"><Button size="sm" variant="outline">Request time off</Button></Link>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {myTimeOff.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium capitalize">{r.requestType.replace("_", " ")}</p>
+                      <p className="text-xs text-muted-foreground">{r.startDate} – {r.endDate} · {r.hours}h</p>
+                    </div>
+                    <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* My acknowledgments */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CheckCircle2 className="size-4 text-muted-foreground" /> My acknowledgments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {docsQ.isLoading || acksQ.isLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : ackDocs.length === 0 ? (
+              <EmptyState icon={CheckCircle2} title="Nothing to acknowledge" description="Policies requiring sign-off will appear here." />
+            ) : (
+              <ul className="divide-y divide-border">
+                {ackDocs.map((d) => {
+                  const done = myAckedDocIds.has(d.id);
+                  return (
+                    <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <p className="text-sm font-medium">{d.title}</p>
+                      {done ? (
+                        <Badge variant="success">Acknowledged</Badge>
+                      ) : (
+                        <Link href="/policy-attestation"><Badge variant="warning" className="cursor-pointer">Sign now</Badge></Link>
+                      )}
                     </li>
                   );
                 })}
@@ -209,10 +316,7 @@ export default function StaffPortalPage() {
       {/* Staff SOPs */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="size-4 text-muted-foreground" />
-            Staff policies &amp; SOPs
-          </CardTitle>
+          <CardTitle className="flex items-center gap-2"><FileText className="size-4 text-muted-foreground" /> Staff policies &amp; SOPs</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -225,17 +329,11 @@ export default function StaffPortalPage() {
                 <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div>
                     <p className="text-sm font-medium">{d.title}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{d.documentType} · v{d.version}</p>
+                    <p className="text-xs capitalize text-muted-foreground">{d.documentType} · v{d.version}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {d.requiresAcknowledgment && (
-                      <Badge variant="warning" className="text-xs">Ack. required</Badge>
-                    )}
-                    {d.fileUrl && (
-                      <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                        View
-                      </a>
-                    )}
+                    {d.requiresAcknowledgment && <Badge variant="warning" className="text-xs">Ack. required</Badge>}
+                    {d.fileUrl && <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>}
                   </div>
                 </li>
               ))}
@@ -244,9 +342,9 @@ export default function StaffPortalPage() {
         </CardContent>
       </Card>
 
-      {myName === "" && (
+      {myUserId === "" && (
         <div className="rounded-lg border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
-          <UserCircle className="mb-1 inline size-4" /> Your portal is filtered by your name. Complete your profile setup to see personalized data.
+          <UserCircle className="mb-1 inline size-4" /> Complete your profile setup to see personalized data.
         </div>
       )}
     </div>
