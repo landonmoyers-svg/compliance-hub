@@ -48,13 +48,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(
     async (authUser: User) => {
       try {
-        const { data, error } = await supabase
+        // Retry once — session may not be fully propagated on first load
+        let queryResult = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", authUser.id)
           .single();
+        if (!queryResult.data) {
+          await new Promise((r) => setTimeout(r, 800));
+          queryResult = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", authUser.id)
+            .single();
+        }
+        const data = queryResult.data;
 
-        if (error || !data) {
+        if (!data) {
           setProfile(null);
           setStatus("no_profile");
           return;
@@ -85,22 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshProfile = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (data) {
-      setProfile({
-        id: data.id, createdDate: data.created_date, userId: data.user_id,
-        fullName: data.full_name, email: data.email, accountRole: data.account_role,
-        staffRole: data.staff_role ?? undefined, professionalRole: data.professional_role ?? undefined,
-        department: data.department ?? undefined, primaryLocationId: data.primary_location_id ?? undefined,
-        active: data.active,
-      });
-    }
-  }, [supabase, user]);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    await loadProfile(session.user);
+  }, [supabase, loadProfile]);
 
   useEffect(() => {
     // Check for existing session on mount
