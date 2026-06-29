@@ -32,6 +32,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   profile: ComplianceUserProfile | null;
   isAdmin: boolean;
+  profileError: string | null;
   login: () => void;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<ComplianceUserProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const loadProfile = useCallback(
     async (authUser: User) => {
@@ -65,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = queryResult.data;
 
         if (!data) {
+          const err = queryResult.error;
+          setProfileError(err ? `${err.code}: ${err.message}` : "No profile row found for user " + authUser.id);
           setProfile(null);
           setStatus("no_profile");
           return;
@@ -136,11 +140,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      status, user, profile,
+      status, user, profile, profileError,
       isAdmin: isAdminRole(profile?.accountRole),
       login, logout, refreshProfile,
     }),
-    [status, user, profile, login, logout, refreshProfile],
+    [status, user, profile, profileError, login, logout, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

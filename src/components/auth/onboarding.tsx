@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * the state machine advances to `ready` once a profile exists.
  */
 export function Onboarding() {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, profileError } = useAuth();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -23,6 +23,11 @@ export function Onboarding() {
           <CardTitle>Finish setting up your profile</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
+          {profileError && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive font-mono text-left break-all">
+              {profileError}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             We need a few details — your role and department — before you can
             access the workspace.
