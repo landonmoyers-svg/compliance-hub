@@ -2,12 +2,13 @@
 
 import { useState, useRef } from "react";
 import {
-  Upload, FileText, Bot, Check, X, AlertCircle, ExternalLink, ArrowRight,
+  Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight,
   BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCreate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
+import { FileLink } from "@/components/shared/file-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -275,11 +276,7 @@ export default function DocumentIntakePage() {
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText className="size-4 shrink-0 text-muted-foreground" />
                     <span className="truncate font-mono text-sm text-muted-foreground">{r.fileName}</span>
-                    {r.fileUrl && (
-                      <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                        <ExternalLink className="size-3" /> view
-                      </a>
-                    )}
+                    {r.fileUrl && <FileLink path={r.fileUrl} label="view" />}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge variant={CONFIDENCE_VARIANT[r.confidence]} className="capitalize">{r.confidence}</Badge>

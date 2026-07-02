@@ -160,5 +160,6 @@ export function buildSeed(): SeedData {
     completedForms: [],
     employeeDocuments: [],
     controlledSubstanceLogs: [],
+    notifications: [],
   };
 }

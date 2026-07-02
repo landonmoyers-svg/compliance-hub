@@ -185,6 +185,9 @@ export default function LoginPage() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Signing in…" : "Sign in"}
                 </Button>
+                <a href="/auth/forgot" className="block text-center text-sm text-muted-foreground hover:text-foreground">
+                  Forgot your password?
+                </a>
               </form>
             </CardContent>
           </Card>

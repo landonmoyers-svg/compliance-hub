@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FileText, Plus, Search, Upload, X, ExternalLink } from "lucide-react";
+import { FileText, Plus, Search, Upload, X } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
+import { FileLink } from "@/components/shared/file-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -401,9 +402,7 @@ export default function SOPLibraryPage() {
                         <td className="py-3">
                           <div className="flex items-center gap-1">
                             {d.fileUrl && (
-                              <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" aria-label={`View ${d.title}`}>
-                                <ExternalLink className="size-3.5" /> View
-                              </a>
+                              <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" />
                             )}
                             <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
                           </div>

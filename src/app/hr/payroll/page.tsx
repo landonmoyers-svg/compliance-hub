@@ -146,11 +146,7 @@ export default function PayrollPage() {
         paymentMethod: form.paymentMethod,
         status: "draft",
       });
-      await logAudit({
-        actorName, actorEmail, action: "create", entityType: "payroll_record",
-        entityLabel: `${emp.firstName} ${emp.lastName} ${form.periodStart}–${form.periodEnd}`,
-        details: `Draft payroll created, net ${formatCents(netCents)}`, riskLevel: "high",
-      });
+      // Audit is written server-side by a DB trigger on payroll_records.
       setShowForm(false);
       setForm(EMPTY_FORM);
       toast.success("Payroll draft created");
@@ -165,12 +161,7 @@ export default function PayrollPage() {
     setBusy(true);
     try {
       await updateMut.mutateAsync({ id: r.id, patch: { status } });
-      await logAudit({
-        actorName, actorEmail, action: "update", entityType: "payroll_record",
-        entityId: r.id, entityLabel: `${r.employeeName} ${r.periodStart}–${r.periodEnd}`,
-        details: `Payroll ${label} (net ${formatCents(r.netPayCents)})`,
-        riskLevel: status === "paid" || status === "voided" ? "critical" : "high",
-      });
+      // Audit is written server-side by a DB trigger on payroll_records.
       toast.success(`Payroll ${label}`);
     } catch {
       toast.error("Failed to update payroll record.");

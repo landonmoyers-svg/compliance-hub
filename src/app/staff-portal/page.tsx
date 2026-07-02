@@ -15,6 +15,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { roleLabel } from "@/lib/auth/roles";
+import { FileLink } from "@/components/shared/file-link";
 
 const TIMEOFF_STATUS_VARIANT = {
   pending: "warning",
@@ -259,7 +260,7 @@ export default function StaffPortalPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {p.renewalDate && <span className="text-xs text-muted-foreground">Renews {formatDate(p.renewalDate)}</span>}
-                      {p.documentUrl && <a href={p.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>}
+                      {p.documentUrl && <FileLink path={p.documentUrl} label="View" />}
                     </div>
                   </li>
                 ))}
@@ -364,7 +365,7 @@ export default function StaffPortalPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {d.requiresAcknowledgment && <Badge variant="warning" className="text-xs">Ack. required</Badge>}
-                    {d.fileUrl && <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>}
+                    {d.fileUrl && <FileLink path={d.fileUrl} label="View" />}
                   </div>
                 </li>
               ))}

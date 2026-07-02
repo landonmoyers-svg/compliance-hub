@@ -16,6 +16,7 @@ import type {
   FormAssignment,
   InsurancePolicyRecord,
   InventoryItem,
+  Notification,
   OSHARecord,
   PayrollRecord,
   PerformanceReview,
@@ -82,6 +83,7 @@ export interface DataClient {
   completedForms: Collection<CompletedForm>;
   employeeDocuments: Collection<EmployeeDocument>;
   controlledSubstanceLogs: Collection<ControlledSubstanceLog>;
+  notifications: Collection<Notification>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

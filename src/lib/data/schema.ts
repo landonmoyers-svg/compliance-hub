@@ -734,6 +734,21 @@ export type EmployeeDocument = z.infer<typeof EmployeeDocument>;
 
 /* ----------------- controlled substances log ----------------------- */
 
+export const Notification = z.object({
+  ...base,
+  title: z.string(),
+  body: z.string().optional(),
+  category: z
+    .enum(["credential", "training", "document", "insurance", "vendor", "system"])
+    .default("system"),
+  severity: z.enum(["info", "warning", "critical"]).default("info"),
+  entityType: z.string().optional(),
+  entityId: z.string().nullable().optional(),
+  link: z.string().nullable().optional(),
+  read: z.boolean().default(false),
+});
+export type Notification = z.infer<typeof Notification>;
+
 export const ControlledSubstanceLog = z.object({
   ...base,
   substanceName: z.string(),

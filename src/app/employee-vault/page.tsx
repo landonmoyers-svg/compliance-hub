@@ -9,7 +9,6 @@ import {
   Check,
   Upload,
   FileText,
-  ExternalLink,
   ShieldAlert,
   Trash2,
 } from "lucide-react";
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { uploadFile } from "@/lib/storage";
+import { FileLink } from "@/components/shared/file-link";
 import type { EmployeeDocument, EmployeeDocType, Employee } from "@/lib/data/schema";
 import { employeeDocTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -263,11 +263,7 @@ function DocumentDialog({
                 <Upload className="size-4" /> {existingFileUrl ? "Replace file" : "Choose file"}
               </Button>
             )}
-            {existingFileUrl && !file && (
-              <a href={existingFileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                <ExternalLink className="size-3" /> Current file
-              </a>
-            )}
+            {existingFileUrl && !file && <FileLink path={existingFileUrl} label="Current file" />}
             <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, PNG, or JPG · max 25MB</p>
           </div>
 
@@ -503,9 +499,7 @@ export default function EmployeeVaultPage() {
                       <td className="py-3 pr-4 text-muted-foreground">{d.uploadedByName ?? "—"}</td>
                       <td className="py-3 pr-4">
                         {d.fileUrl ? (
-                          <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                            <ExternalLink className="size-3" /> View
-                          </a>
+                          <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 text-primary hover:underline" />
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

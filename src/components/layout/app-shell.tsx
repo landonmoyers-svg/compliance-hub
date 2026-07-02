@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Menu, ShieldCheck, X } from "lucide-react";
 import { Sidebar } from "./sidebar";
+import { NotificationBell } from "./notification-bell";
 import { cn } from "@/lib/cn";
 
 /** Authenticated app frame: fixed sidebar on desktop, slide-over drawer on mobile. */
@@ -28,6 +29,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-5 text-primary" />
           <span className="text-sm font-semibold">Compliance Hub</span>
+        </div>
+        <div className="ml-auto">
+          <NotificationBell />
         </div>
       </header>
 
@@ -65,6 +69,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main content */}
       <main className="lg:pl-72">
+        {/* Desktop top bar with notifications */}
+        <div className="hidden items-center justify-end border-b border-border px-8 py-2 lg:flex">
+          <NotificationBell />
+        </div>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>

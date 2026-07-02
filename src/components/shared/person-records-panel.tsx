@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { BadgeCheck, Shield, FolderLock, GraduationCap, Award, CheckCircle2, ArrowRight, ExternalLink } from "lucide-react";
+import { BadgeCheck, Shield, FolderLock, GraduationCap, Award, CheckCircle2, ArrowRight } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
+import { FileLink } from "@/components/shared/file-link";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { credentialStatus } from "@/lib/compliance";
@@ -201,11 +202,7 @@ function Row({ left, sub, right, fileUrl }: {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {right}
-        {fileUrl && (
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="View file">
-            <ExternalLink className="size-3.5" />
-          </a>
-        )}
+        {fileUrl && <FileLink path={fileUrl} iconOnly label="View file" className="text-muted-foreground hover:text-primary" />}
       </div>
     </div>
   );

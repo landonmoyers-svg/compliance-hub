@@ -5,14 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 const BUCKET = "documents";
 
 /**
- * Upload a file to the shared `documents` storage bucket and return its public URL.
- * Files are namespaced by a folder prefix (e.g. "sop", "employee-vault") so the
- * bucket stays organized. Throws on failure so callers can surface an error toast.
+ * Upload a file to the private `documents` bucket and return its object PATH
+ * (not a public URL — the bucket is private). Store the path on the record;
+ * render it with <FileLink> which mints a short-lived signed URL on demand.
  */
 export async function uploadFile(file: File, folder: string): Promise<string> {
   const supabase = createClient();
   const ext = file.name.includes(".") ? file.name.split(".").pop() : "bin";
-  // Avoid Math.random/Date.now collisions by combining time + name + size.
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 60);
   const path = `${folder}/${Date.now()}-${file.size}-${safeName}.${ext}`;
 
@@ -22,7 +21,18 @@ export async function uploadFile(file: File, folder: string): Promise<string> {
     contentType: file.type || undefined,
   });
   if (error) throw new Error(error.message);
+  return path;
+}
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+/**
+ * Mint a short-lived signed URL for a stored object path. If the value is a
+ * legacy full URL (from before the bucket was private), it is returned as-is.
+ */
+export async function getSignedUrl(pathOrUrl: string, expiresInSeconds = 120): Promise<string | null> {
+  if (!pathOrUrl) return null;
+  if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl; // legacy public URL
+  const supabase = createClient();
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(pathOrUrl, expiresInSeconds);
+  if (error || !data) return null;
+  return data.signedUrl;
 }

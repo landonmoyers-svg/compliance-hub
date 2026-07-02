@@ -30,6 +30,7 @@ import type {
   FormField,
   InsurancePolicyRecord,
   InventoryItem,
+  Notification,
   OSHARecord,
   PayrollRecord,
   PerformanceReview,
@@ -1010,6 +1011,32 @@ function csLogTo(d: Partial<ControlledSubstanceLog>) {
   };
 }
 
+function notificationFrom(r: Record<string, unknown>): Notification {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    body: r.body as string | undefined,
+    category: r.category as Notification["category"],
+    severity: r.severity as Notification["severity"],
+    entityType: r.entity_type as string | undefined,
+    entityId: r.entity_id as string | undefined,
+    link: r.link as string | undefined,
+    read: r.read as boolean,
+  };
+}
+function notificationTo(d: Partial<Notification>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.body !== undefined && { body: d.body }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.severity !== undefined && { severity: d.severity }),
+    ...(d.entityType !== undefined && { entity_type: d.entityType }),
+    ...(d.entityId !== undefined && { entity_id: d.entityId }),
+    ...(d.link !== undefined && { link: d.link }),
+    ...(d.read !== undefined && { read: d.read }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -1048,5 +1075,6 @@ export function createSupabaseDataClient(): DataClient {
     completedForms:     makeCollection(supabase, "completed_forms",     completedFormFrom,      completedFormTo),
     employeeDocuments:  makeCollection(supabase, "employee_documents",  employeeDocFrom,        employeeDocTo),
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
+    notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
   };
 }
