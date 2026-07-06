@@ -161,5 +161,6 @@ export function buildSeed(): SeedData {
     employeeDocuments: [],
     controlledSubstanceLogs: [],
     notifications: [],
+    organizationSettings: [],
   };
 }

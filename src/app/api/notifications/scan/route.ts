@@ -34,23 +34,35 @@ async function runScan(): Promise<{ created: number }> {
   const admin = createAdminClient();
   if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
 
+  // Reminder windows are configurable in Settings → Notifications.
+  const { data: settingsRows } = await admin
+    .from("organization_settings")
+    .select("credential_reminder_days, training_reminder_days, insurance_reminder_days")
+    .limit(1);
+  const s = settingsRows?.[0];
+  const credWindow = s?.credential_reminder_days ?? 30;
+  const trainWindow = s?.training_reminder_days ?? 14;
+  const insWindow = s?.insurance_reminder_days ?? 60;
+
   const candidates: NewNote[] = [];
 
-  // Credentials expiring ≤30 days or expired
+  // Credentials expiring within the configured window or expired
   const { data: creds } = await admin.from("credentials").select("id, employee_name, credential_name, expiration_date");
   for (const c of creds ?? []) {
     const d = daysUntil(c.expiration_date);
     if (d === null) continue;
-    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name}'s ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
-    else if (d <= 30) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name}'s ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
+    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
+    else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
   }
 
-  // Training overdue
+  // Training overdue or due within the configured window
   const { data: training } = await admin.from("training_assignments").select("id, assigned_to_name, module_title, due_date, status");
   for (const t of training ?? []) {
     if (t.status === "completed") continue;
     const d = daysUntil(t.due_date);
-    if (d !== null && d < 0) candidates.push({ title: `Training overdue: ${t.module_title}`, body: `${t.assigned_to_name} is ${Math.abs(d)} day(s) overdue on "${t.module_title}".`, category: "training", severity: "warning", entity_type: "training_assignments", entity_id: t.id, link: "/training" });
+    if (d === null) continue;
+    if (d < 0) candidates.push({ title: `Training overdue: ${t.module_title}`, body: `${t.assigned_to_name} is ${Math.abs(d)} day(s) overdue on ${t.module_title}.`, category: "training", severity: "warning", entity_type: "training_assignments", entity_id: t.id, link: "/training" });
+    else if (d <= trainWindow) candidates.push({ title: `Training due soon: ${t.module_title}`, body: `${t.assigned_to_name} has ${d} day(s) left on ${t.module_title}.`, category: "training", severity: "info", entity_type: "training_assignments", entity_id: t.id, link: "/training" });
   }
 
   // Documents past review date
@@ -66,7 +78,7 @@ async function runScan(): Promise<{ created: number }> {
     const d = daysUntil(p.renewal_date);
     if (d === null) continue;
     if (d < 0) candidates.push({ title: `Insurance lapsed: ${p.policy_name}`, body: `${p.policy_name} renewal was due ${Math.abs(d)} day(s) ago.`, category: "insurance", severity: "critical", entity_type: "insurance_policies", entity_id: p.id, link: "/insurance-vault" });
-    else if (d <= 60) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: "/insurance-vault" });
+    else if (d <= insWindow) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: "/insurance-vault" });
   }
 
   // Vendor BAA gaps

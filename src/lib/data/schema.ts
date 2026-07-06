@@ -734,6 +734,25 @@ export type EmployeeDocument = z.infer<typeof EmployeeDocument>;
 
 /* ----------------- controlled substances log ----------------------- */
 
+export const OrganizationSettings = z.object({
+  ...base,
+  orgName: z.string().default("Lone Peak Psychiatry"),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  npiNumber: z.string().optional(),
+  taxId: z.string().optional(),
+  documentRetentionYears: z.number().default(7),
+  sessionTimeoutMinutes: z.number().default(30),
+  requireTwoFactor: z.boolean().default(false),
+  passwordMinLength: z.number().default(12),
+  credentialReminderDays: z.number().default(30),
+  trainingReminderDays: z.number().default(14),
+  insuranceReminderDays: z.number().default(60),
+  emailNotifications: z.boolean().default(true),
+});
+export type OrganizationSettings = z.infer<typeof OrganizationSettings>;
+
 export const Notification = z.object({
   ...base,
   title: z.string(),

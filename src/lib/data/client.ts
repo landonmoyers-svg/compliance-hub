@@ -17,6 +17,7 @@ import type {
   InsurancePolicyRecord,
   InventoryItem,
   Notification,
+  OrganizationSettings,
   OSHARecord,
   PayrollRecord,
   PerformanceReview,
@@ -84,6 +85,7 @@ export interface DataClient {
   employeeDocuments: Collection<EmployeeDocument>;
   controlledSubstanceLogs: Collection<ControlledSubstanceLog>;
   notifications: Collection<Notification>;
+  organizationSettings: Collection<OrganizationSettings>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

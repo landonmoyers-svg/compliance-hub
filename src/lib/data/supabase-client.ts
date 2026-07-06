@@ -31,6 +31,7 @@ import type {
   InsurancePolicyRecord,
   InventoryItem,
   Notification,
+  OrganizationSettings,
   OSHARecord,
   PayrollRecord,
   PerformanceReview,
@@ -1037,6 +1038,44 @@ function notificationTo(d: Partial<Notification>) {
   };
 }
 
+function orgSettingsFrom(r: Record<string, unknown>): OrganizationSettings {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    orgName: r.org_name as string,
+    address: r.address as string | undefined,
+    phone: r.phone as string | undefined,
+    website: r.website as string | undefined,
+    npiNumber: r.npi_number as string | undefined,
+    taxId: r.tax_id as string | undefined,
+    documentRetentionYears: r.document_retention_years as number,
+    sessionTimeoutMinutes: r.session_timeout_minutes as number,
+    requireTwoFactor: r.require_two_factor as boolean,
+    passwordMinLength: r.password_min_length as number,
+    credentialReminderDays: r.credential_reminder_days as number,
+    trainingReminderDays: r.training_reminder_days as number,
+    insuranceReminderDays: r.insurance_reminder_days as number,
+    emailNotifications: r.email_notifications as boolean,
+  };
+}
+function orgSettingsTo(d: Partial<OrganizationSettings>) {
+  return {
+    ...(d.orgName !== undefined && { org_name: d.orgName }),
+    ...(d.address !== undefined && { address: d.address }),
+    ...(d.phone !== undefined && { phone: d.phone }),
+    ...(d.website !== undefined && { website: d.website }),
+    ...(d.npiNumber !== undefined && { npi_number: d.npiNumber }),
+    ...(d.taxId !== undefined && { tax_id: d.taxId }),
+    ...(d.documentRetentionYears !== undefined && { document_retention_years: d.documentRetentionYears }),
+    ...(d.sessionTimeoutMinutes !== undefined && { session_timeout_minutes: d.sessionTimeoutMinutes }),
+    ...(d.requireTwoFactor !== undefined && { require_two_factor: d.requireTwoFactor }),
+    ...(d.passwordMinLength !== undefined && { password_min_length: d.passwordMinLength }),
+    ...(d.credentialReminderDays !== undefined && { credential_reminder_days: d.credentialReminderDays }),
+    ...(d.trainingReminderDays !== undefined && { training_reminder_days: d.trainingReminderDays }),
+    ...(d.insuranceReminderDays !== undefined && { insurance_reminder_days: d.insuranceReminderDays }),
+    ...(d.emailNotifications !== undefined && { email_notifications: d.emailNotifications }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -1076,5 +1115,6 @@ export function createSupabaseDataClient(): DataClient {
     employeeDocuments:  makeCollection(supabase, "employee_documents",  employeeDocFrom,        employeeDocTo),
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
+    organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
   };
 }
