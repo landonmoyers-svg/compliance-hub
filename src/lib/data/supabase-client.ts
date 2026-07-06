@@ -39,6 +39,7 @@ import type {
   PerformanceRock,
   PolicyAcknowledgment,
   PTOBalance,
+  RecordVersion,
   RegulatorySource,
   RiskManagementCase,
   SDSRecord,
@@ -416,6 +417,25 @@ function regTo(d: Partial<RegulatorySource>) {
     ...(d.lastCheckedAt !== undefined && { last_checked_at: d.lastCheckedAt }),
     ...(d.officialUrl !== undefined && { official_url: d.officialUrl }),
   };
+}
+
+function recordVersionFrom(r: Record<string, unknown>): RecordVersion {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    entityType: r.entity_type as string,
+    entityId: r.entity_id as string,
+    versionNum: r.version_num as number,
+    changeKind: r.change_kind as RecordVersion["changeKind"],
+    effectiveFrom: toISO(r.effective_from as string),
+    supersededAt: toISO(r.superseded_at as string),
+    changedBy: (r.changed_by as string | null) ?? undefined,
+    filePath: (r.file_path as string | null) ?? undefined,
+    snapshot: (r.snapshot as Record<string, unknown>) ?? {},
+  };
+}
+// History is written server-side by a trigger; the client never writes it.
+function recordVersionTo(): Record<string, unknown> {
+  return {};
 }
 
 function insuranceFrom(r: Record<string, unknown>): InsurancePolicyRecord {
@@ -1116,6 +1136,7 @@ export function createSupabaseDataClient(): DataClient {
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
+    recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),
     insurancePolicies:  makeCollection(supabase, "insurance_policies",  insuranceFrom,          insuranceTo),
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),

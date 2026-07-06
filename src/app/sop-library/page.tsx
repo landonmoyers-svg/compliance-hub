@@ -5,6 +5,7 @@ import { FileText, Plus, Search, Upload, X } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
+import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -408,6 +409,7 @@ export default function SOPLibraryPage() {
                             {d.fileUrl && (
                               <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" />
                             )}
+                            <VersionHistoryButton entityType="documents" entityId={d.id} title={d.title} />
                             <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
                           </div>
                         </td>

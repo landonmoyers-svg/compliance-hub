@@ -126,6 +126,7 @@ export function buildSeed(): SeedData {
       { id: "reg-4", createdDate: days(-200), title: "OSHA Hazard Communication", citationLabel: "29 CFR 1910.1200", issuingBody: "OSHA", sourceType: "regulation", jurisdiction: "Federal", reviewStatus: "needs_review", lastCheckedAt: days(-220) },
       { id: "reg-5", createdDate: days(-150), title: "HHS Telehealth Guidance", citationLabel: "HHS-TH-2024", issuingBody: "HHS", sourceType: "guidance", jurisdiction: "Federal", reviewStatus: "under_review", lastCheckedAt: days(-60) },
     ],
+    recordVersions: [],
     insurancePolicies: [
       { id: "ins-1", createdDate: days(-300), policyName: "Professional Liability", policyType: "malpractice", carrierName: "MedPro", policyNumber: "MP-10293", coverageAmountCents: 300000000, annualPremiumCents: 1850000, renewalDate: days(22) },
       { id: "ins-2", createdDate: days(-300), policyName: "Business Owners Policy", policyType: "bop", carrierName: "Hartford", policyNumber: "BOP-55821", coverageAmountCents: 200000000, annualPremiumCents: 940000, renewalDate: days(95) },

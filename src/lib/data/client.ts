@@ -24,6 +24,7 @@ import type {
   PerformanceReview,
   PolicyAcknowledgment,
   PTOBalance,
+  RecordVersion,
   RegulatorySource,
   RiskManagementCase,
   SDSRecord,
@@ -64,6 +65,7 @@ export interface DataClient {
   riskCases: Collection<RiskManagementCase>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
+  recordVersions: Collection<RecordVersion>;
   insurancePolicies: Collection<InsurancePolicyRecord>;
   emergencyDrills: Collection<EmergencyDrill>;
   employees: Collection<Employee>;

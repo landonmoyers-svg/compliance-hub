@@ -275,6 +275,25 @@ export const RegulatorySource = z.object({
 });
 export type RegulatorySource = z.infer<typeof RegulatorySource>;
 
+/* ------------------------- version history ------------------------- */
+
+// One immutable row per superseded/deleted version of a governed record
+// (documents, credentials, vendors, employee_documents). Written server-side
+// by a DB trigger; never created or mutated from the client.
+export const RecordVersion = z.object({
+  ...base,
+  entityType: z.string(),
+  entityId: z.string(),
+  versionNum: z.number(),
+  changeKind: z.enum(["update", "delete"]),
+  effectiveFrom: z.string().nullable().optional(), // when this version took effect
+  supersededAt: z.string().nullable().optional(),  // when it was replaced/deleted
+  changedBy: z.string().nullable().optional(),
+  filePath: z.string().nullable().optional(),
+  snapshot: z.record(z.string(), z.unknown()).default({}),
+});
+export type RecordVersion = z.infer<typeof RecordVersion>;
+
 /* ---------------------------- insurance ---------------------------- */
 
 export const InsurancePolicyRecord = z.object({

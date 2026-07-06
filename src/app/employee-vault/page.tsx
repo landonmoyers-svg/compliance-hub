@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { uploadFile } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
+import { VersionHistoryButton } from "@/components/shared/version-history";
 import type { EmployeeDocument, EmployeeDocType, Employee } from "@/lib/data/schema";
 import { employeeDocTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -355,7 +356,7 @@ export default function EmployeeVaultPage() {
   }, [documents]);
 
   async function handleDelete(doc: EmployeeDocument) {
-    if (!confirm(`Delete "${doc.title}"? This cannot be undone.`)) return;
+    if (!confirm(`Remove "${doc.title}" from the active list? A retained copy is kept in version history for legal recordkeeping.`)) return;
     try {
       await removeMut.mutateAsync(doc.id);
       toast.success("Document deleted");
@@ -506,6 +507,7 @@ export default function EmployeeVaultPage() {
                       </td>
                       <td className="py-3">
                         <div className="flex items-center gap-1">
+                          <VersionHistoryButton entityType="employee_documents" entityId={d.id} title={`${d.title} — ${d.employeeName}`} />
                           <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
                           <Button size="sm" variant="ghost" onClick={() => handleDelete(d)} aria-label="Delete document">
                             <Trash2 className="size-4 text-destructive" />

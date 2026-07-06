@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { BadgeCheck, Plus, Search } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { FileLink } from "@/components/shared/file-link";
+import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -382,6 +383,7 @@ export default function CredentialsPage() {
                             {c.documentUrl && (
                               <FileLink path={c.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
                             )}
+                            <VersionHistoryButton entityType="credentials" entityId={c.id} title={`${c.credentialName} — ${c.employeeName}`} />
                           </div>
                         </td>
                       </tr>

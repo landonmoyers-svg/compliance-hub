@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Building2, Plus, Search, AlertTriangle, ShieldCheck, X, Check } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { VersionHistoryButton } from "@/components/shared/version-history";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -505,7 +506,10 @@ export default function VendorManagementPage() {
                           <Badge variant={STATUS_VARIANT[v.status]}>{STATUS_LABEL[v.status]}</Badge>
                         </td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(v)}>Edit</Button>
+                          <div className="flex gap-1">
+                            <VersionHistoryButton entityType="vendors" entityId={v.id} title={v.vendorName} />
+                            <Button size="sm" variant="ghost" onClick={() => setEditing(v)}>Edit</Button>
+                          </div>
                         </td>
                       </tr>
                     );
