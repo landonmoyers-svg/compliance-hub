@@ -473,6 +473,7 @@ function employeeFrom(r: Record<string, unknown>): Employee {
     employmentStatus: r.employment_status as Employee["employmentStatus"],
     hireDate: r.hire_date as string | undefined,
     locationId: r.location_id as string | undefined,
+    userId: r.user_id as string | undefined,
   };
 }
 function employeeTo(d: Partial<Employee>) {
@@ -485,6 +486,7 @@ function employeeTo(d: Partial<Employee>) {
     ...(d.employmentStatus !== undefined && { employment_status: d.employmentStatus }),
     ...(d.hireDate !== undefined && { hire_date: d.hireDate }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.userId !== undefined && { user_id: d.userId }),
   };
 }
 

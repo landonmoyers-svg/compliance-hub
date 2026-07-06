@@ -6,8 +6,9 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useCreate, useCollection } from "@/lib/data/hooks";
+import { useCreate, useUpdate, useCollection } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
+import { provisionLogin } from "@/lib/admin";
 import { toast } from "sonner";
 
 const CONCIERGE_WELCOME = "Welcome to the Compliance Setup Concierge! I'll guide you through setting up your compliance program. Ask me to set things up — e.g. \"add my Lehi and Provo clinics\" or \"suggest the regulatory sources a Utah psychiatry practice needs\" — and I'll propose records you can create with one click.";
@@ -67,6 +68,8 @@ export default function ComplianceConcierge() {
   const createRegulatorySource = useCreate("regulatorySources");
   const createDocument = useCreate("documents");
   const createTask = useCreate("tasks");
+  const createEmployee = useCreate("employees");
+  const updateEmployee = useUpdate("employees");
   const createChatMsg = useCreate("chatMessages");
   const chatQ = useCollection("chatMessages");
 
@@ -188,6 +191,41 @@ export default function ComplianceConcierge() {
             priority: (["low", "medium", "high", "critical"].includes(str(d.priority)) ? str(d.priority) : "medium") as "low" | "medium" | "high" | "critical",
           });
           break;
+        case "create_employee": {
+          const email = str(d.email).toLowerCase();
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            toast.error("I need a valid email to create this employee. Add one and try again.");
+            return;
+          }
+          const firstName = str(d.firstName, "New");
+          const lastName = str(d.lastName, "Employee");
+          const validDepts = ["ownership", "administration", "clinical", "hr", "billing", "front_desk", "operations", "contractor", "other"];
+          const dept = validDepts.includes(str(d.department)) ? (str(d.department) as "ownership" | "administration" | "clinical" | "hr" | "billing" | "front_desk" | "operations" | "contractor" | "other") : undefined;
+          const created = await createEmployee.mutateAsync({
+            firstName, lastName, email,
+            title: str(d.title) || undefined,
+            department: dept,
+            employmentStatus: "active",
+          });
+          const wantInvite = d.invite !== false;
+          if (wantInvite) {
+            const validRoles = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
+            const role = validRoles.includes(str(d.accountRole)) ? str(d.accountRole) : "staff";
+            const result = await provisionLogin({ email, fullName: `${firstName} ${lastName}`, accountRole: role, staffRole: str(d.title) || undefined, department: dept });
+            if (result.ok) {
+              if (result.userId) await updateEmployee.mutateAsync({ id: created.id, patch: { userId: result.userId } });
+              toast.success(`${firstName} ${lastName} added and invited to the app`);
+            } else {
+              toast.error(`Employee added, but the login could not be created: ${result.error}`);
+            }
+          } else {
+            toast.success(`${firstName} ${lastName} added to the employee directory`);
+          }
+          setChat((c) => c.map((m, mi) => mi === msgIndex && m.actions
+            ? { ...m, actions: m.actions.map((a, ai) => (ai === actionIndex ? { ...a, done: true } : a)) }
+            : m));
+          return;
+        }
         default:
           toast.error("Unknown action type.");
           return;

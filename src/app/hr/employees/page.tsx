@@ -12,6 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { formatDate, dateInputToISO } from "@/lib/dates";
+import { provisionLogin } from "@/lib/admin";
+import { roleLabel } from "@/lib/auth/roles";
+import { accountRoles } from "@/lib/data/schema";
 import type { Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -43,6 +46,8 @@ interface EmployeeForm {
   department: string;
   employmentStatus: Employee["employmentStatus"];
   hireDate: string;
+  inviteToApp: boolean;
+  accountRole: string;
 }
 
 const EMPTY: EmployeeForm = {
@@ -53,6 +58,8 @@ const EMPTY: EmployeeForm = {
   department: "",
   employmentStatus: "active",
   hireDate: "",
+  inviteToApp: false,
+  accountRole: "staff",
 };
 
 function EmployeeDialog({
@@ -76,6 +83,8 @@ function EmployeeDialog({
           department: initial.department ?? "",
           employmentStatus: initial.employmentStatus,
           hireDate: initial.hireDate ?? "",
+          inviteToApp: false,
+          accountRole: "staff",
         }
       : EMPTY,
   );
@@ -143,6 +152,32 @@ function EmployeeDialog({
             <label className="text-sm font-medium">Hire date</label>
             <input type="date" className="input w-full" value={form.hireDate} onChange={set("hireDate")} />
           </div>
+
+          {/* Provision a real login — only when adding a new employee */}
+          {!initial && (
+            <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-4 sm:col-span-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={form.inviteToApp} onChange={(e) => setForm((p) => ({ ...p, inviteToApp: e.target.checked }))} className="size-4" />
+                Create a login and invite this employee to the app
+              </label>
+              {form.inviteToApp && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Account role</label>
+                  <select className="input w-full" value={form.accountRole} onChange={set("accountRole")}>
+                    {accountRoles.filter((r) => r !== "inactive").map((r) => (
+                      <option key={r} value={r}>{roleLabel(r)}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Sends an email invitation to set a password. Creates the Supabase auth account and a linked profile.</p>
+                </div>
+              )}
+            </div>
+          )}
+          {initial?.userId && (
+            <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-2 text-xs text-success sm:col-span-2">
+              This employee has an app login linked to their profile.
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -202,10 +237,28 @@ export default function EmployeesPage() {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
         toast.success("Employee updated");
       } else {
-        await createMut.mutateAsync(payload);
-        toast.success("Employee added");
+        const created = await createMut.mutateAsync(payload);
+        if (form.inviteToApp) {
+          const result = await provisionLogin({
+            email: payload.email,
+            fullName: `${payload.firstName} ${payload.lastName}`,
+            accountRole: form.accountRole,
+            staffRole: payload.title,
+            department: form.department || undefined,
+          });
+          if (result.ok) {
+            // Link the new employee record to its auth login.
+            if (result.userId) await updateMut.mutateAsync({ id: created.id, patch: { userId: result.userId } });
+            toast.success("Employee added and invited — they will get an email to set a password.");
+          } else {
+            toast.error(`Employee added, but the login could not be created: ${result.error}`);
+          }
+        } else {
+          toast.success("Employee added");
+        }
       }
       setEditing(null);
+      void refetch();
     } catch {
       toast.error("Failed to save employee");
     } finally {
@@ -244,7 +297,7 @@ export default function EmployeesPage() {
               <button onClick={() => setViewingRecords(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
             </div>
             <div className="overflow-y-auto p-5">
-              <PersonRecordsPanel userId={null} name={`${viewingRecords.firstName} ${viewingRecords.lastName}`} />
+              <PersonRecordsPanel userId={viewingRecords.userId ?? null} name={`${viewingRecords.firstName} ${viewingRecords.lastName}`} />
             </div>
           </div>
         </div>

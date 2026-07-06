@@ -318,6 +318,8 @@ export const Employee = z.object({
     .default("active"),
   hireDate: z.string().nullable().optional(),
   locationId: z.string().nullable().optional(),
+  // Links to the auth login/profile when the employee has been invited to the app.
+  userId: z.string().nullable().optional(),
 });
 export type Employee = z.infer<typeof Employee>;
 
