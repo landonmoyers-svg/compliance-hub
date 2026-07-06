@@ -2,9 +2,10 @@
 
 import { useState, useRef } from "react";
 import {
-  Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight,
+  Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight, Folder, FileArchive,
   BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock,
 } from "lucide-react";
+import JSZip from "jszip";
 import { useAuth } from "@/lib/auth/context";
 import { useCreate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
@@ -17,6 +18,64 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const MAX_FILE_MB = 25;
+const MAX_BATCH = 60; // cap files processed per drop to keep the AI/storage load sane
+
+const ACCEPTED_RE = /\.(pdf|docx?|txt|png|jpe?g|webp|csv|rtf)$/i;
+
+function guessMime(name: string): string {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  const map: Record<string, string> = {
+    pdf: "application/pdf", doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    txt: "text/plain", csv: "text/csv", rtf: "application/rtf",
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
+  };
+  return map[ext] ?? "application/octet-stream";
+}
+
+function isJunk(name: string): boolean {
+  const base = name.split("/").pop() ?? name;
+  return !base || base.startsWith(".") || name.includes("__MACOSX") || name.endsWith("/");
+}
+
+/** Expand a set of dropped inputs: unzip any .zip archives, keep supported files. */
+async function expandInputs(inputs: File[]): Promise<File[]> {
+  const out: File[] = [];
+  for (const f of inputs) {
+    const isZip = /\.zip$/i.test(f.name) || f.type.includes("zip");
+    if (isZip) {
+      try {
+        const zip = await JSZip.loadAsync(f);
+        for (const entry of Object.values(zip.files)) {
+          if (entry.dir || isJunk(entry.name)) continue;
+          const base = entry.name.split("/").pop() as string;
+          if (!ACCEPTED_RE.test(base)) continue;
+          const blob = await entry.async("blob");
+          out.push(new File([blob], base, { type: guessMime(base) }));
+        }
+      } catch {
+        toast.error(`Couldn't read the archive ${f.name}`);
+      }
+    } else if (!isJunk(f.name) && ACCEPTED_RE.test(f.name)) {
+      out.push(f);
+    }
+  }
+  return out;
+}
+
+/** Run async work over items with a concurrency limit. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i++;
+      results[idx] = await fn(items[idx]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
 type DestinationKey =
   | "sop_library"
@@ -74,8 +133,10 @@ export default function DocumentIntakePage() {
   const actorName = profile?.fullName ?? user?.fullName ?? "Intake";
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<IntakeResult[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   // One create hook per destination collection (hooks must be top-level).
   const createDocument = useCreate("documents");
@@ -132,22 +193,41 @@ export default function DocumentIntakePage() {
     }
   }
 
-  function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setProcessing(true);
-    const fileArray = Array.from(files);
-    Promise.all(fileArray.map(processFile))
-      .then((classified) => {
-        setResults((prev) => [...classified, ...prev]);
-        toast.success(`${fileArray.length} file${fileArray.length > 1 ? "s" : ""} classified & routed`);
-      })
-      .catch(() => toast.error("Processing failed"))
-      .finally(() => setProcessing(false));
+    setProgress(null);
+    try {
+      let expanded = await expandInputs(Array.from(files));
+      if (expanded.length === 0) {
+        toast.error("No supported documents found (PDF, DOC/DOCX, TXT, images, CSV).");
+        return;
+      }
+      let capped = false;
+      if (expanded.length > MAX_BATCH) { expanded = expanded.slice(0, MAX_BATCH); capped = true; }
+
+      setProgress({ done: 0, total: expanded.length });
+      let done = 0;
+      // Process ~4 at a time to stay gentle on the AI + storage.
+      const classified = await mapLimit(expanded, 4, async (f) => {
+        const r = await processFile(f);
+        done += 1;
+        setProgress({ done, total: expanded.length });
+        return r;
+      });
+      setResults((prev) => [...classified, ...prev]);
+      toast.success(`${classified.length} document${classified.length > 1 ? "s" : ""} classified & routed${capped ? ` (first ${MAX_BATCH} of a larger set)` : ""}`);
+    } catch {
+      toast.error("Processing failed");
+    } finally {
+      setProcessing(false);
+      setProgress(null);
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    handleFiles(e.dataTransfer.files);
+    void handleFiles(e.dataTransfer.files);
   }
 
   function setField<K extends keyof IntakeResult>(id: string, field: K, value: IntakeResult[K]) {
@@ -155,7 +235,7 @@ export default function DocumentIntakePage() {
   }
 
   /** File the record into its chosen destination collection. */
-  async function fileRecord(r: IntakeResult) {
+  async function fileRecord(r: IntakeResult, silent = false): Promise<boolean> {
     setField(r.id, "status", "filing");
     const title = r.suggestedTitle.trim() || r.fileName;
     try {
@@ -210,10 +290,29 @@ export default function DocumentIntakePage() {
           break;
       }
       setField(r.id, "status", "filed");
-      toast.success(`Filed to ${DESTINATIONS[r.destination].label}`);
+      if (!silent) toast.success(`Filed to ${DESTINATIONS[r.destination].label}`);
+      return true;
     } catch {
       setField(r.id, "status", "pending");
-      toast.error("Filing failed — try again.");
+      if (!silent) toast.error("Filing failed — try again.");
+      return false;
+    }
+  }
+
+  const [filingAll, setFilingAll] = useState(false);
+
+  /** File every pending item to its (AI-suggested or user-chosen) destination. */
+  async function fileAllPending() {
+    const toFile = results.filter((r) => r.status === "pending");
+    if (toFile.length === 0) return;
+    setFilingAll(true);
+    try {
+      const outcomes = await mapLimit(toFile, 4, (r) => fileRecord(r, true));
+      const ok = outcomes.filter(Boolean).length;
+      const failed = outcomes.length - ok;
+      toast.success(`Filed ${ok} document${ok !== 1 ? "s" : ""}${failed ? ` · ${failed} failed` : ""}`);
+    } finally {
+      setFilingAll(false);
     }
   }
 
@@ -223,36 +322,53 @@ export default function DocumentIntakePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Document Intake"
-        description="Upload any compliance document — the AI detects what it is and routes it to the right module (SOP Library, Credentials, SDS, OSHA, Insurance, and more). Review the destination, then file it."
+        title="Document Intake & Migration"
+        description="Bulk-migrate documents in one place — drop individual files, a whole folder, or a .zip archive. The AI detects what each document is and routes it to the right module (SOP Library, Credentials, SDS, OSHA, Insurance, and more). Review each destination, then file it."
       />
 
       <div
-        className="group relative flex cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border p-12 text-center transition-colors hover:border-primary hover:bg-primary/5"
-        onClick={() => inputRef.current?.click()}
+        className="group relative flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
       >
-        <input ref={inputRef} type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp" onChange={(e) => handleFiles(e.target.files)} />
+        <input ref={inputRef} type="file" multiple className="hidden" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.csv,.rtf,.zip" onChange={(e) => { void handleFiles(e.target.files); e.target.value = ""; }} />
+        {/* @ts-expect-error webkitdirectory is a non-standard but widely supported attribute */}
+        <input ref={folderRef} type="file" multiple webkitdirectory="" directory="" className="hidden" onChange={(e) => { void handleFiles(e.target.files); e.target.value = ""; }} />
         <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 transition-colors group-hover:bg-primary/20">
           <Upload className="size-6 text-primary" />
         </div>
         <div>
-          <p className="font-semibold">Drop files here or click to upload</p>
-          <p className="mt-1 text-sm text-muted-foreground">PDF, DOC, DOCX, TXT, images — AI classifies and routes each document automatically</p>
+          <p className="font-semibold">Drop files or a .zip here</p>
+          <p className="mt-1 text-sm text-muted-foreground">PDF, DOC/DOCX, TXT, CSV, RTF, images, or a .zip archive — up to {MAX_BATCH} documents at a time</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={processing}>
+            <FileArchive className="size-4" /> Choose files or .zip
+          </Button>
+          <Button variant="outline" onClick={() => folderRef.current?.click()} disabled={processing}>
+            <Folder className="size-4" /> Choose a folder
+          </Button>
         </div>
         {processing && (
           <div className="flex items-center gap-2 text-sm text-primary">
-            <Bot className="size-4 animate-pulse" /> Uploading & classifying…
+            <Bot className="size-4 animate-pulse" />
+            {progress ? `Uploading & classifying… ${progress.done}/${progress.total}` : "Reading & expanding…"}
           </div>
         )}
       </div>
 
       {results.length > 0 && (
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{results.length} total</span><span>·</span>
-          <span className="text-warning">{pending} pending</span><span>·</span>
-          <span className="text-success">{filed} filed</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>{results.length} total</span><span>·</span>
+            <span className="text-warning">{pending} pending</span><span>·</span>
+            <span className="text-success">{filed} filed</span>
+          </div>
+          {pending > 0 && (
+            <Button onClick={fileAllPending} disabled={filingAll}>
+              <Check className="size-4" /> {filingAll ? "Filing…" : `File all ${pending} to suggested destinations`}
+            </Button>
+          )}
         </div>
       )}
 
