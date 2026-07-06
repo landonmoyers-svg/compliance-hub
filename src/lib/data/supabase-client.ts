@@ -14,6 +14,7 @@ import type { Collection, DataClient } from "./client";
 import type {
   AuditLog,
   Benefit,
+  ChatMessage,
   CompetencyRecord,
   CompletedForm,
   ComplianceDocument,
@@ -1076,6 +1077,24 @@ function orgSettingsTo(d: Partial<OrganizationSettings>) {
   };
 }
 
+function chatMessageFrom(r: Record<string, unknown>): ChatMessage {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string,
+    assistant: r.assistant as ChatMessage["assistant"],
+    role: r.role as ChatMessage["role"],
+    content: r.content as string,
+  };
+}
+function chatMessageTo(d: Partial<ChatMessage>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.assistant !== undefined && { assistant: d.assistant }),
+    ...(d.role !== undefined && { role: d.role }),
+    ...(d.content !== undefined && { content: d.content }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -1116,5 +1135,6 @@ export function createSupabaseDataClient(): DataClient {
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
+    chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),
   };
 }

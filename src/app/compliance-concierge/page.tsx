@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Sparkles, CheckCircle2, Circle, Plus, Check } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useCreate } from "@/lib/data/hooks";
+import { useCreate, useCollection } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { toast } from "sonner";
+
+const CONCIERGE_WELCOME = "Welcome to the Compliance Setup Concierge! I'll guide you through setting up your compliance program. Ask me to set things up — e.g. \"add my Lehi and Provo clinics\" or \"suggest the regulatory sources a Utah psychiatry practice needs\" — and I'll propose records you can create with one click.";
 
 interface ProposedAction {
   type: string;
@@ -51,13 +54,12 @@ export default function ComplianceConcierge() {
     SETUP_STEPS.map((s) => ({ ...s, done: false })),
   );
 
-  const [chat, setChat] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      text: "Welcome to the Compliance Setup Concierge! I'll guide you through setting up your compliance program. Ask me to set things up — e.g. \"add my Lehi and Provo clinics\" or \"suggest the regulatory sources a Utah psychiatry practice needs\" — and I'll propose records you can create with one click.",
-    },
-  ]);
+  const { profile, user } = useAuth();
+  const myUserId = profile?.userId ?? user?.id ?? "";
+
+  const [chat, setChat] = useState<ChatMessage[]>([{ role: "assistant", text: CONCIERGE_WELCOME }]);
   const [input, setInput] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   // Entity creators for the propose-and-confirm actions
   const createLocation = useCreate("locations");
@@ -65,6 +67,30 @@ export default function ComplianceConcierge() {
   const createRegulatorySource = useCreate("regulatorySources");
   const createDocument = useCreate("documents");
   const createTask = useCreate("tasks");
+  const createChatMsg = useCreate("chatMessages");
+  const chatQ = useCollection("chatMessages");
+
+  // Restore this user's saved concierge conversation once (text only).
+  const savedHistory = useMemo(
+    () =>
+      (chatQ.data ?? [])
+        .filter((m) => m.assistant === "concierge" && m.userId === myUserId)
+        .sort((a, b) => a.createdDate.localeCompare(b.createdDate)),
+    [chatQ.data, myUserId],
+  );
+  useEffect(() => {
+    if (hydrated || chatQ.isLoading) return;
+    if (savedHistory.length > 0) {
+      setChat([{ role: "assistant", text: CONCIERGE_WELCOME }, ...savedHistory.map((m) => ({ role: m.role, text: m.content }))]);
+    }
+    setHydrated(true);
+  }, [savedHistory, chatQ.isLoading, hydrated]);
+
+  async function persistMsg(role: "user" | "assistant", content: string) {
+    if (!myUserId) return;
+    try { await createChatMsg.mutateAsync({ userId: myUserId, assistant: "concierge", role, content }); }
+    catch { /* non-blocking */ }
+  }
 
   const completed = steps.filter((s) => s.done).length;
   const pct = Math.round((completed / steps.length) * 100);
@@ -82,6 +108,7 @@ export default function ComplianceConcierge() {
     const nextChat = [...chat, { role: "user" as const, text: q }];
     setChat(nextChat);
     setThinking(true);
+    void persistMsg("user", q);
     try {
       const res = await fetch("/api/ai/concierge", {
         method: "POST",
@@ -92,7 +119,9 @@ export default function ComplianceConcierge() {
         }),
       });
       const data = await res.json() as { text?: string; actions?: ProposedAction[] };
-      setChat((c) => [...c, { role: "assistant", text: data.text ?? "Sorry, something went wrong.", actions: data.actions ?? [] }]);
+      const answer = data.text ?? "Sorry, something went wrong.";
+      setChat((c) => [...c, { role: "assistant", text: answer, actions: data.actions ?? [] }]);
+      void persistMsg("assistant", answer);
     } catch {
       setChat((c) => [...c, { role: "assistant", text: "Network error — please try again." }]);
     } finally {

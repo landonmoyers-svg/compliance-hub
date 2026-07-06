@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil, dateInputToISO } from "@/lib/dates";
+import { PersonSelect } from "@/components/shared/person-select";
 import type { TrainingAssignment, TrainingModule, TrainingQuestion } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ import { toast } from "sonner";
 
 interface AssignForm {
   moduleTitle: string;
+  assignedToUserId: string | null;
   assignedToName: string;
   dueDate: string;
 }
@@ -37,6 +39,7 @@ function AssignDialog({
 }) {
   const [form, setForm] = useState<AssignForm>({
     moduleTitle: modules[0]?.title ?? "",
+    assignedToUserId: null,
     assignedToName: "",
     dueDate: "",
   });
@@ -66,15 +69,12 @@ function AssignDialog({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Assign to *</label>
-            <input
-              className="input w-full"
-              value={form.assignedToName}
-              onChange={set("assignedToName")}
-              placeholder="Employee full name"
-            />
-          </div>
+          <PersonSelect
+            label="Assign to"
+            required
+            value={{ userId: form.assignedToUserId, name: form.assignedToName }}
+            onChange={(v) => setForm((p) => ({ ...p, assignedToUserId: v.userId, assignedToName: v.name }))}
+          />
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Due date</label>
             <input type="date" className="input w-full" value={form.dueDate} onChange={set("dueDate")} />
@@ -239,7 +239,7 @@ export default function TrainingPage() {
       await createMut.mutateAsync({
         trainingModuleId: mod?.id ?? "unknown",
         moduleTitle: form.moduleTitle,
-        assignedToUserId: "manual",
+        assignedToUserId: form.assignedToUserId ?? "",
         assignedToName: form.assignedToName.trim(),
         status: "assigned",
         dueDate: form.dueDate ? dateInputToISO(form.dueDate) : undefined,

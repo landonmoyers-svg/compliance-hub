@@ -734,6 +734,15 @@ export type EmployeeDocument = z.infer<typeof EmployeeDocument>;
 
 /* ----------------- controlled substances log ----------------------- */
 
+export const ChatMessage = z.object({
+  ...base,
+  userId: z.string(),
+  assistant: z.enum(["policy_assistant", "concierge"]).default("policy_assistant"),
+  role: z.enum(["user", "assistant"]).default("user"),
+  content: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessage>;
+
 export const OrganizationSettings = z.object({
   ...base,
   orgName: z.string().default("Lone Peak Psychiatry"),

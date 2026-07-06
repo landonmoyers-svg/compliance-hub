@@ -162,5 +162,6 @@ export function buildSeed(): SeedData {
     controlledSubstanceLogs: [],
     notifications: [],
     organizationSettings: [],
+    chatMessages: [],
   };
 }

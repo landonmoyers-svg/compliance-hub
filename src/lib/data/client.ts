@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   Benefit,
+  ChatMessage,
   CompetencyRecord,
   CompletedForm,
   ComplianceDocument,
@@ -86,6 +87,7 @@ export interface DataClient {
   controlledSubstanceLogs: Collection<ControlledSubstanceLog>;
   notifications: Collection<Notification>;
   organizationSettings: Collection<OrganizationSettings>;
+  chatMessages: Collection<ChatMessage>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { MessageSquare, Send, BookOpen } from "lucide-react";
-import { useCollection } from "@/lib/data/hooks";
+import { useCollection, useCreate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,28 +15,56 @@ interface Message {
   content: string;
 }
 
+const WELCOME: Message = {
+  id: "welcome",
+  role: "assistant",
+  content: "Hello! I'm the SOP Assistant. Ask me anything about your compliance policies, HIPAA requirements, OSHA standards, or any of your active documents. I'll answer based on your approved sources.",
+};
 
 export default function PolicyAssistantPage() {
+  const { profile, user } = useAuth();
+  const myUserId = profile?.userId ?? user?.id ?? "";
+
   const docsQ = useCollection("documents");
   const regsQ = useCollection("regulatorySources");
+  const chatQ = useCollection("chatMessages");
+  const createMsg = useCreate("chatMessages");
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: "Hello! I'm the SOP Assistant. Ask me anything about your compliance policies, HIPAA requirements, OSHA standards, or any of your active documents. I'll answer based on your approved sources.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const activeDocs = (docsQ.data ?? []).filter((d) => d.status === "active").length;
   const activeRegs = (regsQ.data ?? []).filter((r) => r.reviewStatus === "current").length;
 
+  // Load this user's saved SOP Assistant history once.
+  const history = useMemo(
+    () =>
+      (chatQ.data ?? [])
+        .filter((m) => m.assistant === "policy_assistant" && m.userId === myUserId)
+        .sort((a, b) => a.createdDate.localeCompare(b.createdDate)),
+    [chatQ.data, myUserId],
+  );
+  useEffect(() => {
+    if (hydrated || chatQ.isLoading) return;
+    if (history.length > 0) {
+      setMessages([WELCOME, ...history.map((m) => ({ id: m.id, role: m.role, content: m.content }))]);
+    }
+    setHydrated(true);
+  }, [history, chatQ.isLoading, hydrated]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  async function persist(role: "user" | "assistant", content: string) {
+    if (!myUserId) return;
+    try {
+      await createMsg.mutateAsync({ userId: myUserId, assistant: "policy_assistant", role, content });
+    } catch { /* non-blocking */ }
+  }
 
   async function send() {
     const q = input.trim();
@@ -45,6 +74,7 @@ export default function PolicyAssistantPage() {
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setThinking(true);
+    void persist("user", q);
     try {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
@@ -56,10 +86,9 @@ export default function PolicyAssistantPage() {
         }),
       });
       const data = await res.json() as { text?: string; error?: string };
-      setMessages((m) => [
-        ...m,
-        { id: `a-${Date.now()}`, role: "assistant", content: data.text ?? data.error ?? "Sorry, something went wrong." },
-      ]);
+      const answer = data.text ?? data.error ?? "Sorry, something went wrong.";
+      setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", content: answer }]);
+      void persist("assistant", answer);
     } catch {
       setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", content: "Network error — please try again." }]);
     } finally {
