@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { ComplianceUserProfile } from "@/lib/data/schema";
+import { logAudit } from "@/lib/data/audit";
 import { isAdminRole } from "./roles";
 
 export type AuthStatus =
@@ -134,9 +135,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Record the sign-out while the session still exists (RLS needs auth.uid()).
+    if (profile) {
+      await logAudit({
+        actorName: profile.fullName,
+        actorEmail: profile.email,
+        action: "logout",
+        entityType: "auth",
+        details: "Signed out",
+        riskLevel: "low",
+      });
+    }
     await supabase.auth.signOut();
     window.location.href = "/auth/login";
-  }, [supabase]);
+  }, [supabase, profile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

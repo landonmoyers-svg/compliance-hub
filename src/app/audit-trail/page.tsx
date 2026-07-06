@@ -183,7 +183,7 @@ export default function AuditTrailPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit Trail"
-        description="HIPAA-compliant log of all data access, changes, exports, and authentication events."
+        description="Tamper-resistant log of changes to sensitive records (payroll, HR files, discipline, reviews, risk, user roles), data exports, and sign-in/out events."
         actions={
           <Button variant="outline" onClick={exportCSV} disabled={loading || filtered.length === 0}>
             <Download className="size-4" /> Export CSV
@@ -193,8 +193,8 @@ export default function AuditTrailPage() {
 
       <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
         <Shield className="mr-1.5 -mt-0.5 inline size-4" />
-        Entries are written server-side and immutable after creation. IP addresses are recorded server-side
-        and never exposed to the browser.
+        Change entries on sensitive tables are written by database triggers — server-side and append-only, so they
+        can&apos;t be edited or removed from the app. Record views are not logged.
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">

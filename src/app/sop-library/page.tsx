@@ -237,7 +237,11 @@ export default function SOPLibraryPage() {
     const q = search.toLowerCase();
     return docs.filter((d) => {
       if (filterStatus !== "all" && d.status !== filterStatus) return false;
-      if (q && !d.title.toLowerCase().includes(q) && !(d.complianceArea ?? "").toLowerCase().includes(q)) return false;
+      if (q &&
+        !d.title.toLowerCase().includes(q) &&
+        !(d.complianceArea ?? "").toLowerCase().includes(q) &&
+        !(d.summary ?? "").toLowerCase().includes(q) &&
+        !(d.content ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
   }, [docs, search, filterStatus]);

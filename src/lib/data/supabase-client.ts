@@ -237,6 +237,7 @@ function documentFrom(r: Record<string, unknown>): ComplianceDocument {
     reviewDate: r.review_date as string | undefined,
     requiresAcknowledgment: r.requires_acknowledgment as boolean,
     fileUrl: r.file_url as string | undefined,
+    content: r.content as string | undefined,
   };
 }
 function documentTo(d: Partial<ComplianceDocument>) {
@@ -251,6 +252,7 @@ function documentTo(d: Partial<ComplianceDocument>) {
     ...(d.reviewDate !== undefined && { review_date: d.reviewDate }),
     ...(d.requiresAcknowledgment !== undefined && { requires_acknowledgment: d.requiresAcknowledgment }),
     ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
+    ...(d.content !== undefined && { content: d.content }),
   };
 }
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { TrendingUp, Download } from "lucide-react";
+import { jsPDF } from "jspdf";
+import { toast } from "sonner";
+import { TrendingUp, Download, FileText } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -21,10 +23,13 @@ export default function ReportsPage() {
   const trainingQ = useCollection("trainingAssignments");
   const riskQ = useCollection("riskCases");
   const empQ = useCollection("employees");
+  const vendorsQ = useCollection("vendors");
+  const insuranceQ = useCollection("insurancePolicies");
+  const orgSettingsQ = useCollection("organizationSettings");
 
   const [tab, setTab] = useState<Tab>("overview");
 
-  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ];
+  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ, vendorsQ, insuranceQ, orgSettingsQ];
   const loading = queries.some((q) => q.isLoading);
   const isError = queries.some((q) => q.isError);
 
@@ -34,6 +39,9 @@ export default function ReportsPage() {
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const risk = useMemo(() => riskQ.data ?? [], [riskQ.data]);
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
+  const vendors = useMemo(() => vendorsQ.data ?? [], [vendorsQ.data]);
+  const insurancePolicies = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
+  const orgSettings = useMemo(() => orgSettingsQ.data ?? [], [orgSettingsQ.data]);
 
   const score = useMemo(
     () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk }),
@@ -90,6 +98,261 @@ export default function ReportsPage() {
     exportCSV([header, ...rows], "training-report.csv");
   }
 
+  function generateCompliancePacket() {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const generatedLabel = now.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
+    const orgName = orgSettings[0]?.orgName ?? "Lone Peak Psychiatry";
+
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const margin = 56;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    function ensureSpace(needed: number) {
+      if (y > pageHeight - margin - needed) {
+        doc.addPage();
+        y = margin;
+      }
+    }
+
+    function sectionHeader(title: string) {
+      ensureSpace(48);
+      y += 8;
+      doc.setDrawColor(210);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 18;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(20);
+      doc.text(title, margin, y);
+      y += 18;
+    }
+
+    // Column-based table row. `cols` are [text, width-fraction] pairs.
+    function tableHeader(cells: string[], widths: number[]) {
+      ensureSpace(28);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(120);
+      let x = margin;
+      cells.forEach((c, i) => {
+        doc.text(c, x, y);
+        x += widths[i] * contentWidth;
+      });
+      y += 12;
+      doc.setDrawColor(225);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 10;
+    }
+
+    function tableRow(cells: string[], widths: number[]) {
+      // Wrap each cell to its column width and take the tallest.
+      const wrapped = cells.map((c, i) =>
+        doc.splitTextToSize(c || "—", widths[i] * contentWidth - 6) as string[],
+      );
+      const rowHeight = Math.max(...wrapped.map((w) => w.length)) * 12 + 4;
+      ensureSpace(rowHeight + 4);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(40);
+      let x = margin;
+      wrapped.forEach((lines, i) => {
+        doc.text(lines, x, y);
+        x += widths[i] * contentWidth;
+      });
+      y += rowHeight;
+    }
+
+    function bodyLine(text: string) {
+      ensureSpace(16);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      const lines = doc.splitTextToSize(text, contentWidth) as string[];
+      doc.text(lines, margin, y);
+      y += lines.length * 13 + 2;
+    }
+
+    // -------- Header --------
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(20);
+    doc.text(`${orgName} — Compliance Report`, margin, y);
+    y += 22;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Audit-readiness packet · Generated ${generatedLabel}`, margin, y);
+    y += 6;
+
+    // -------- Compliance summary --------
+    sectionHeader("Compliance summary");
+    const overdueTasks = tasks.filter(taskIsOverdue).length;
+    const docsPastReview = documents.filter(documentNeedsReview).length;
+    const openRisk = risk.filter((r) => r.status === "open" || r.status === "investigating").length;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(20);
+    doc.text(`Overall score: ${score.score}/100`, margin, y);
+    y += 24;
+
+    const summaryRows: [string, string][] = [
+      ["Overdue tasks", String(overdueTasks)],
+      ["Expired credentials", String(credStats.expired)],
+      ["Expiring credentials (≤30d)", String(credStats.expiring)],
+      ["Overdue training", String(trainingStats.overdue)],
+      ["Documents past review", String(docsPastReview)],
+      ["Open risk cases", String(openRisk)],
+    ];
+    for (const [label, value] of summaryRows) {
+      ensureSpace(16);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(90);
+      doc.text(label, margin, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20);
+      doc.text(value, margin + 200, y);
+      y += 15;
+    }
+
+    // -------- Credentials --------
+    sectionHeader("Credentials");
+    if (credentials.length === 0) {
+      bodyLine("No credentials on record.");
+    } else {
+      const widths = [0.3, 0.32, 0.18, 0.2];
+      tableHeader(["Employee", "Credential", "Status", "Expiration"], widths);
+      for (const c of credentials) {
+        tableRow(
+          [
+            c.employeeName,
+            c.credentialName,
+            credentialStatus(c).replace("_", " "),
+            c.expirationDate ? formatDate(c.expirationDate) : "No expiry",
+          ],
+          widths,
+        );
+      }
+    }
+
+    // -------- Training --------
+    sectionHeader("Training");
+    if (training.length === 0) {
+      bodyLine("No training assignments on record.");
+    } else {
+      const widths = [0.3, 0.4, 0.18, 0.12];
+      tableHeader(["Employee", "Module", "Status", "Score"], widths);
+      for (const a of training) {
+        tableRow(
+          [
+            a.assignedToName,
+            a.moduleTitle,
+            assignmentIsOverdue(a) ? "overdue" : a.status,
+            a.score != null ? String(a.score) : "—",
+          ],
+          widths,
+        );
+      }
+    }
+
+    // -------- Policies & SOPs --------
+    sectionHeader("Policies & SOPs");
+    const activeDocs = documents.filter((d) => d.status === "active");
+    if (activeDocs.length === 0) {
+      bodyLine("No active policy documents on record.");
+    } else {
+      const widths = [0.42, 0.22, 0.14, 0.22];
+      tableHeader(["Title", "Type", "Version", "Review date"], widths);
+      for (const d of activeDocs) {
+        tableRow(
+          [
+            d.title,
+            d.documentType,
+            d.version,
+            d.reviewDate ? formatDate(d.reviewDate) : "—",
+          ],
+          widths,
+        );
+      }
+    }
+
+    // -------- Vendors & BAAs --------
+    sectionHeader("Vendors & BAAs");
+    if (vendors.length === 0) {
+      bodyLine("No vendors on record.");
+    } else {
+      const widths = [0.3, 0.24, 0.24, 0.22];
+      tableHeader(["Vendor", "Type", "BAA status", "Insurance exp."], widths);
+      for (const v of vendors) {
+        const baaGap = v.baaRequired && v.baaStatus !== "signed";
+        tableRow(
+          [
+            v.vendorName,
+            v.vendorType.replace(/_/g, " "),
+            baaGap ? `${v.baaStatus.replace(/_/g, " ")} (GAP)` : v.baaStatus.replace(/_/g, " "),
+            v.insuranceExpirationDate ? formatDate(v.insuranceExpirationDate) : "—",
+          ],
+          widths,
+        );
+      }
+      const gaps = vendors.filter((v) => v.baaRequired && v.baaStatus !== "signed");
+      if (gaps.length > 0) {
+        y += 6;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(200, 60, 60);
+        ensureSpace(16);
+        doc.text(
+          `${gaps.length} vendor(s) require a signed BAA but do not have one.`,
+          margin,
+          y,
+        );
+        y += 14;
+        doc.setTextColor(40);
+      }
+    }
+
+    // -------- Insurance --------
+    sectionHeader("Insurance");
+    if (insurancePolicies.length === 0) {
+      bodyLine("No insurance policies on record.");
+    } else {
+      const widths = [0.4, 0.26, 0.34];
+      tableHeader(["Policy", "Type", "Renewal date"], widths);
+      for (const p of insurancePolicies) {
+        tableRow(
+          [
+            p.policyName,
+            p.policyType,
+            p.renewalDate ? formatDate(p.renewalDate) : "—",
+          ],
+          widths,
+        );
+      }
+    }
+
+    // -------- Open risk cases --------
+    sectionHeader("Open risk cases");
+    const openCases = risk.filter((r) => r.status === "open" || r.status === "investigating");
+    if (openCases.length === 0) {
+      bodyLine("No open risk cases.");
+    } else {
+      const widths = [0.5, 0.25, 0.25];
+      tableHeader(["Case", "Severity", "Status"], widths);
+      for (const r of openCases) {
+        tableRow([r.caseTitle, r.severity, r.status], widths);
+      }
+    }
+
+    doc.save(`compliance-packet-${dateStr}.pdf`);
+    toast.success("Compliance packet downloaded.");
+  }
+
   if (isError) {
     return (
       <div className="space-y-6">
@@ -107,6 +370,11 @@ export default function ReportsPage() {
       <PageHeader
         title="Reports"
         description="Analytics and exportable reports across all compliance areas."
+        actions={
+          <Button onClick={generateCompliancePacket} disabled={loading}>
+            <FileText className="size-4" /> Download compliance packet (PDF)
+          </Button>
+        }
       />
 
       {/* Tab nav */}

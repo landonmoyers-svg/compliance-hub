@@ -153,6 +153,8 @@ export const ComplianceDocument = z.object({
   reviewDate: z.string().nullable().optional(),
   requiresAcknowledgment: z.boolean().default(false),
   fileUrl: z.string().nullable().optional(),
+  // Extracted full text, used for search and to ground the SOP Assistant.
+  content: z.string().nullable().optional(),
 });
 export type ComplianceDocument = z.infer<typeof ComplianceDocument>;
 

@@ -172,6 +172,9 @@ export default function CommandCenterPage() {
     [tasks, credentials, training, documents, risk],
   );
   const band = scoreBand(score.score);
+  // The program is "configured" once there's operational data to score against
+  // (workforce credentials, training, tasks, or risk cases) — not just policies.
+  const configured = credentials.length + training.length + tasks.length + risk.length > 0;
 
   const criticalItems: QueueItem[] = useMemo(() => {
     const overdueTasks = tasks.filter(taskIsOverdue).map<QueueItem>((t) => ({
@@ -311,7 +314,7 @@ export default function CommandCenterPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ScoreCard score={score} band={band} loading={loading} />
+        <ScoreCard score={score} band={band} loading={loading} configured={configured} />
         <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-cols-3">
           <StatCard label="Critical items" value={score.criticalCount} icon={AlertTriangle} tone="destructive" loading={loading} />
           <StatCard label="High priority" value={score.highCount} icon={ShieldAlert} tone="warning" loading={loading} />
@@ -338,10 +341,12 @@ function ScoreCard({
   score,
   band,
   loading,
+  configured,
 }: {
   score: ReturnType<typeof computeComplianceScore>;
   band: ReturnType<typeof scoreBand>;
   loading: boolean;
+  configured: boolean;
 }): ReactNode {
   const barTone =
     band.tone === "success"
@@ -349,6 +354,29 @@ function ScoreCard({
       : band.tone === "warning"
         ? "bg-warning"
         : "bg-destructive";
+
+  // A score of 100 is only meaningful once the program is actually being
+  // tracked. On a fresh, unconfigured program, show a setup state instead.
+  if (!loading && !configured) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm text-muted-foreground">Compliance score</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-end gap-3">
+            <span className="text-5xl font-semibold tabular-nums text-muted-foreground">—</span>
+            <Badge variant="secondary" className="mb-1.5">Not configured</Badge>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary" />
+          <p className="text-sm text-muted-foreground">
+            Scoring activates once you start tracking your program. Add employees, credentials,
+            and training assignments — the <a href="/compliance-concierge" className="text-primary hover:underline">Setup Concierge</a> can help.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

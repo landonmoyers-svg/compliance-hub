@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GraduationCap, Plus, Search, ListChecks, X, Check } from "lucide-react";
+import { GraduationCap, Plus, Search, ListChecks, X, Check, Users, Download } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -84,6 +84,75 @@ function AssignDialog({
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={!valid || saving}>
             {saving ? "Saving…" : "Assign"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------- bulk assign ------------------------------ */
+
+interface BulkAssignForm {
+  moduleTitle: string;
+  dueDate: string;
+}
+
+function BulkAssignDialog({
+  modules,
+  activeCount,
+  onClose,
+  onSave,
+  saving,
+}: {
+  modules: { id: string; title: string }[];
+  activeCount: number;
+  onClose: () => void;
+  onSave: (data: BulkAssignForm) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<BulkAssignForm>({
+    moduleTitle: modules[0]?.title ?? "",
+    dueDate: "",
+  });
+
+  const set = (k: keyof BulkAssignForm) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const valid = form.moduleTitle && activeCount > 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Assign to all staff</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Training module *</label>
+            <select className="input w-full" value={form.moduleTitle} onChange={set("moduleTitle")}>
+              {modules.map((m) => (
+                <option key={m.id} value={m.title}>{m.title}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Due date</label>
+            <input type="date" className="input w-full" value={form.dueDate} onChange={set("dueDate")} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This will assign the selected module to all {activeCount} active staff member{activeCount !== 1 ? "s" : ""}. Anyone with an incomplete assignment for it is skipped.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave(form)} disabled={!valid || saving}>
+            {saving ? "Assigning…" : "Assign to all"}
           </Button>
         </div>
       </div>
@@ -193,6 +262,7 @@ export default function TrainingPage() {
   const modulesQ = useCollection("trainingModules");
   const assignQ = useCollection("trainingAssignments");
   const questionsQ = useCollection("trainingQuestions");
+  const profilesQ = useCollection("profiles");
   const createMut = useCreate("trainingAssignments");
   const updateMut = useUpdate("trainingAssignments");
   const createAttempt = useCreate("trainingAttempts");
@@ -202,11 +272,15 @@ export default function TrainingPage() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pending" | "overdue" | "completed">("all");
   const [showAssign, setShowAssign] = useState(false);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const modules = useMemo(() => modulesQ.data ?? [], [modulesQ.data]);
   const assignments = useMemo(() => assignQ.data ?? [], [assignQ.data]);
   const questions = useMemo(() => questionsQ.data ?? [], [questionsQ.data]);
+  const profiles = useMemo(() => profilesQ.data ?? [], [profilesQ.data]);
+  const activeProfiles = useMemo(() => profiles.filter((p) => p.active), [profiles]);
 
   const isLoading = modulesQ.isLoading || assignQ.isLoading;
   const isError = modulesQ.isError || assignQ.isError;
@@ -251,6 +325,63 @@ export default function TrainingPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleBulkAssign(form: BulkAssignForm) {
+    setBulkSaving(true);
+    try {
+      const mod = modules.find((m) => m.title === form.moduleTitle);
+      const moduleId = mod?.id ?? "unknown";
+      const due = form.dueDate ? dateInputToISO(form.dueDate) : undefined;
+
+      // Skip anyone who already has an incomplete assignment for this module.
+      const alreadyAssigned = new Set(
+        assignments
+          .filter((a) => a.trainingModuleId === moduleId && a.status !== "completed")
+          .map((a) => a.assignedToUserId),
+      );
+
+      const targets = activeProfiles.filter((p) => !alreadyAssigned.has(p.userId));
+      const skipped = activeProfiles.length - targets.length;
+
+      await Promise.all(
+        targets.map((p) =>
+          createMut.mutateAsync({
+            trainingModuleId: moduleId,
+            moduleTitle: form.moduleTitle,
+            assignedToUserId: p.userId,
+            assignedToName: p.fullName,
+            status: "assigned",
+            dueDate: due,
+          }),
+        ),
+      );
+
+      toast.success(`Assigned to ${targets.length} staff (${skipped} already had it)`);
+      setShowBulkAssign(false);
+    } catch {
+      toast.error("Failed to assign training to all staff");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  function exportRosterCSV() {
+    const header = ["Employee", "Module", "Status", "Score", "Due date", "Completed date"];
+    const rows = assignments.map((a) => [
+      a.assignedToName,
+      a.moduleTitle,
+      a.status,
+      a.score != null ? String(a.score) : "",
+      a.dueDate ? formatDate(a.dueDate) : "",
+      a.completedAt ? formatDate(a.completedAt) : "",
+    ]);
+    const csv = [header, ...rows].map((row) => row.map((c) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "training-roster.csv"; a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function markComplete(a: TrainingAssignment) {
@@ -312,6 +443,16 @@ export default function TrainingPage() {
         />
       )}
 
+      {showBulkAssign && (
+        <BulkAssignDialog
+          modules={modules.filter((m) => m.active)}
+          activeCount={activeProfiles.length}
+          onClose={() => setShowBulkAssign(false)}
+          onSave={handleBulkAssign}
+          saving={bulkSaving}
+        />
+      )}
+
       {takingQuiz && (
         <TakeQuizDialog
           assignment={takingQuiz}
@@ -326,9 +467,21 @@ export default function TrainingPage() {
         title="Training Center"
         description="Assign and track completion of compliance training modules."
         actions={
-          <Button onClick={() => setShowAssign(true)} disabled={modules.length === 0}>
-            <Plus className="size-4" /> Assign training
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportRosterCSV} disabled={assignments.length === 0}>
+              <Download className="size-4" /> Export roster (CSV)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkAssign(true)}
+              disabled={modules.length === 0 || activeProfiles.length === 0}
+            >
+              <Users className="size-4" /> Assign to all staff
+            </Button>
+            <Button onClick={() => setShowAssign(true)} disabled={modules.length === 0}>
+              <Plus className="size-4" /> Assign training
+            </Button>
+          </div>
         }
       />
 

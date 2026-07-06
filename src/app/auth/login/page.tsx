@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ShieldCheck, Eye, EyeOff, Smartphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/data/audit";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -120,7 +121,15 @@ export default function LoginPage() {
         if (verifyError) { setError(verifyError.message); setLoading(false); return; }
       }
 
-      // Success — redirect to app
+      // Success — record the sign-in, then redirect to app
+      await logAudit({
+        actorName: email.trim().toLowerCase(),
+        actorEmail: email.trim().toLowerCase(),
+        action: "login",
+        entityType: "auth",
+        details: "Signed in with MFA",
+        riskLevel: "low",
+      });
       window.location.href = "/";
     } finally {
       setLoading(false);

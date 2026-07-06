@@ -25,26 +25,54 @@ Guidelines:
 - If asked about a specific patient situation, remind the user you cannot give legal or clinical advice about specific cases.
 - Never invent a policy or a regulation. If a policy isn't in the list below, do not claim it exists.`;
 
-/** Build a grounding context block from the org's active documents + regulatory sources. */
-async function buildOrgContext(supabase: SupabaseClient): Promise<string> {
+const STOPWORDS = new Set(["the", "and", "for", "our", "what", "does", "how", "when", "which", "with", "that", "this", "are", "you", "your", "can", "should", "about", "from", "have", "has", "who", "why", "into", "per", "was", "were", "will", "a", "an", "of", "to", "in", "is", "it", "on", "or", "we", "do", "my"]);
+
+/** Extract meaningful lowercase keywords from the user's question. */
+function keywords(query: string): string[] {
+  return Array.from(
+    new Set(
+      (query.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((w) => !STOPWORDS.has(w)),
+    ),
+  );
+}
+
+/**
+ * Build a grounding context block from the org's active documents + regulatory
+ * sources. Every active policy is listed by title/summary; the policies most
+ * relevant to the question also get an excerpt of their actual text so the
+ * assistant can answer from real policy content, not just titles.
+ */
+async function buildOrgContext(supabase: SupabaseClient, query: string): Promise<string> {
   const [docsRes, srcRes] = await Promise.all([
     supabase
       .from("documents")
-      .select("title, document_type, compliance_area, summary, version, status")
+      .select("title, document_type, compliance_area, summary, version, status, content")
       .eq("status", "active")
-      .limit(80),
+      .limit(120),
     supabase
       .from("regulatory_sources")
       .select("title, citation_label, issuing_body, jurisdiction, summary, official_url, review_status")
       .limit(60),
   ]);
 
-  const docs = docsRes.data ?? [];
+  const docs = (docsRes.data ?? []) as {
+    title: string; document_type: string; compliance_area: string | null;
+    summary: string | null; version: string | null; content: string | null;
+  }[];
   const sources = srcRes.data ?? [];
 
   if (docs.length === 0 && sources.length === 0) {
     return "\n\n(The practice has not yet uploaded any internal policies or regulatory sources. Answer from general regulatory knowledge and recommend codifying key policies.)";
   }
+
+  // Rank documents by keyword overlap with the question, over title + content.
+  const kw = keywords(query);
+  const scored = docs.map((d) => {
+    const hay = `${d.title} ${d.compliance_area ?? ""} ${d.content ?? ""}`.toLowerCase();
+    const score = kw.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+    return { d, score };
+  });
+  const relevant = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
 
   let ctx = "\n\n=== LONE PEAK APPROVED SOURCES (ground answers in these) ===\n";
 
@@ -52,8 +80,16 @@ async function buildOrgContext(supabase: SupabaseClient): Promise<string> {
     ctx += `\nInternal policies & SOPs (${docs.length} active):\n`;
     for (const d of docs) {
       const area = d.compliance_area ? ` [${d.compliance_area}]` : "";
-      const summary = d.summary ? ` — ${String(d.summary).slice(0, 200)}` : "";
+      const summary = d.summary ? ` — ${String(d.summary).slice(0, 180)}` : "";
       ctx += `• "${d.title}" (${d.document_type}${area}, v${d.version ?? "1.0"})${summary}\n`;
+    }
+  }
+
+  if (relevant.length > 0) {
+    ctx += `\n--- Excerpts from the policies most relevant to the question (quote/cite these by title) ---\n`;
+    for (const { d } of relevant) {
+      if (!d.content) continue;
+      ctx += `\n### ${d.title}\n${String(d.content).slice(0, 2200)}\n`;
     }
   }
 
@@ -85,9 +121,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "messages array required" }, { status: 400 });
   }
 
+  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   let orgContext = "";
   try {
-    orgContext = await buildOrgContext(supabase);
+    orgContext = await buildOrgContext(supabase, lastUser);
   } catch {
     orgContext = ""; // grounding is best-effort; fall back to base prompt
   }

@@ -26,7 +26,7 @@ type CalEvent = {
   id: string;
   date: Date;
   label: string;
-  type: "credential" | "training" | "document" | "insurance" | "drill";
+  type: "credential" | "training" | "document" | "insurance" | "drill" | "regulatory";
   urgent: boolean;
 };
 
@@ -36,7 +36,35 @@ const TYPE_COLOR: Record<CalEvent["type"], string> = {
   document: "bg-secondary text-secondary-foreground",
   insurance: "bg-chart-5/80 text-white",
   drill: "bg-success/80 text-success-foreground",
+  regulatory: "bg-chart-4/80 text-white",
 };
+
+// Fixed recurring regulatory/statutory compliance deadlines for a behavioral
+// health practice. Each is defined by a calendar month/day (month is 1-based)
+// and expanded into a concrete Date for whatever year is being displayed.
+type RegulatoryRule = {
+  id: string;
+  month: number; // 1-12
+  day: number;
+  label: string;
+};
+
+const REGULATORY_RULES: RegulatoryRule[] = [
+  { id: "osha-300a-open", month: 2, day: 1, label: "OSHA 300A posting opens" },
+  { id: "osha-300a-close", month: 4, day: 30, label: "OSHA 300A posting closes" },
+  { id: "osha-ita", month: 3, day: 2, label: "OSHA ITA electronic injury data submission due" },
+  { id: "hipaa-training", month: 1, day: 31, label: "Annual HIPAA workforce training due" },
+  { id: "bbp-training", month: 3, day: 31, label: "Annual OSHA / Bloodborne Pathogens training due" },
+  { id: "compliance-review", month: 12, day: 31, label: "Annual compliance program review due" },
+  { id: "wvp-review", month: 6, day: 30, label: "Workplace Violence Prevention plan review due" },
+  { id: "eap-drill-spring", month: 4, day: 15, label: "Emergency Action Plan / drill review" },
+  { id: "eap-drill-fall", month: 10, day: 15, label: "Emergency Action Plan / drill review" },
+  { id: "dea-inventory", month: 5, day: 1, label: "DEA controlled-substance inventory (biennial)" },
+  { id: "cs-recon-q1", month: 3, day: 31, label: "Quarterly controlled-substance reconciliation (Q1)" },
+  { id: "cs-recon-q2", month: 6, day: 30, label: "Quarterly controlled-substance reconciliation (Q2)" },
+  { id: "cs-recon-q3", month: 9, day: 30, label: "Quarterly controlled-substance reconciliation (Q3)" },
+  { id: "cs-recon-q4", month: 12, day: 31, label: "Quarterly controlled-substance reconciliation (Q4)" },
+];
 
 export default function ComplianceCalendarPage() {
   const credsQ = useCollection("credentials");
@@ -88,8 +116,21 @@ export default function ComplianceCalendarPage() {
         push(`drill-${dr.id}`, dr.scheduledDate, dr.drillTitle, "drill");
       }
     }
+
+    // Fixed recurring regulatory deadlines, expanded for the displayed year.
+    const year = current.getFullYear();
+    for (const rule of REGULATORY_RULES) {
+      out.push({
+        id: `reg-${rule.id}-${year}`,
+        date: new Date(year, rule.month - 1, rule.day),
+        label: rule.label,
+        type: "regulatory",
+        urgent: false,
+      });
+    }
+
     return out;
-  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data]);
+  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data, current]);
 
   // Build grid for current month: weeks × days, with leading/trailing empty cells
   const monthStart = startOfMonth(current);
