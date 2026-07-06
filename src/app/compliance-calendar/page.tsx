@@ -64,6 +64,16 @@ const REGULATORY_RULES: RegulatoryRule[] = [
   { id: "cs-recon-q2", month: 6, day: 30, label: "Quarterly controlled-substance reconciliation (Q2)" },
   { id: "cs-recon-q3", month: 9, day: 30, label: "Quarterly controlled-substance reconciliation (Q3)" },
   { id: "cs-recon-q4", month: 12, day: 31, label: "Quarterly controlled-substance reconciliation (Q4)" },
+  // Added from the regulatory source register. Provider-specific dates (each DEA
+  // registration, state license, Spravato REMS cert) should also be entered as
+  // credentials with real expiration dates — those render here automatically.
+  { id: "hipaa-sra", month: 11, day: 30, label: "Annual HIPAA Security Risk Analysis due" },
+  { id: "dea-reg-review", month: 1, day: 15, label: "Review DEA registrations & controlled-substance licenses (renewals)" },
+  { id: "pdmp-audit-h1", month: 6, day: 15, label: "PDMP (Utah CSD) prescriber compliance audit (H1)" },
+  { id: "pdmp-audit-h2", month: 12, day: 15, label: "PDMP (Utah CSD) prescriber compliance audit (H2)" },
+  { id: "spravato-rems", month: 1, day: 20, label: "SPRAVATO REMS certification renewal (annual)" },
+  { id: "oig-screen", month: 1, day: 10, label: "OIG/LEIE + SAM exclusion re-screening (recommended monthly)" },
+  { id: "dea-telemed-recheck", month: 12, day: 1, label: "Recheck DEA telemedicine prescribing rule (flexibility expires 12/31/26)" },
 ];
 
 export default function ComplianceCalendarPage() {
