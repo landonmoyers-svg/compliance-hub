@@ -85,6 +85,7 @@ export function createMockDataClient(): DataClient {
     exclusionScreenings: new MemoryCollection(seed.exclusionScreenings),
     ccoPreferences: new MemoryCollection(seed.ccoPreferences),
     agendaSnoozes: new MemoryCollection(seed.agendaSnoozes),
+    navPreferences: new MemoryCollection(seed.navPreferences),
     roleRequirements: new MemoryCollection(seed.roleRequirements),
     audits: new MemoryCollection(seed.audits),
     auditItems: new MemoryCollection(seed.auditItems),

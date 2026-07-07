@@ -33,6 +33,7 @@ import type {
   CorrectiveAction,
   ExclusionScreening,
   Incident,
+  NavPreference,
   PTOBalance,
   RecordVersion,
   RegulatorySource,
@@ -84,6 +85,7 @@ export interface DataClient {
   exclusionScreenings: Collection<ExclusionScreening>;
   ccoPreferences: Collection<CcoPreference>;
   agendaSnoozes: Collection<AgendaSnooze>;
+  navPreferences: Collection<NavPreference>;
   roleRequirements: Collection<RoleRequirement>;
   audits: Collection<Audit>;
   auditItems: Collection<AuditItem>;

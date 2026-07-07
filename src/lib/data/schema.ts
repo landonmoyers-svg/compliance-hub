@@ -993,7 +993,19 @@ export const OrganizationSettings = z.object({
   trainingReminderDays: z.number().default(14),
   insuranceReminderDays: z.number().default(60),
   emailNotifications: z.boolean().default(true),
+  // Page visibility (multi-tenant): per-role page access overrides + org-disabled modules.
+  pageRoles: z.record(z.string(), z.array(z.string())).default({}),
+  disabledPages: z.array(z.string()).default([]),
 });
+
+// Per-user sidebar personalization (cosmetic — never grants access).
+export const NavPreference = z.object({
+  ...base,
+  userId: z.string(),
+  hiddenPages: z.array(z.string()).default([]),
+  pageOrder: z.array(z.string()).default([]),
+});
+export type NavPreference = z.infer<typeof NavPreference>;
 export type OrganizationSettings = z.infer<typeof OrganizationSettings>;
 
 export const Notification = z.object({

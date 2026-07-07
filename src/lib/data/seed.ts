@@ -123,6 +123,7 @@ export function buildSeed(): SeedData {
     exclusionScreenings: [],
     ccoPreferences: [],
     agendaSnoozes: [],
+    navPreferences: [],
     roleRequirements: [],
     audits: [],
     auditItems: [],

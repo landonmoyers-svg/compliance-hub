@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { Building2, MapPin, Plus, X, Trash2 } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,13 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
+import { allPages, allowedRolesFor, SELECTABLE_ROLES } from "@/lib/nav";
+import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 
-type Tab = "organization" | "locations" | "security" | "notifications";
+const ROLE_SHORT: Record<string, string> = { owner: "Owner", admin: "Admin", hr: "HR", clinical_leadership: "Clinical", manager: "Mgr", staff: "Staff", contractor: "Contr", read_only: "Read" };
+
+type Tab = "organization" | "locations" | "access" | "security" | "notifications";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "organization", label: "Organization" },
   { id: "locations", label: "Locations" },
+  { id: "access", label: "Modules & Access" },
   { id: "security", label: "Security" },
   { id: "notifications", label: "Notifications" },
 ];
@@ -75,6 +80,8 @@ export default function SettingsPage() {
           trainingReminderDays: parseInt(form.trainingReminderDays, 10) || 14,
           insuranceReminderDays: parseInt(form.insuranceReminderDays, 10) || 60,
           emailNotifications: form.emailNotifications,
+          pageRoles: {},
+          disabledPages: [],
           ...patch,
         });
       }
@@ -176,6 +183,8 @@ export default function SettingsPage() {
       )}
 
       {tab === "locations" && <LocationsTab />}
+
+      {tab === "access" && <PageAccessTab current={current} onSave={(patch) => persist(patch, "Access")} saving={saving} />}
 
       {tab === "security" && (
         <Card>
@@ -392,6 +401,81 @@ function LocationsTab() {
             ))}
           </ul>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Modules & Access (page × role matrix + org module toggles) ─── */
+
+function PageAccessTab({ current, onSave, saving }: {
+  current?: OrganizationSettings;
+  onSave: (patch: Partial<OrganizationSettings>) => void | Promise<void>;
+  saving: boolean;
+}) {
+  const pages = useMemo(() => allPages(), []);
+  const groups = useMemo(() => Array.from(new Set(pages.map((p) => p.group))), [pages]);
+  const [pageRoles, setPageRoles] = useState<Record<string, string[]>>(current?.pageRoles ?? {});
+  const [disabled, setDisabled] = useState<Set<string>>(new Set(current?.disabledPages ?? []));
+
+  useEffect(() => { setPageRoles(current?.pageRoles ?? {}); setDisabled(new Set(current?.disabledPages ?? [])); }, [current]);
+
+  const rolesFor = (href: string, adminOnly: boolean) => allowedRolesFor(href, adminOnly, pageRoles);
+  function toggleRole(href: string, adminOnly: boolean, role: string) {
+    setPageRoles((pr) => {
+      const cur = pr[href] ?? allowedRolesFor(href, adminOnly, pr);
+      const next = cur.includes(role) ? cur.filter((r) => r !== role) : [...cur, role];
+      return { ...pr, [href]: next };
+    });
+  }
+  function toggleEnabled(href: string) {
+    setDisabled((d) => { const n = new Set(d); n.has(href) ? n.delete(href) : n.add(href); return n; });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Modules & Access</CardTitle>
+        <p className="text-sm text-muted-foreground">Turn whole modules on/off for your organization, and set exactly which roles can open each page. Enforced app-wide; this doesn’t replace the data-level protections.</p>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-3 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setPageRoles({}); setDisabled(new Set()); }}>Reset to defaults</Button>
+          <Button size="sm" onClick={() => void onSave({ pageRoles, disabledPages: [...disabled] })} disabled={saving}>{saving ? "Saving…" : "Save access"}</Button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-2 pr-3 font-medium">Page</th>
+                <th className="px-2 pb-2 text-center text-xs font-medium">Enabled</th>
+                {SELECTABLE_ROLES.map((r) => <th key={r} className="px-1.5 pb-2 text-center text-xs font-medium">{ROLE_SHORT[r]}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((grp) => (
+                <Fragment key={grp}>
+                  <tr><td colSpan={SELECTABLE_ROLES.length + 2} className="pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{grp}</td></tr>
+                  {pages.filter((p) => p.group === grp).map((p) => {
+                    const enabled = !disabled.has(p.href);
+                    const allowed = rolesFor(p.href, p.adminOnly);
+                    return (
+                      <tr key={p.href} className={cn("border-b border-border/50", !enabled && "opacity-50")}>
+                        <td className="py-2 pr-3">{p.label}</td>
+                        <td className="px-2 py-2 text-center"><input type="checkbox" className="size-4" checked={enabled} onChange={() => toggleEnabled(p.href)} /></td>
+                        {SELECTABLE_ROLES.map((r) => (
+                          <td key={r} className="px-1.5 py-2 text-center">
+                            <input type="checkbox" className="size-4" disabled={!enabled} checked={allowed.includes(r)} onChange={() => toggleRole(p.href, p.adminOnly, r)} />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   );

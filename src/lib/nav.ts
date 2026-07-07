@@ -154,3 +154,80 @@ export function visibleNav(isAdmin: boolean): NavGroup[] {
     items: group.items.filter((item) => isAdmin || !item.adminOnly),
   })).filter((group) => group.items.length > 0);
 }
+
+/* --------------------- layered page visibility --------------------- */
+
+import type { AccountRole } from "@/lib/data/schema";
+
+// Roles that can be granted page access (inactive gets nothing).
+export const PRIVILEGED_ROLES = ["owner", "admin", "hr", "clinical_leadership"] as const;
+export const SELECTABLE_ROLES: AccountRole[] = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
+
+export interface PageDef { href: string; label: string; group: string; adminOnly: boolean; }
+
+/** Flat list of every nav page — used by the admin page-access matrix. */
+export function allPages(): PageDef[] {
+  return NAV_GROUPS.flatMap((g) => g.items.map((i) => ({ href: i.href, label: i.label, group: g.label, adminOnly: !!i.adminOnly })));
+}
+
+/** The roles allowed to access a page: org override if set, else code default. */
+export function allowedRolesFor(href: string, adminOnly: boolean, pageRoles: Record<string, string[]>): string[] {
+  const cfg = pageRoles[href];
+  if (cfg && cfg.length) return cfg;
+  return adminOnly ? [...PRIVILEGED_ROLES] : (SELECTABLE_ROLES as string[]);
+}
+
+/** Match a pathname to its nav item (exact, else longest href prefix; ignores "/"). */
+export function findNavItem(pathname: string): NavItem | null {
+  const items = NAV_GROUPS.flatMap((g) => g.items);
+  const exact = items.find((i) => i.href === pathname);
+  if (exact) return exact;
+  return items
+    .filter((i) => i.href !== "/" && pathname.startsWith(i.href))
+    .sort((a, b) => b.href.length - a.href.length)[0] ?? null;
+}
+
+export interface VisibilityCtx {
+  role: AccountRole | null | undefined;
+  pageRoles: Record<string, string[]>;
+  disabledPages: string[];
+  hiddenPages: string[];
+  pageOrder: string[];
+}
+
+/** Enforcement: can this role open this path? (Command Center is always allowed.) */
+export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[]): boolean {
+  if (pathname === "/") return true;
+  if (!role || role === "inactive") return false;
+  const item = findNavItem(pathname);
+  if (!item) return true; // not a gated nav page (detail/util routes)
+  if (disabledPages.includes(item.href)) return false;
+  return allowedRolesFor(item.href, !!item.adminOnly, pageRoles).includes(role);
+}
+
+/**
+ * The sidebar a user actually sees: pages their ROLE allows ∩ pages the ORG
+ * enabled, then their personal hide/reorder. Custom order collapses to a single
+ * flat list; otherwise the standard grouped nav is kept.
+ */
+export function resolveNav(ctx: VisibilityCtx): NavGroup[] {
+  const { role } = ctx;
+  const accessible = (item: NavItem) =>
+    !!role && role !== "inactive" &&
+    !ctx.disabledPages.includes(item.href) &&
+    allowedRolesFor(item.href, !!item.adminOnly, ctx.pageRoles).includes(role) &&
+    !ctx.hiddenPages.includes(item.href);
+
+  const groups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter(accessible) }))
+    .filter((g) => g.items.length > 0);
+
+  if (ctx.pageOrder && ctx.pageOrder.length > 0) {
+    const flat = groups.flatMap((g) => g.items);
+    const inOrder = new Set(ctx.pageOrder);
+    const ordered = ctx.pageOrder.map((h) => flat.find((i) => i.href === h)).filter(Boolean) as NavItem[];
+    const rest = flat.filter((i) => !inOrder.has(i.href));
+    return [{ label: "My Navigation", items: [...ordered, ...rest] }];
+  }
+  return groups;
+}

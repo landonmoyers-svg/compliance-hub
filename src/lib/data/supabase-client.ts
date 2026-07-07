@@ -50,6 +50,7 @@ import type {
   ExclusionScreening,
   CcoPreference,
   AgendaSnooze,
+  NavPreference,
   ActivityLog,
   BackupRecord,
   RoleRequirement,
@@ -1467,6 +1468,24 @@ function orgSettingsFrom(r: Record<string, unknown>): OrganizationSettings {
     trainingReminderDays: r.training_reminder_days as number,
     insuranceReminderDays: r.insurance_reminder_days as number,
     emailNotifications: r.email_notifications as boolean,
+    pageRoles: (r.page_roles as Record<string, string[]> | null) ?? {},
+    disabledPages: (r.disabled_pages as string[] | null) ?? [],
+  };
+}
+
+function navPreferenceFrom(r: Record<string, unknown>): NavPreference {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string,
+    hiddenPages: (r.hidden_pages as string[] | null) ?? [],
+    pageOrder: (r.page_order as string[] | null) ?? [],
+  };
+}
+function navPreferenceTo(d: Partial<NavPreference>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.hiddenPages !== undefined && { hidden_pages: d.hiddenPages }),
+    ...(d.pageOrder !== undefined && { page_order: d.pageOrder }),
   };
 }
 function orgSettingsTo(d: Partial<OrganizationSettings>) {
@@ -1485,6 +1504,8 @@ function orgSettingsTo(d: Partial<OrganizationSettings>) {
     ...(d.trainingReminderDays !== undefined && { training_reminder_days: d.trainingReminderDays }),
     ...(d.insuranceReminderDays !== undefined && { insurance_reminder_days: d.insuranceReminderDays }),
     ...(d.emailNotifications !== undefined && { email_notifications: d.emailNotifications }),
+    ...(d.pageRoles !== undefined && { page_roles: d.pageRoles }),
+    ...(d.disabledPages !== undefined && { disabled_pages: d.disabledPages }),
   };
 }
 
@@ -1531,6 +1552,7 @@ export function createSupabaseDataClient(): DataClient {
     exclusionScreenings: makeCollection(supabase, "exclusion_screenings", exclusionFrom,        exclusionTo),
     ccoPreferences:     makeCollection(supabase, "cco_preferences",     ccoPreferenceFrom,      ccoPreferenceTo),
     agendaSnoozes:      makeCollection(supabase, "agenda_snoozes",      agendaSnoozeFrom,       agendaSnoozeTo),
+    navPreferences:     makeCollection(supabase, "nav_preferences",     navPreferenceFrom,      navPreferenceTo),
     roleRequirements:   makeCollection(supabase, "role_requirements",   roleRequirementFrom,    roleRequirementTo),
     activityLog:        makeCollection(supabase, "activity_log",        activityLogFrom,        activityLogTo),
     backups:            makeCollection(supabase, "backups",             backupFrom,             backupTo),

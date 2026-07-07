@@ -1,15 +1,33 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, ShieldCheck, X, Lock } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
 import { AssistantWidget } from "@/components/ai/assistant-widget";
+import { useAuth } from "@/lib/auth/context";
+import { useCollection } from "@/lib/data/hooks";
+import { canAccessPath } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
 /** Authenticated app frame: fixed sidebar on desktop, slide-over drawer on mobile. */
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { profile } = useAuth();
+  const orgSettingsQ = useCollection("organizationSettings");
+  const org = orgSettingsQ.data?.[0];
+
+  // Enforce page access once settings have loaded: a user who navigates to a
+  // page their role/org doesn't permit is redirected home (defense beyond nav hiding).
+  const loaded = !orgSettingsQ.isLoading;
+  const allowed = canAccessPath(pathname, profile?.accountRole, org?.pageRoles ?? {}, org?.disabledPages ?? []);
+  useEffect(() => {
+    if (loaded && profile && !allowed) router.replace("/");
+  }, [loaded, allowed, profile, router]);
+  const blocked = loaded && !!profile && !allowed;
 
   return (
     <div className="min-h-screen bg-background">
@@ -74,7 +92,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="hidden items-center justify-end border-b border-border px-8 py-2 lg:flex">
           <NotificationBell />
         </div>
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          {blocked ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+              <Lock className="size-10 text-muted-foreground" />
+              <p className="text-lg font-medium">You don’t have access to this page</p>
+              <p className="text-sm text-muted-foreground">Your role doesn’t include this page, or your organization has turned it off. Redirecting…</p>
+            </div>
+          ) : children}
+        </div>
       </main>
 
       {/* Site-wide, page-aware AI assistant */}
