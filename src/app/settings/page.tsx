@@ -240,8 +240,8 @@ export default function SettingsPage() {
 
 /* ─── Locations management ──────────────────────────────────────── */
 
-interface LocForm { name: string; type: WorkLocation["type"]; city: string; state: string; address: string; active: boolean; }
-const EMPTY_LOC: LocForm = { name: "", type: "clinic", city: "", state: "", address: "", active: true };
+interface LocForm { name: string; type: WorkLocation["type"]; city: string; state: string; address: string; active: boolean; lat: string; lng: string; }
+const EMPTY_LOC: LocForm = { name: "", type: "clinic", city: "", state: "", address: "", active: true, lat: "", lng: "" };
 
 function LocationsTab() {
   const { data, isLoading } = useCollection("locations");
@@ -254,19 +254,39 @@ function LocationsTab() {
   const [form, setForm] = useState<LocForm>(EMPTY_LOC);
   const [saving, setSaving] = useState(false);
 
+  const [locating, setLocating] = useState(false);
+
   function open(loc?: WorkLocation) {
-    setForm(loc ? { name: loc.name, type: loc.type, city: loc.city ?? "", state: loc.state ?? "", address: loc.address ?? "", active: loc.active } : EMPTY_LOC);
+    setForm(loc ? { name: loc.name, type: loc.type, city: loc.city ?? "", state: loc.state ?? "", address: loc.address ?? "", active: loc.active, lat: loc.lat != null ? String(loc.lat) : "", lng: loc.lng != null ? String(loc.lng) : "" } : EMPTY_LOC);
     setEditing(loc ?? "new");
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) { toast.error("Geolocation isn't available in this browser."); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((p) => ({ ...p, lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }));
+        setLocating(false);
+        toast.success("Captured this location's coordinates.");
+      },
+      () => { setLocating(false); toast.error("Couldn't get your location. Allow location access and try again."); },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   }
 
   async function save() {
     if (!form.name.trim()) { toast.error("Location name is required."); return; }
     setSaving(true);
     try {
+      const latNum = form.lat.trim() === "" ? null : parseFloat(form.lat);
+      const lngNum = form.lng.trim() === "" ? null : parseFloat(form.lng);
       const payload = {
         name: form.name.trim(), type: form.type,
         city: form.city.trim() || undefined, state: form.state.trim() || undefined,
         address: form.address.trim() || undefined, active: form.active,
+        lat: latNum != null && !isNaN(latNum) ? latNum : null,
+        lng: lngNum != null && !isNaN(lngNum) ? lngNum : null,
       };
       if (editing && editing !== "new") await updateLoc.mutateAsync({ id: editing.id, patch: payload });
       else await createLoc.mutateAsync(payload);
@@ -313,6 +333,19 @@ function LocationsTab() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Address</label>
                 <input className="input w-full" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Coordinates <span className="text-muted-foreground">— lets photo GPS auto-suggest this location</span></label>
+                  <Button type="button" size="sm" variant="outline" onClick={useCurrentLocation} disabled={locating} className="h-7 px-2 text-xs">
+                    <MapPin className="size-3.5" /> {locating ? "Locating…" : "Use my current location"}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input className="input w-full" value={form.lat} onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} placeholder="Latitude" inputMode="decimal" />
+                  <input className="input w-full" value={form.lng} onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} placeholder="Longitude" inputMode="decimal" />
+                </div>
+                <p className="text-xs text-muted-foreground">Tip: open this on a phone while standing at the location and tap “Use my current location”.</p>
               </div>
               <div className="flex items-center gap-2 sm:col-span-2">
                 <input id="loc-active" type="checkbox" checked={form.active} onChange={(e) => setForm((p) => ({ ...p, active: e.target.checked }))} className="size-4" />

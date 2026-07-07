@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useRef } from "react";
 import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin } from "lucide-react";
-import exifr from "exifr";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
+import { normalizeImage } from "@/lib/images";
+import { guessLocation } from "@/lib/geo";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { SignedImage } from "@/components/shared/signed-image";
@@ -98,33 +99,36 @@ function ItemDialog({
       toast.error(`Image too large (max ${MAX_IMG_MB}MB).`);
       return;
     }
-    setFile(picked);
-    setPreview(URL.createObjectURL(picked));
+    setAnalyzing(true);
+    setAiNote(null);
 
-    // Extract EXIF (capture time + GPS) best-effort.
-    try {
-      const [gps, meta] = await Promise.all([
-        exifr.gps(picked).catch(() => null),
-        exifr.parse(picked, ["DateTimeOriginal"]).catch(() => null),
-      ]);
-      const capturedAt = meta?.DateTimeOriginal instanceof Date ? meta.DateTimeOriginal.toISOString() : undefined;
-      setExif({ capturedAt, lat: gps?.latitude, lng: gps?.longitude });
-    } catch { /* no EXIF */ }
+    // Convert HEIC→JPEG (if needed) and read EXIF capture time + GPS.
+    const norm = await normalizeImage(picked);
+    setFile(norm.file);
+    setPreview(URL.createObjectURL(norm.file));
+    setExif({ capturedAt: norm.capturedAt, lat: norm.lat, lng: norm.lng });
 
-    if (!AI_MIMES.includes(picked.type)) {
-      setAiNote("Photo attached. AI identification supports JPG/PNG/WebP — fill the details manually for this format.");
+    // Guess the location from the photo's GPS (nearest known location).
+    const gpsGuess = guessLocation(norm.lat, norm.lng, locations);
+    let locNote = "";
+    if (gpsGuess) {
+      setForm((p) => ({ ...p, locationId: gpsGuess.location.id }));
+      locNote = ` Location set from photo GPS: “${gpsGuess.location.name}” (~${gpsGuess.distanceM} m) — confirm or change below.`;
+    }
+
+    if (!AI_MIMES.includes(norm.file.type)) {
+      setAiNote(`Photo attached${norm.converted ? " (converted to JPG)" : ""}. AI identification supports JPG/PNG/WebP — fill the item details manually.${locNote}`);
+      setAnalyzing(false);
       return;
     }
 
     // AI identification.
-    setAnalyzing(true);
-    setAiNote(null);
     try {
-      const base64 = await fileToBase64(picked);
+      const base64 = await fileToBase64(norm.file);
       const res = await fetch("/api/ai/inventory-identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: picked.type, locationNames: locations.map((l) => l.name) }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: norm.file.type, locationNames: locations.map((l) => l.name) }),
       });
       if (!res.ok) throw new Error("identify failed");
       const r = await res.json() as {
@@ -132,7 +136,8 @@ function ItemDialog({
         description: string; estimatedValueUsd: number; valueRationale: string;
         suggestedLocationName: string | null; suggestedSublocation: string | null; confidence: string;
       };
-      const matched = r.suggestedLocationName
+      // GPS guess wins; otherwise fall back to the AI's visual location suggestion.
+      const visualMatch = !gpsGuess && r.suggestedLocationName
         ? locations.find((l) => l.name.toLowerCase() === r.suggestedLocationName!.toLowerCase())
         : undefined;
       setForm((p) => ({
@@ -143,12 +148,13 @@ function ItemDialog({
         description: r.description || p.description,
         estimatedValue: r.estimatedValueUsd != null ? String(r.estimatedValueUsd) : p.estimatedValue,
         sublocation: r.suggestedSublocation || p.sublocation,
-        locationId: matched?.id ?? p.locationId,
+        locationId: gpsGuess ? p.locationId : (visualMatch?.id ?? p.locationId),
       }));
       setAiState({ identified: true, confidence: r.confidence });
-      setAiNote(`AI identified this as “${r.itemName}” (${r.confidence} confidence). ${r.valueRationale}${matched ? `` : r.suggestedLocationName ? ` Suggested location “${r.suggestedLocationName}” — assign it below.` : " Assign a location below."}`);
+      const visualNote = gpsGuess ? "" : visualMatch ? "" : r.suggestedLocationName ? ` Suggested location “${r.suggestedLocationName}” — assign it below.` : "";
+      setAiNote(`AI identified this as “${r.itemName}” (${r.confidence} confidence). ${r.valueRationale}${locNote}${visualNote}`);
     } catch {
-      setAiNote("Couldn't auto-identify the photo. Enter the details manually — the photo is still attached.");
+      setAiNote(`Couldn't auto-identify the photo${norm.converted ? " (converted to JPG)" : ""}. Enter the details manually — the photo is still attached.${locNote}`);
     } finally {
       setAnalyzing(false);
     }
@@ -171,7 +177,7 @@ function ItemDialog({
           {/* Photo / AI */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Photo {!initial && <span className="text-muted-foreground">— identify with AI</span>}</label>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" capture="environment" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); }} />
             <div className="flex items-start gap-3">
               <div className="size-24 shrink-0 overflow-hidden rounded-lg border border-border">
@@ -378,28 +384,35 @@ function BatchDialog({
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const batchLocSetRef = useRef(false);
 
   const analyzing = items.some((i) => i.status === "analyzing");
   const patch = (id: string, p: Partial<BatchItem>) => setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...p } : i)));
 
   async function analyze(item: BatchItem) {
     try {
-      const [gps, meta] = await Promise.all([
-        exifr.gps(item.file).catch(() => null),
-        exifr.parse(item.file, ["DateTimeOriginal"]).catch(() => null),
-      ]);
-      const capturedAt = meta?.DateTimeOriginal instanceof Date ? meta.DateTimeOriginal.toISOString() : undefined;
-      patch(item.id, { capturedAt, lat: gps?.latitude, lng: gps?.longitude });
+      // Convert HEIC→JPEG (if needed) + read EXIF; use the normalized file for
+      // preview, AI, and upload.
+      const norm = await normalizeImage(item.file);
+      patch(item.id, { file: norm.file, preview: URL.createObjectURL(norm.file), capturedAt: norm.capturedAt, lat: norm.lat, lng: norm.lng });
 
-      if (!AI_MIMES.includes(item.file.type)) {
+      // Guess the batch location from the first GPS-tagged photo, if unset.
+      const guess = guessLocation(norm.lat, norm.lng, locations);
+      if (guess && !batchLocSetRef.current) {
+        batchLocSetRef.current = true;
+        setLocationId((prev) => prev || guess.location.id);
+        toast.info(`Location guessed from photo GPS: ${guess.location.name} (~${guess.distanceM} m). Change it above if needed.`);
+      }
+
+      if (!AI_MIMES.includes(norm.file.type)) {
         patch(item.id, { status: "ready", itemName: item.file.name.replace(/\.[^.]+$/, "") });
         return;
       }
-      const base64 = await fileToBase64(item.file);
+      const base64 = await fileToBase64(norm.file);
       const res = await fetch("/api/ai/inventory-identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: item.file.type, locationNames: [] }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: norm.file.type, locationNames: [] }),
       });
       if (!res.ok) throw new Error("identify failed");
       const r = await res.json() as {
@@ -423,12 +436,13 @@ function BatchDialog({
 
   function addFiles(list: FileList | null) {
     if (!list) return;
-    const picked = Array.from(list).filter((f) => f.type.startsWith("image/"));
+    const picked = Array.from(list).filter((f) => f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|webp|gif)$/i.test(f.name));
     const room = MAX_BATCH - items.length;
     if (picked.length > room) toast.warning(`Batch capped at ${MAX_BATCH}; adding the first ${room}.`);
+    // preview is set after normalizeImage() in analyze() (HEIC can't render until converted).
     const next = picked.slice(0, room).map((file) => ({
       id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
-      file, preview: URL.createObjectURL(file), status: "analyzing" as const,
+      file, preview: "", status: "analyzing" as const,
       itemName: "", itemType: "equipment", condition: "good" as const,
       estimatedValue: "", quantity: "1", description: "", aiIdentified: false,
     }));
@@ -498,9 +512,9 @@ function BatchDialog({
 
         {/* Items */}
         <div className="flex-1 overflow-y-auto p-5">
-          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
           {/* @ts-expect-error non-standard directory attributes for folder picking */}
-          <input id="batch-folder" type="file" accept="image/*" multiple webkitdirectory="" directory="" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          <input id="batch-folder" type="file" accept="image/*,.heic,.heif" multiple webkitdirectory="" directory="" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
           {items.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-8 text-center">
@@ -519,8 +533,12 @@ function BatchDialog({
               </div>
               {items.map((it) => (
                 <div key={it.id} className="flex items-start gap-3 rounded-lg border border-border p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={it.preview} alt="" className="size-14 shrink-0 rounded-md border border-border object-cover" />
+                  {it.preview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={it.preview} alt="" className="size-14 shrink-0 rounded-md border border-border object-cover" />
+                  ) : (
+                    <div className="flex size-14 shrink-0 animate-pulse items-center justify-center rounded-md border border-border bg-secondary/40"><Package className="size-5 text-muted-foreground" /></div>
+                  )}
                   <div className="grid flex-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <input className="input w-full" value={it.itemName} placeholder={it.status === "analyzing" ? "Analyzing…" : "Item name"} onChange={(e) => patch(it.id, { itemName: e.target.value })} />
                     <input className="input w-24" value={it.estimatedValue} placeholder="$ value" inputMode="decimal" onChange={(e) => patch(it.id, { estimatedValue: e.target.value })} />

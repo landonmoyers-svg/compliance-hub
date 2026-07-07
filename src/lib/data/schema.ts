@@ -75,6 +75,9 @@ export const WorkLocation = z.object({
   state: z.string().optional(),
   zip: z.string().optional(),
   active: z.boolean().default(true),
+  // Reference coordinates used to guess a location from photo GPS metadata.
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
 export type WorkLocation = z.infer<typeof WorkLocation>;
 

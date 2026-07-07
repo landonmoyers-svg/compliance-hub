@@ -154,6 +154,8 @@ function locationFrom(r: Record<string, unknown>): WorkLocation {
     address: r.address as string | undefined, city: r.city as string | undefined,
     state: r.state as string | undefined, zip: r.zip as string | undefined,
     active: r.active as boolean,
+    lat: (r.lat as number | null) ?? undefined,
+    lng: (r.lng as number | null) ?? undefined,
   };
 }
 function locationTo(d: Partial<WorkLocation>) {
@@ -165,6 +167,8 @@ function locationTo(d: Partial<WorkLocation>) {
     ...(d.state !== undefined && { state: d.state }),
     ...(d.zip !== undefined && { zip: d.zip }),
     ...(d.active !== undefined && { active: d.active }),
+    ...(d.lat !== undefined && { lat: d.lat }),
+    ...(d.lng !== undefined && { lng: d.lng }),
   };
 }
 
