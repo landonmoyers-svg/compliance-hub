@@ -330,6 +330,231 @@ function InventoryChat({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ----------------------------- batch dialog ------------------------------- */
+
+const MAX_BATCH = 40;
+
+async function mapLimit<T>(items: T[], limit: number, fn: (item: T, i: number) => Promise<void>) {
+  let idx = 0;
+  const run = async () => {
+    while (idx < items.length) {
+      const cur = idx++;
+      await fn(items[cur], cur);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+}
+
+interface BatchItem {
+  id: string;
+  file: File;
+  preview: string;
+  status: "analyzing" | "ready" | "error";
+  itemName: string;
+  itemType: string;
+  condition: InventoryItem["condition"];
+  estimatedValue: string;
+  quantity: string;
+  description: string;
+  capturedAt?: string;
+  lat?: number;
+  lng?: number;
+  aiIdentified: boolean;
+  aiConfidence?: string;
+}
+
+function BatchDialog({
+  locations,
+  createMut,
+  onClose,
+}: {
+  locations: WorkLocation[];
+  createMut: ReturnType<typeof useCreate<"inventory">>;
+  onClose: () => void;
+}) {
+  const [locationId, setLocationId] = useState("");
+  const [sublocation, setSublocation] = useState("");
+  const [items, setItems] = useState<BatchItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const analyzing = items.some((i) => i.status === "analyzing");
+  const patch = (id: string, p: Partial<BatchItem>) => setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...p } : i)));
+
+  async function analyze(item: BatchItem) {
+    try {
+      const [gps, meta] = await Promise.all([
+        exifr.gps(item.file).catch(() => null),
+        exifr.parse(item.file, ["DateTimeOriginal"]).catch(() => null),
+      ]);
+      const capturedAt = meta?.DateTimeOriginal instanceof Date ? meta.DateTimeOriginal.toISOString() : undefined;
+      patch(item.id, { capturedAt, lat: gps?.latitude, lng: gps?.longitude });
+
+      if (!AI_MIMES.includes(item.file.type)) {
+        patch(item.id, { status: "ready", itemName: item.file.name.replace(/\.[^.]+$/, "") });
+        return;
+      }
+      const base64 = await fileToBase64(item.file);
+      const res = await fetch("/api/ai/inventory-identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: item.file.type, locationNames: [] }),
+      });
+      if (!res.ok) throw new Error("identify failed");
+      const r = await res.json() as {
+        itemName: string; itemType: string; condition: InventoryItem["condition"];
+        description: string; estimatedValueUsd: number; confidence: string;
+      };
+      patch(item.id, {
+        status: "ready",
+        itemName: r.itemName || item.file.name,
+        itemType: r.itemType || "equipment",
+        condition: r.condition || "good",
+        description: r.description || "",
+        estimatedValue: r.estimatedValueUsd != null ? String(r.estimatedValueUsd) : "",
+        aiIdentified: true,
+        aiConfidence: r.confidence,
+      });
+    } catch {
+      patch(item.id, { status: "error", itemName: item.itemName || item.file.name.replace(/\.[^.]+$/, "") });
+    }
+  }
+
+  function addFiles(list: FileList | null) {
+    if (!list) return;
+    const picked = Array.from(list).filter((f) => f.type.startsWith("image/"));
+    const room = MAX_BATCH - items.length;
+    if (picked.length > room) toast.warning(`Batch capped at ${MAX_BATCH}; adding the first ${room}.`);
+    const next = picked.slice(0, room).map((file) => ({
+      id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
+      file, preview: URL.createObjectURL(file), status: "analyzing" as const,
+      itemName: "", itemType: "equipment", condition: "good" as const,
+      estimatedValue: "", quantity: "1", description: "", aiIdentified: false,
+    }));
+    if (next.length === 0) return;
+    setItems((prev) => [...prev, ...next]);
+    void mapLimit(next, 3, (it) => analyze(it));
+  }
+
+  async function saveAll() {
+    setSaving(true);
+    setProgress(0);
+    let saved = 0, failed = 0;
+    for (const it of items) {
+      try {
+        const path = await uploadFile(it.file, "inventory");
+        const cents = it.estimatedValue.trim() === "" ? null : Math.round(parseFloat(it.estimatedValue) * 100);
+        await createMut.mutateAsync({
+          itemName: it.itemName.trim() || "Unnamed item",
+          itemType: it.itemType.trim() || "equipment",
+          status: "active",
+          condition: it.condition,
+          locationId: locationId || null,
+          sublocation: sublocation.trim() || null,
+          quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
+          estimatedValueCents: cents,
+          description: it.description.trim() || null,
+          removedFromInventory: false,
+          imageUrl: path,
+          capturedAt: it.capturedAt ?? null,
+          capturedLat: it.lat ?? null,
+          capturedLng: it.lng ?? null,
+          aiIdentified: it.aiIdentified,
+          aiConfidence: it.aiConfidence ?? null,
+        });
+        saved++;
+      } catch { failed++; }
+      setProgress(saved + failed);
+    }
+    setSaving(false);
+    toast.success(`Added ${saved} item${saved === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}`);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Batch add inventory</h2>
+          <button onClick={onClose} disabled={saving} className="text-muted-foreground hover:text-foreground disabled:opacity-50">✕</button>
+        </div>
+
+        {/* Batch-wide location applied to every item */}
+        <div className="grid gap-4 border-b border-border px-5 py-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Location for this batch</label>
+            <select className="input w-full" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+              <option value="">— Unassigned —</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Sub-location / room / closet</label>
+            <input className="input w-full" value={sublocation} onChange={(e) => setSublocation(e.target.value)} placeholder="e.g. Supply Closet A, Shelf 2" />
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">Applies to every item added below. You can fine-tune each item’s details before saving.</p>
+        </div>
+
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto p-5">
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          {/* @ts-expect-error non-standard directory attributes for folder picking */}
+          <input id="batch-folder" type="file" accept="image/*" multiple webkitdirectory="" directory="" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+
+          {items.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center">
+              <Package className="mx-auto mb-2 size-8 text-muted-foreground" />
+              <p className="mb-3 text-sm text-muted-foreground">Add photos of the items in this location. AI identifies each one.</p>
+              <div className="flex justify-center gap-2">
+                <Button variant="outline" onClick={() => fileRef.current?.click()}><Upload className="size-4" /> Choose photos</Button>
+                <Button variant="outline" onClick={() => document.getElementById("batch-folder")?.click()}><Upload className="size-4" /> Choose folder</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}{analyzing ? " · analyzing…" : ""}</span>
+                <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={saving}><Upload className="size-3.5" /> Add more</Button>
+              </div>
+              {items.map((it) => (
+                <div key={it.id} className="flex items-start gap-3 rounded-lg border border-border p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={it.preview} alt="" className="size-14 shrink-0 rounded-md border border-border object-cover" />
+                  <div className="grid flex-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input className="input w-full" value={it.itemName} placeholder={it.status === "analyzing" ? "Analyzing…" : "Item name"} onChange={(e) => patch(it.id, { itemName: e.target.value })} />
+                    <input className="input w-24" value={it.estimatedValue} placeholder="$ value" inputMode="decimal" onChange={(e) => patch(it.id, { estimatedValue: e.target.value })} />
+                    <select className="input w-24" value={it.condition} onChange={(e) => patch(it.id, { condition: e.target.value as InventoryItem["condition"] })}>
+                      <option value="new">New</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
+                    </select>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-3">
+                      <input className="input w-16" value={it.quantity} inputMode="numeric" onChange={(e) => patch(it.id, { quantity: e.target.value })} title="Quantity" />
+                      <span className="capitalize">{it.itemType}</span>
+                      {it.aiIdentified && <span className="inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI {it.aiConfidence}</span>}
+                      {it.status === "error" && <span className="text-destructive">AI failed — enter manually</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => setItems((p) => p.filter((x) => x.id !== it.id))} disabled={saving} className="text-muted-foreground hover:text-destructive disabled:opacity-50"><X className="size-4" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+          <span className="text-xs text-muted-foreground">{saving ? `Saving ${progress}/${items.length}…` : items.length > 0 ? `${items.length} ready` : ""}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button onClick={saveAll} disabled={items.length === 0 || analyzing || saving}>
+              {saving ? "Saving…" : `Save ${items.length || ""} item${items.length === 1 ? "" : "s"}`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------------- page --------------------------------- */
 
 export default function InventoryPage() {
@@ -342,6 +567,7 @@ export default function InventoryPage() {
   const [filterLoc, setFilterLoc] = useState<string>("all");
   const [editing, setEditing] = useState<InventoryItem | null | "new">(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const items = useMemo(() => data ?? [], [data]);
@@ -430,6 +656,7 @@ export default function InventoryPage() {
         />
       )}
       {chatOpen && <InventoryChat onClose={() => setChatOpen(false)} />}
+      {batchOpen && <BatchDialog locations={locations} createMut={createMut} onClose={() => setBatchOpen(false)} />}
 
       <PageHeader
         title="Inventory"
@@ -437,6 +664,7 @@ export default function InventoryPage() {
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setChatOpen(true)}><MessageSquare className="size-4" /> Ask AI</Button>
+            <Button variant="outline" onClick={() => setBatchOpen(true)}><Upload className="size-4" /> Batch add</Button>
             <Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add item</Button>
           </div>
         }
