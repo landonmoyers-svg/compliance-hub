@@ -47,6 +47,7 @@ import type {
   BreachAssessment,
   SraAssessment,
   SraFinding,
+  ExclusionScreening,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -538,6 +539,34 @@ function sraFindingTo(d: Partial<SraFinding>) {
     ...(d.remediationDue !== undefined && { remediation_due: d.remediationDue }),
     ...(d.remediationStatus !== undefined && { remediation_status: d.remediationStatus }),
     ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function exclusionFrom(r: Record<string, unknown>): ExclusionScreening {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    subjectType: r.subject_type as ExclusionScreening["subjectType"],
+    subjectName: r.subject_name as string,
+    subjectUserId: (r.subject_user_id as string | null) ?? undefined,
+    vendorId: (r.vendor_id as string | null) ?? undefined,
+    sources: r.sources as string | undefined,
+    screenedDate: toISO(r.screened_date as string),
+    result: r.result as ExclusionScreening["result"],
+    notes: r.notes as string | undefined,
+    screenedByName: r.screened_by_name as string | undefined,
+  };
+}
+function exclusionTo(d: Partial<ExclusionScreening>) {
+  return {
+    ...(d.subjectType !== undefined && { subject_type: d.subjectType }),
+    ...(d.subjectName !== undefined && { subject_name: d.subjectName }),
+    ...(d.subjectUserId !== undefined && { subject_user_id: d.subjectUserId }),
+    ...(d.vendorId !== undefined && { vendor_id: d.vendorId }),
+    ...(d.sources !== undefined && { sources: d.sources }),
+    ...(d.screenedDate !== undefined && { screened_date: d.screenedDate }),
+    ...(d.result !== undefined && { result: d.result }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.screenedByName !== undefined && { screened_by_name: d.screenedByName }),
   };
 }
 
@@ -1330,6 +1359,7 @@ export function createSupabaseDataClient(): DataClient {
     breachAssessments:  makeCollection(supabase, "breach_assessments",  breachFrom,             breachTo),
     sraAssessments:     makeCollection(supabase, "sra_assessments",     sraAssessmentFrom,      sraAssessmentTo),
     sraFindings:        makeCollection(supabase, "sra_findings",        sraFindingFrom,         sraFindingTo),
+    exclusionScreenings: makeCollection(supabase, "exclusion_screenings", exclusionFrom,        exclusionTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),

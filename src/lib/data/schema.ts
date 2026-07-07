@@ -337,6 +337,22 @@ export const SraFinding = z.object({
 });
 export type SraFinding = z.infer<typeof SraFinding>;
 
+/* --------------------- exclusion / sanction screening --------------------- */
+
+export const ExclusionScreening = z.object({
+  ...base,
+  subjectType: z.enum(["staff", "vendor", "other"]).default("staff"),
+  subjectName: z.string(),
+  subjectUserId: z.string().nullable().optional(),
+  vendorId: z.string().nullable().optional(),
+  sources: z.string().optional(),                 // which lists were checked
+  screenedDate: z.string().nullable().optional(),
+  result: z.enum(["clear", "hit", "pending"]).default("clear"),
+  notes: z.string().optional(),
+  screenedByName: z.string().optional(),
+});
+export type ExclusionScreening = z.infer<typeof ExclusionScreening>;
+
 /* ------------------------ policy acknowledgments ------------------- */
 
 export const PolicyAcknowledgment = z.object({

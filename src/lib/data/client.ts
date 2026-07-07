@@ -25,6 +25,7 @@ import type {
   PolicyAcknowledgment,
   BreachAssessment,
   CorrectiveAction,
+  ExclusionScreening,
   Incident,
   PTOBalance,
   RecordVersion,
@@ -73,6 +74,7 @@ export interface DataClient {
   breachAssessments: Collection<BreachAssessment>;
   sraAssessments: Collection<SraAssessment>;
   sraFindings: Collection<SraFinding>;
+  exclusionScreenings: Collection<ExclusionScreening>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

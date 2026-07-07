@@ -96,6 +96,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: ["create_regulatory_source", TASK],
     examples: ["Add the Utah telehealth statute", "Add OSHA Hazard Communication"],
   },
+  "/exclusion-screening": {
+    title: "Exclusion Screening",
+    purpose: "Screen staff and vendors against OIG-LEIE and SAM exclusion lists and keep dated proof.",
+    actions: [TASK],
+    examples: ["Who is due for screening?", "Create a task to screen all staff this month"],
+  },
   "/settings": {
     title: "Settings",
     purpose: "Configure the organization profile and Work Locations.",
