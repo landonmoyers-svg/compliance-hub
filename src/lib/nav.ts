@@ -173,7 +173,7 @@ export function allPages(): PageDef[] {
 /** The roles allowed to access a page: org override if set, else code default. */
 export function allowedRolesFor(href: string, adminOnly: boolean, pageRoles: Record<string, string[]>): string[] {
   const cfg = pageRoles[href];
-  if (cfg && cfg.length) return cfg;
+  if (cfg !== undefined) return cfg; // explicit override wins, incl. [] = locked to no roles
   return adminOnly ? [...PRIVILEGED_ROLES] : (SELECTABLE_ROLES as string[]);
 }
 
@@ -195,12 +195,22 @@ export interface VisibilityCtx {
   pageOrder: string[];
 }
 
+/** Sensitive full-page modules that aren't in the sidebar nav but must still be
+ *  gated to privileged roles by the route guard. */
+export const EXTRA_PRIVILEGED_PATHS = ["/employee-vault", "/document-migration"];
+
 /** Enforcement: can this role open this path? (Command Center is always allowed.) */
 export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[]): boolean {
   if (pathname === "/") return true;
   if (!role || role === "inactive") return false;
   const item = findNavItem(pathname);
-  if (!item) return true; // not a gated nav page (detail/util routes)
+  if (!item) {
+    // Pages absent from the nav map are open by default, except explicitly-gated modules.
+    if (EXTRA_PRIVILEGED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      return (PRIVILEGED_ROLES as readonly string[]).includes(role);
+    }
+    return true;
+  }
   if (disabledPages.includes(item.href)) return false;
   return allowedRolesFor(item.href, !!item.adminOnly, pageRoles).includes(role);
 }

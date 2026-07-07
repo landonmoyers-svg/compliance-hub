@@ -97,12 +97,17 @@ export async function POST(request: NextRequest) {
 
   // Whole system is static for a given inventory snapshot — cache it so
   // follow-up questions in the same session cost a fraction.
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system: [{ type: "text", text: basePrompt(await getOrgName(supabase)) + context, cache_control: { type: "ephemeral" } }],
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-  });
+  let response: Anthropic.Messages.Message;
+  try {
+    response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system: [{ type: "text", text: basePrompt(await getOrgName(supabase)) + context, cache_control: { type: "ephemeral" } }],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+  } catch {
+    return NextResponse.json({ text: "The inventory assistant is temporarily unavailable — please try again." });
+  }
 
   const text = response.content
     .filter((b) => b.type === "text")

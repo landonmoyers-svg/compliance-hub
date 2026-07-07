@@ -102,16 +102,21 @@ export async function POST(request: NextRequest) {
   const snapshot = await buildSnapshot(supabase, defaultRole);
   const progress = `\n\n${snapshot}\n\nCurrent setup checklist — steps the admin has marked done: ${completedSteps.length > 0 ? completedSteps.join(", ") : "none yet"}.`;
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 900,
-    // Large static instructions are cached; the live snapshot + progress vary each turn.
-    system: [
-      { type: "text", text: conciergeSystem(orgName), cache_control: { type: "ephemeral" } },
-      { type: "text", text: progress },
-    ],
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-  });
+  let response: Anthropic.Messages.Message;
+  try {
+    response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 900,
+      // Large static instructions are cached; the live snapshot + progress vary each turn.
+      system: [
+        { type: "text", text: conciergeSystem(orgName), cache_control: { type: "ephemeral" } },
+        { type: "text", text: progress },
+      ],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+  } catch {
+    return NextResponse.json({ text: "The setup concierge is temporarily unavailable — please try again.", actions: [] });
+  }
 
   const raw = response.content
     .filter((b) => b.type === "text")

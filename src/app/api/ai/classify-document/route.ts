@@ -48,11 +48,25 @@ ${textContent ? `\nDocument content (first 2000 chars):\n${textContent.slice(0, 
 
 Respond ONLY with valid JSON, no markdown or explanation.`;
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    messages: [{ role: "user", content: prompt }],
-  });
+  let response: Anthropic.Messages.Message;
+  try {
+    response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      messages: [{ role: "user", content: prompt }],
+    });
+  } catch {
+    return NextResponse.json({
+      suggestedType: "reference",
+      suggestedTitle: fileName.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "),
+      complianceArea: null,
+      suggestedDestination: "sop_library",
+      destinationReason: "Defaulted — the classifier service was unavailable.",
+      summary: "Classification unavailable.",
+      confidence: "low" as const,
+      notes: "AI classifier temporarily unavailable — please review manually.",
+    });
+  }
 
   const raw = response.content
     .filter((b) => b.type === "text")

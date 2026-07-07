@@ -64,15 +64,20 @@ export async function POST(request: NextRequest) {
   const orgName = await getOrgName(supabase);
   const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}\n=== END CONTEXT ===`;
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 900,
-    system: [
-      { type: "text", text: baseSystem(orgName), cache_control: { type: "ephemeral" } },
-      { type: "text", text: context },
-    ],
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-  });
+  let response: Anthropic.Messages.Message;
+  try {
+    response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 900,
+      system: [
+        { type: "text", text: baseSystem(orgName), cache_control: { type: "ephemeral" } },
+        { type: "text", text: context },
+      ],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+  } catch {
+    return NextResponse.json({ text: "The assistant is temporarily unavailable — please try again.", actions: [] });
+  }
 
   const raw = response.content
     .filter((b) => b.type === "text")

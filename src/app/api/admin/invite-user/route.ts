@@ -56,8 +56,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 4. Create the linked profile with the REAL auth user id.
-  const { error: profileErr } = await admin.from("profiles").insert({
+  // 4. Link the profile with the REAL auth user id and the requested role.
+  //    A DB trigger (handle_new_user) already created a base profile row (role
+  //    'staff') the moment inviteUserByEmail created the auth user, so UPSERT on
+  //    user_id — a plain insert would collide with that row (user_id is unique)
+  //    and the chosen role would be silently dropped.
+  const { error: profileErr } = await admin.from("profiles").upsert({
     user_id: invited.user.id,
     full_name: fullName,
     email,
@@ -65,9 +69,9 @@ export async function POST(request: NextRequest) {
     staff_role: body.staffRole?.trim() || null,
     department: body.department?.trim() || null,
     active: true,
-  });
+  }, { onConflict: "user_id" });
   if (profileErr) {
-    return NextResponse.json({ error: `Invite sent but profile creation failed: ${profileErr.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Invite sent but profile setup failed: ${profileErr.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, userId: invited.user.id });

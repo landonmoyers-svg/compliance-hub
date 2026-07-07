@@ -184,12 +184,17 @@ export async function POST(request: NextRequest) {
     ...(dynamic ? [{ type: "text", text: dynamic } as Anthropic.TextBlockParam] : []),
   ];
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-  });
+  let response: Anthropic.Messages.Message;
+  try {
+    response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+  } catch {
+    return NextResponse.json({ text: "The SOP assistant is temporarily unavailable — please try again." });
+  }
 
   const text = response.content
     .filter((b) => b.type === "text")

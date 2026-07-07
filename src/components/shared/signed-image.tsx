@@ -22,7 +22,11 @@ export function SignedImage({
 
   useEffect(() => {
     let active = true;
-    if (!path) { setUrl(null); return; }
+    // Reset on path change so a new image recovers from a prior load error and
+    // doesn't briefly show the previous (stale) image.
+    setFailed(false);
+    setUrl(null);
+    if (!path) return;
     void getSignedUrl(path, 600).then((u) => { if (active) setUrl(u); });
     return () => { active = false; };
   }, [path]);

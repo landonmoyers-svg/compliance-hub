@@ -85,12 +85,12 @@ export default function ComplianceConcierge() {
     [chatQ.data, myUserId],
   );
   useEffect(() => {
-    if (hydrated || chatQ.isLoading) return;
+    if (hydrated || chatQ.isLoading || !myUserId) return;
     if (savedHistory.length > 0) {
       setChat([{ role: "assistant", text: CONCIERGE_WELCOME }, ...savedHistory.map((m) => ({ role: m.role, text: m.content }))]);
     }
     setHydrated(true);
-  }, [savedHistory, chatQ.isLoading, hydrated]);
+  }, [savedHistory, chatQ.isLoading, hydrated, myUserId]);
 
   async function persistMsg(role: "user" | "assistant", content: string) {
     if (!myUserId) return;
@@ -265,8 +265,9 @@ export default function ComplianceConcierge() {
           return;
         }
         case "invite_all_pending": {
-          const validRoles = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
-          const role = validRoles.includes(str(d.accountRole)) ? str(d.accountRole) : defaultRole;
+          // Bulk invites always use the org default role (ignore any model-supplied
+          // role) — matches the documented contract and removes an injection lever.
+          const role = defaultRole;
           const pending = (employeesQ.data ?? []).filter(
             (e) => !e.userId && e.employmentStatus === "active" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e.email ?? "")),
           );
