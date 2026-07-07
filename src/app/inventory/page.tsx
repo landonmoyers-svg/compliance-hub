@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { uploadFile } from "@/lib/storage";
 import { normalizeImage } from "@/lib/images";
 import { guessLocation } from "@/lib/geo";
@@ -58,12 +59,14 @@ function emptyForm(): ItemForm {
 function ItemDialog({
   initial,
   locations,
+  canSeeValue,
   onClose,
   onSave,
   saving,
 }: {
   initial?: InventoryItem;
   locations: WorkLocation[];
+  canSeeValue: boolean;
   onClose: () => void;
   onSave: (data: ItemForm, image: { file: File; capturedAt?: string; lat?: number; lng?: number } | null, ai: { identified: boolean; confidence?: string }) => void;
   saving: boolean;
@@ -215,10 +218,12 @@ function ItemDialog({
               <label className="text-sm font-medium">Type</label>
               <input className="input w-full" value={form.itemType} onChange={set("itemType")} placeholder="equipment, furniture…" />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Est. value (USD)</label>
-              <input className={`input w-full ${valueValid ? "" : "border-destructive"}`} value={form.estimatedValue} onChange={set("estimatedValue")} placeholder="e.g. 250" inputMode="decimal" />
-            </div>
+            {canSeeValue ? (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Est. value (USD)</label>
+                <input className={`input w-full ${valueValid ? "" : "border-destructive"}`} value={form.estimatedValue} onChange={set("estimatedValue")} placeholder="e.g. 250" inputMode="decimal" />
+              </div>
+            ) : <div />}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -372,10 +377,12 @@ interface BatchItem {
 function BatchDialog({
   locations,
   createMut,
+  canSeeValue,
   onClose,
 }: {
   locations: WorkLocation[];
   createMut: ReturnType<typeof useCreate<"inventory">>;
+  canSeeValue: boolean;
   onClose: () => void;
 }) {
   const [locationId, setLocationId] = useState("");
@@ -541,7 +548,7 @@ function BatchDialog({
                   )}
                   <div className="grid flex-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <input className="input w-full" value={it.itemName} placeholder={it.status === "analyzing" ? "Analyzing…" : "Item name"} onChange={(e) => patch(it.id, { itemName: e.target.value })} />
-                    <input className="input w-24" value={it.estimatedValue} placeholder="$ value" inputMode="decimal" onChange={(e) => patch(it.id, { estimatedValue: e.target.value })} />
+                    {canSeeValue && <input className="input w-24" value={it.estimatedValue} placeholder="$ value" inputMode="decimal" onChange={(e) => patch(it.id, { estimatedValue: e.target.value })} />}
                     <select className="input w-24" value={it.condition} onChange={(e) => patch(it.id, { condition: e.target.value as InventoryItem["condition"] })}>
                       <option value="new">New</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
                     </select>
@@ -576,6 +583,7 @@ function BatchDialog({
 /* ----------------------------- page --------------------------------- */
 
 export default function InventoryPage() {
+  const { isAdmin } = useAuth(); // privileged = owner/admin/hr/clinical_leadership; only they see values
   const { data, isLoading, isError, refetch } = useCollection("inventory");
   const locationsQ = useCollection("locations");
   const createMut = useCreate("inventory");
@@ -668,13 +676,14 @@ export default function InventoryPage() {
         <ItemDialog
           initial={editing === "new" ? undefined : editing}
           locations={locations}
+          canSeeValue={isAdmin}
           onClose={() => setEditing(null)}
           onSave={handleSave}
           saving={saving}
         />
       )}
       {chatOpen && <InventoryChat onClose={() => setChatOpen(false)} />}
-      {batchOpen && <BatchDialog locations={locations} createMut={createMut} onClose={() => setBatchOpen(false)} />}
+      {batchOpen && <BatchDialog locations={locations} createMut={createMut} canSeeValue={isAdmin} onClose={() => setBatchOpen(false)} />}
 
       <PageHeader
         title="Inventory"
@@ -690,7 +699,7 @@ export default function InventoryPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Items tracked" value={stats.count} icon={Package} tone="success" loading={isLoading} />
-        <StatCard label="Est. total value" value={usd(stats.totalValue)} icon={Sparkles} loading={isLoading} />
+        {isAdmin && <StatCard label="Est. total value" value={usd(stats.totalValue)} icon={Sparkles} loading={isLoading} />}
         <StatCard label="Locations in use" value={stats.locations} icon={MapPin} loading={isLoading} />
       </div>
 
@@ -726,7 +735,7 @@ export default function InventoryPage() {
                     <th className="pb-2 pr-4 font-medium">Item</th>
                     <th className="pb-2 pr-4 font-medium">Location</th>
                     <th className="pb-2 pr-4 font-medium">Qty</th>
-                    <th className="pb-2 pr-4 font-medium">Est. value</th>
+                    {isAdmin && <th className="pb-2 pr-4 font-medium">Est. value</th>}
                     <th className="pb-2 pr-4 font-medium">Condition</th>
                     <th className="pb-2 pr-4 font-medium">Status</th>
                     <th className="pb-2 font-medium">Actions</th>
@@ -755,7 +764,7 @@ export default function InventoryPage() {
                         ) : <span className="text-muted-foreground">Unassigned</span>}
                       </td>
                       <td className="py-3 pr-4">{i.quantity ?? 1}</td>
-                      <td className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>
+                      {isAdmin && <td className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>}
                       <td className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{i.condition}</Badge></td>
                       <td className="py-3 pr-4"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></td>
                       <td className="py-3"><Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button></td>

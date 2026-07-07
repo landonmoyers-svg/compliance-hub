@@ -17,8 +17,10 @@ Guidelines:
 - If an item's location is unassigned, say so rather than guessing.
 - Be concise and use simple lists. If the data below is empty, say the inventory has no items yet.`;
 
-/** Build a grounding block of the live inventory grouped by location. */
-async function buildInventoryContext(supabase: SupabaseClient): Promise<string> {
+/** Build a grounding block of the live inventory grouped by location. Values are
+ * only included for privileged users so a normal user (or the AI acting as them)
+ * cannot obtain asset values. */
+async function buildInventoryContext(supabase: SupabaseClient, showValues: boolean): Promise<string> {
   const [invRes, locRes] = await Promise.all([
     supabase
       .from("inventory")
@@ -45,7 +47,7 @@ async function buildInventoryContext(supabase: SupabaseClient): Promise<string> 
   for (const it of items) {
     const loc = it.location_id ? (locName.get(it.location_id) ?? "Unknown location") : "Unassigned location";
     const qty = it.quantity && it.quantity > 1 ? ` ×${it.quantity}` : "";
-    const val = it.estimated_value_cents != null ? ` (~$${(it.estimated_value_cents / 100).toFixed(0)})` : "";
+    const val = showValues && it.estimated_value_cents != null ? ` (~$${(it.estimated_value_cents / 100).toFixed(0)})` : "";
     const sub = it.sublocation ? ` [${it.sublocation}]` : "";
     const line = `  • ${it.item_name}${qty} — ${it.condition}, ${it.status}${val}${sub}`;
     if (!groups.has(loc)) groups.set(loc, []);
@@ -56,8 +58,12 @@ async function buildInventoryContext(supabase: SupabaseClient): Promise<string> 
   for (const [loc, lines] of groups) {
     ctx += `\n${loc}:\n${lines.join("\n")}\n`;
   }
-  const total = items.reduce((s, i) => s + (i.estimated_value_cents ?? 0), 0);
-  ctx += `\nTotal estimated value of catalogued items: ~$${(total / 100).toFixed(0)} (AI estimates).\n`;
+  if (showValues) {
+    const total = items.reduce((s, i) => s + (i.estimated_value_cents ?? 0), 0);
+    ctx += `\nTotal estimated value of catalogued items: ~$${(total / 100).toFixed(0)} (AI estimates).\n`;
+  } else {
+    ctx += `\n(Item values are restricted and are not available to this user — do not state or estimate any dollar values.)\n`;
+  }
   ctx += "=== END INVENTORY ===";
   return ctx;
 }
@@ -78,9 +84,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
   }
 
+  // Only privileged roles (owner/admin/hr/clinical_leadership) may see values.
+  const { data: prof } = await supabase.from("profiles").select("account_role").eq("user_id", user.id).maybeSingle();
+  const showValues = ["owner", "admin", "hr", "clinical_leadership"].includes((prof?.account_role as string) ?? "");
+
   let context = "";
   try {
-    context = await buildInventoryContext(supabase);
+    context = await buildInventoryContext(supabase, showValues);
   } catch {
     context = "";
   }
