@@ -45,6 +45,7 @@ export default function ChiefOfStaffPage() {
   const tasks = useCollection("tasks");
   const screenings = useCollection("exclusionScreenings");
   const employees = useCollection("employees");
+  const backupsQ = useCollection("backups");
   const prefsQ = useCollection("ccoPreferences");
   const snoozesQ = useCollection("agendaSnoozes");
 
@@ -97,7 +98,8 @@ export default function ChiefOfStaffPage() {
     vendors: vendors.data ?? [],
     tasks: tasks.data ?? [],
     screeningDueCount,
-  }), [pref, snoozedKeys, credentials.data, training.data, documents.data, capas.data, sra.data, incidents.data, breaches.data, insurance.data, vendors.data, tasks.data, screeningDueCount]);
+    lastBackupAt: (backupsQ.data ?? []).slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate))[0]?.createdDate ?? null,
+  }), [pref, snoozedKeys, credentials.data, training.data, documents.data, capas.data, sra.data, incidents.data, breaches.data, insurance.data, vendors.data, tasks.data, screeningDueCount, backupsQ.data]);
 
   const grouped = useMemo(() => groupByBucket(items), [items]);
   const overdue = grouped.overdue.length;

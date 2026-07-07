@@ -74,6 +74,10 @@ const REGULATORY_RULES: RegulatoryRule[] = [
   { id: "spravato-rems", month: 1, day: 20, label: "SPRAVATO REMS certification renewal (annual)" },
   { id: "oig-screen", month: 1, day: 10, label: "OIG/LEIE + SAM exclusion re-screening (recommended monthly)" },
   { id: "dea-telemed-recheck", month: 12, day: 1, label: "Recheck DEA telemedicine prescribing rule (flexibility expires 12/31/26)" },
+  // Data backup & contingency (HIPAA 45 CFR 164.308(a)(7)).
+  { id: "backup-restore-h1", month: 1, day: 31, label: "Backup restore test (H1) — verify offsite backups restore" },
+  { id: "backup-restore-h2", month: 7, day: 31, label: "Backup restore test (H2) — verify offsite backups restore" },
+  { id: "contingency-review", month: 12, day: 15, label: "Annual data backup & contingency plan review (HIPAA 164.308(a)(7))" },
 ];
 
 export default function ComplianceCalendarPage() {

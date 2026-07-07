@@ -126,6 +126,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["What did the AI do today?", "Create a task to review this week's activity"],
   },
+  "/backup": {
+    title: "Data Backup",
+    purpose: "Export a full offsite copy of all compliance data and stay on a compliant backup schedule.",
+    actions: [TASK],
+    examples: ["When was the last backup?", "Create a task to store this week's backup offsite"],
+  },
   "/access-matrix": {
     title: "Role Access Matrix",
     purpose: "Documents who can see and do what by role, aligned to HIPAA minimum-necessary and best practice.",

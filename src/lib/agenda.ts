@@ -34,6 +34,7 @@ export interface AgendaInput {
   vendors: VendorRecord[];
   tasks: ComplianceTask[];
   screeningDueCount: number;
+  lastBackupAt?: string | null;
 }
 
 // Fixed high-value regulatory deadlines to surface proactively.
@@ -136,6 +137,13 @@ export function buildAgenda(input: AgendaInput): WorkItem[] {
   // Exclusion screening (aggregate)
   if (input.screeningDueCount > 0) {
     add("screen:due", "screening", `${input.screeningDueCount} subject${input.screeningDueCount === 1 ? "" : "s"} due for exclusion screening`, "OIG-LEIE / SAM screening is recommended monthly.", null, 2, "/exclusion-screening");
+  }
+  // Weekly data backup (HIPAA contingency plan best practice).
+  {
+    const since = input.lastBackupAt ? -(daysUntil(input.lastBackupAt) ?? 0) : null;
+    if (since === null || since >= 7) {
+      add("backup:due", "backup", "Back up compliance data (offsite)", since === null ? "No backup on record — take an offsite backup." : `Last backup was ${since} days ago; back up at least weekly.`, null, 2, "/backup");
+    }
   }
   // Regulatory deadlines
   for (const r of REGULATORY) add(r.key, "regulatory", r.title, r.why, r.date, r.risk, "/regulatory-sources");
