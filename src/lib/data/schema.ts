@@ -283,6 +283,31 @@ export const CorrectiveAction = z.object({
 });
 export type CorrectiveAction = z.infer<typeof CorrectiveAction>;
 
+/* --------------------- HIPAA breach risk assessment --------------------- */
+
+const RiskRating = z.enum(["low", "medium", "high"]);
+
+export const BreachAssessment = z.object({
+  ...base,
+  title: z.string(),
+  discoveredDate: z.string().nullable().optional(),
+  description: z.string().optional(),
+  factor1Nature: z.string().optional(),
+  factor1Rating: RiskRating.default("medium"),
+  factor2Recipient: z.string().optional(),
+  factor2Rating: RiskRating.default("medium"),
+  factor3Acquired: z.string().optional(),
+  factor3Rating: RiskRating.default("medium"),
+  factor4Mitigation: z.string().optional(),
+  factor4Rating: RiskRating.default("medium"),
+  probability: RiskRating.default("medium"),
+  determination: z.enum(["not_a_breach", "low_probability", "reportable_breach", "undetermined"]).default("undetermined"),
+  status: z.enum(["draft", "final"]).default("draft"),
+  assessedByName: z.string().optional(),
+  notes: z.string().optional(),
+});
+export type BreachAssessment = z.infer<typeof BreachAssessment>;
+
 /* ------------------------ policy acknowledgments ------------------- */
 
 export const PolicyAcknowledgment = z.object({

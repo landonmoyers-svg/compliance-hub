@@ -23,6 +23,7 @@ import type {
   PayrollRecord,
   PerformanceReview,
   PolicyAcknowledgment,
+  BreachAssessment,
   CorrectiveAction,
   Incident,
   PTOBalance,
@@ -67,6 +68,7 @@ export interface DataClient {
   riskCases: Collection<RiskManagementCase>;
   incidents: Collection<Incident>;
   correctiveActions: Collection<CorrectiveAction>;
+  breachAssessments: Collection<BreachAssessment>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

@@ -44,6 +44,7 @@ import type {
   RiskManagementCase,
   Incident,
   CorrectiveAction,
+  BreachAssessment,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -439,6 +440,48 @@ function correctiveActionTo(d: Partial<CorrectiveAction>) {
     ...(d.status !== undefined && { status: d.status }),
     ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
     ...(d.verifiedDate !== undefined && { verified_date: d.verifiedDate }),
+  };
+}
+
+function breachFrom(r: Record<string, unknown>): BreachAssessment {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    discoveredDate: toISO(r.discovered_date as string),
+    description: r.description as string | undefined,
+    factor1Nature: r.factor1_nature as string | undefined,
+    factor1Rating: r.factor1_rating as BreachAssessment["factor1Rating"],
+    factor2Recipient: r.factor2_recipient as string | undefined,
+    factor2Rating: r.factor2_rating as BreachAssessment["factor2Rating"],
+    factor3Acquired: r.factor3_acquired as string | undefined,
+    factor3Rating: r.factor3_rating as BreachAssessment["factor3Rating"],
+    factor4Mitigation: r.factor4_mitigation as string | undefined,
+    factor4Rating: r.factor4_rating as BreachAssessment["factor4Rating"],
+    probability: r.probability as BreachAssessment["probability"],
+    determination: r.determination as BreachAssessment["determination"],
+    status: r.status as BreachAssessment["status"],
+    assessedByName: r.assessed_by_name as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function breachTo(d: Partial<BreachAssessment>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.discoveredDate !== undefined && { discovered_date: d.discoveredDate }),
+    ...(d.description !== undefined && { description: d.description }),
+    ...(d.factor1Nature !== undefined && { factor1_nature: d.factor1Nature }),
+    ...(d.factor1Rating !== undefined && { factor1_rating: d.factor1Rating }),
+    ...(d.factor2Recipient !== undefined && { factor2_recipient: d.factor2Recipient }),
+    ...(d.factor2Rating !== undefined && { factor2_rating: d.factor2Rating }),
+    ...(d.factor3Acquired !== undefined && { factor3_acquired: d.factor3Acquired }),
+    ...(d.factor3Rating !== undefined && { factor3_rating: d.factor3Rating }),
+    ...(d.factor4Mitigation !== undefined && { factor4_mitigation: d.factor4Mitigation }),
+    ...(d.factor4Rating !== undefined && { factor4_rating: d.factor4Rating }),
+    ...(d.probability !== undefined && { probability: d.probability }),
+    ...(d.determination !== undefined && { determination: d.determination }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.assessedByName !== undefined && { assessed_by_name: d.assessedByName }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 
@@ -1228,6 +1271,7 @@ export function createSupabaseDataClient(): DataClient {
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
     incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
     correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),
+    breachAssessments:  makeCollection(supabase, "breach_assessments",  breachFrom,             breachTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),

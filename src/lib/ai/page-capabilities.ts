@@ -48,6 +48,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["How do I report an incident?", "Create a task to follow up on an open corrective action"],
   },
+  "/breach-assessment": {
+    title: "Breach Risk Assessment",
+    purpose: "Run the HIPAA four-factor analysis to decide if an incident is a reportable breach, with a 60-day clock.",
+    actions: [TASK],
+    examples: ["What are the four factors?", "Create a task to notify affected parties within 60 days"],
+  },
   "/risk-management": {
     title: "HIPAA & Risk",
     purpose: "Document and manage HIPAA incidents and risk cases through investigation to closure.",
