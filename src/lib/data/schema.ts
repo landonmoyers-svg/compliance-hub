@@ -763,6 +763,9 @@ export const ChatMessage = z.object({
   assistant: z.enum(["policy_assistant", "concierge"]).default("policy_assistant"),
   role: z.enum(["user", "assistant"]).default("user"),
   content: z.string(),
+  // Groups messages into distinct conversations. Null for legacy rows created
+  // before conversations existed (treated as one "Earlier conversation").
+  conversationId: z.string().nullable().optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
 

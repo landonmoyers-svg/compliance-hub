@@ -1108,6 +1108,7 @@ function chatMessageFrom(r: Record<string, unknown>): ChatMessage {
     assistant: r.assistant as ChatMessage["assistant"],
     role: r.role as ChatMessage["role"],
     content: r.content as string,
+    conversationId: (r.conversation_id as string | null) ?? undefined,
   };
 }
 function chatMessageTo(d: Partial<ChatMessage>) {
@@ -1116,6 +1117,7 @@ function chatMessageTo(d: Partial<ChatMessage>) {
     ...(d.assistant !== undefined && { assistant: d.assistant }),
     ...(d.role !== undefined && { role: d.role }),
     ...(d.content !== undefined && { content: d.content }),
+    ...(d.conversationId !== undefined && { conversation_id: d.conversationId }),
   };
 }
 
