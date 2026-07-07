@@ -308,6 +308,35 @@ export const BreachAssessment = z.object({
 });
 export type BreachAssessment = z.infer<typeof BreachAssessment>;
 
+/* --------------------- security risk assessment (SRA) --------------------- */
+
+export const SraAssessment = z.object({
+  ...base,
+  title: z.string(),
+  periodYear: z.number().default(0),
+  status: z.enum(["in_progress", "complete"]).default("in_progress"),
+  startedDate: z.string().nullable().optional(),
+  completedDate: z.string().nullable().optional(),
+  completedByName: z.string().optional(),
+  scopeNotes: z.string().optional(),
+});
+export type SraAssessment = z.infer<typeof SraAssessment>;
+
+export const SraFinding = z.object({
+  ...base,
+  assessmentId: z.string(),
+  category: z.enum(["administrative", "physical", "technical", "organizational"]).default("administrative"),
+  question: z.string(),
+  response: z.string().optional(),
+  riskLevel: z.enum(["na", "low", "medium", "high"]).default("na"),
+  remediation: z.string().optional(),
+  remediationOwner: z.string().optional(),
+  remediationDue: z.string().nullable().optional(),
+  remediationStatus: z.enum(["none", "open", "in_progress", "complete", "accepted"]).default("none"),
+  notes: z.string().optional(),
+});
+export type SraFinding = z.infer<typeof SraFinding>;
+
 /* ------------------------ policy acknowledgments ------------------- */
 
 export const PolicyAcknowledgment = z.object({

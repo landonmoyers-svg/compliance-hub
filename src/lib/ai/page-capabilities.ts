@@ -54,6 +54,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["What are the four factors?", "Create a task to notify affected parties within 60 days"],
   },
+  "/security-risk-assessment": {
+    title: "Security Risk Assessment",
+    purpose: "Conduct the annual HIPAA Security Rule risk assessment across administrative, physical, and technical safeguards.",
+    actions: [TASK],
+    examples: ["What does this assessment cover?", "Create a task to remediate a high-risk finding"],
+  },
   "/risk-management": {
     title: "HIPAA & Risk",
     purpose: "Document and manage HIPAA incidents and risk cases through investigation to closure.",

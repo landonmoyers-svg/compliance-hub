@@ -45,6 +45,8 @@ import type {
   Incident,
   CorrectiveAction,
   BreachAssessment,
+  SraAssessment,
+  SraFinding,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -481,6 +483,60 @@ function breachTo(d: Partial<BreachAssessment>) {
     ...(d.determination !== undefined && { determination: d.determination }),
     ...(d.status !== undefined && { status: d.status }),
     ...(d.assessedByName !== undefined && { assessed_by_name: d.assessedByName }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function sraAssessmentFrom(r: Record<string, unknown>): SraAssessment {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    periodYear: (r.period_year as number | null) ?? 0,
+    status: r.status as SraAssessment["status"],
+    startedDate: toISO(r.started_date as string),
+    completedDate: toISO(r.completed_date as string),
+    completedByName: r.completed_by_name as string | undefined,
+    scopeNotes: r.scope_notes as string | undefined,
+  };
+}
+function sraAssessmentTo(d: Partial<SraAssessment>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.periodYear !== undefined && { period_year: d.periodYear }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.startedDate !== undefined && { started_date: d.startedDate }),
+    ...(d.completedDate !== undefined && { completed_date: d.completedDate }),
+    ...(d.completedByName !== undefined && { completed_by_name: d.completedByName }),
+    ...(d.scopeNotes !== undefined && { scope_notes: d.scopeNotes }),
+  };
+}
+
+function sraFindingFrom(r: Record<string, unknown>): SraFinding {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    assessmentId: r.assessment_id as string,
+    category: r.category as SraFinding["category"],
+    question: r.question as string,
+    response: r.response as string | undefined,
+    riskLevel: r.risk_level as SraFinding["riskLevel"],
+    remediation: r.remediation as string | undefined,
+    remediationOwner: r.remediation_owner as string | undefined,
+    remediationDue: toISO(r.remediation_due as string),
+    remediationStatus: r.remediation_status as SraFinding["remediationStatus"],
+    notes: r.notes as string | undefined,
+  };
+}
+function sraFindingTo(d: Partial<SraFinding>) {
+  return {
+    ...(d.assessmentId !== undefined && { assessment_id: d.assessmentId }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.question !== undefined && { question: d.question }),
+    ...(d.response !== undefined && { response: d.response }),
+    ...(d.riskLevel !== undefined && { risk_level: d.riskLevel }),
+    ...(d.remediation !== undefined && { remediation: d.remediation }),
+    ...(d.remediationOwner !== undefined && { remediation_owner: d.remediationOwner }),
+    ...(d.remediationDue !== undefined && { remediation_due: d.remediationDue }),
+    ...(d.remediationStatus !== undefined && { remediation_status: d.remediationStatus }),
     ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
@@ -1272,6 +1328,8 @@ export function createSupabaseDataClient(): DataClient {
     incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
     correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),
     breachAssessments:  makeCollection(supabase, "breach_assessments",  breachFrom,             breachTo),
+    sraAssessments:     makeCollection(supabase, "sra_assessments",     sraAssessmentFrom,      sraAssessmentTo),
+    sraFindings:        makeCollection(supabase, "sra_findings",        sraFindingFrom,         sraFindingTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),

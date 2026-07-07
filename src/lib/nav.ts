@@ -102,6 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Inventory", href: "/inventory", icon: Package },
       { label: "HIPAA & Risk", href: "/risk-management", icon: ShieldAlert, adminOnly: true },
       { label: "Breach Assessment", href: "/breach-assessment", icon: ShieldAlert, adminOnly: true },
+      { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
       { label: "Incidents & CAPA", href: "/incidents", icon: Inbox },
       { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
       { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },

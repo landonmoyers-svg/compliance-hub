@@ -30,6 +30,8 @@ import type {
   RecordVersion,
   RegulatorySource,
   RiskManagementCase,
+  SraAssessment,
+  SraFinding,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -69,6 +71,8 @@ export interface DataClient {
   incidents: Collection<Incident>;
   correctiveActions: Collection<CorrectiveAction>;
   breachAssessments: Collection<BreachAssessment>;
+  sraAssessments: Collection<SraAssessment>;
+  sraFindings: Collection<SraFinding>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;
