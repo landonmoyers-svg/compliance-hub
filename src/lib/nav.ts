@@ -17,6 +17,7 @@ import {
   Layers,
   LayoutDashboard,
   MessageSquare,
+  Network,
   Package,
   Shield,
   ShieldAlert,
@@ -127,6 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "HR Hub", href: "/hr-hub", icon: Users, adminOnly: true },
       { label: "Employees", href: "/hr/employees", icon: Users, adminOnly: true },
+      { label: "Org Chart & Roles", href: "/org-chart", icon: Network, adminOnly: true },
       { label: "Payroll", href: "/hr/payroll", icon: DollarSign, adminOnly: true },
       { label: "Time Clock", href: "/hr/timeclock", icon: Clock },
       { label: "Time Off", href: "/hr/time-off", icon: CalendarDays },

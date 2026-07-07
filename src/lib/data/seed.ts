@@ -123,6 +123,7 @@ export function buildSeed(): SeedData {
     exclusionScreenings: [],
     ccoPreferences: [],
     agendaSnoozes: [],
+    roleRequirements: [],
     policyAcks: [
       { id: "ack-1", createdDate: days(-30), userId: "user-2", userName: "Jordan Reyes", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },
       { id: "ack-2", createdDate: days(-30), userId: "user-3", userName: "Sam Patel", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },

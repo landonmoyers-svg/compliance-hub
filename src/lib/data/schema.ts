@@ -472,7 +472,19 @@ export const Employee = z.object({
   locationId: z.string().nullable().optional(),
   // Links to the auth login/profile when the employee has been invited to the app.
   userId: z.string().nullable().optional(),
+  // Chain of command + position (drives role-based training/credential requirements).
+  managerId: z.string().nullable().optional(),
+  jobRole: z.string().nullable().optional(),
 });
+
+export const RoleRequirement = z.object({
+  ...base,
+  jobRole: z.string(),
+  reqType: z.enum(["training", "credential"]).default("training"),
+  name: z.string(),
+  notes: z.string().optional(),
+});
+export type RoleRequirement = z.infer<typeof RoleRequirement>;
 export type Employee = z.infer<typeof Employee>;
 
 /* ----------------------------- inventory --------------------------- */

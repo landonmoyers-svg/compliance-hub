@@ -33,6 +33,7 @@ import type {
   RecordVersion,
   RegulatorySource,
   RiskManagementCase,
+  RoleRequirement,
   SraAssessment,
   SraFinding,
   SDSRecord,
@@ -79,6 +80,7 @@ export interface DataClient {
   exclusionScreenings: Collection<ExclusionScreening>;
   ccoPreferences: Collection<CcoPreference>;
   agendaSnoozes: Collection<AgendaSnooze>;
+  roleRequirements: Collection<RoleRequirement>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

@@ -50,6 +50,7 @@ import type {
   ExclusionScreening,
   CcoPreference,
   AgendaSnooze,
+  RoleRequirement,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -732,6 +733,8 @@ function employeeFrom(r: Record<string, unknown>): Employee {
     hireDate: r.hire_date as string | undefined,
     locationId: r.location_id as string | undefined,
     userId: r.user_id as string | undefined,
+    managerId: (r.manager_id as string | null) ?? undefined,
+    jobRole: (r.job_role as string | null) ?? undefined,
   };
 }
 function employeeTo(d: Partial<Employee>) {
@@ -745,6 +748,26 @@ function employeeTo(d: Partial<Employee>) {
     ...(d.hireDate !== undefined && { hire_date: d.hireDate }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
     ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.managerId !== undefined && { manager_id: d.managerId }),
+    ...(d.jobRole !== undefined && { job_role: d.jobRole }),
+  };
+}
+
+function roleRequirementFrom(r: Record<string, unknown>): RoleRequirement {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    jobRole: r.job_role as string,
+    reqType: r.req_type as RoleRequirement["reqType"],
+    name: r.name as string,
+    notes: r.notes as string | undefined,
+  };
+}
+function roleRequirementTo(d: Partial<RoleRequirement>) {
+  return {
+    ...(d.jobRole !== undefined && { job_role: d.jobRole }),
+    ...(d.reqType !== undefined && { req_type: d.reqType }),
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 
@@ -1400,6 +1423,7 @@ export function createSupabaseDataClient(): DataClient {
     exclusionScreenings: makeCollection(supabase, "exclusion_screenings", exclusionFrom,        exclusionTo),
     ccoPreferences:     makeCollection(supabase, "cco_preferences",     ccoPreferenceFrom,      ccoPreferenceTo),
     agendaSnoozes:      makeCollection(supabase, "agenda_snoozes",      agendaSnoozeFrom,       agendaSnoozeTo),
+    roleRequirements:   makeCollection(supabase, "role_requirements",   roleRequirementFrom,    roleRequirementTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),

@@ -114,6 +114,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: ["create_location", TASK],
     examples: ["Add our Provo clinic", "Add a Lehi office location"],
   },
+  "/org-chart": {
+    title: "Org Chart & Role Requirements",
+    purpose: "Define the chain of command and the training/credentials each role requires; surface per-person gaps.",
+    actions: [TASK],
+    examples: ["Who has open requirement gaps?", "Create a task to define requirements for the MA role"],
+  },
   "/hr/employees": {
     title: "Employees",
     purpose: "Manage the employee directory and provision app logins.",
