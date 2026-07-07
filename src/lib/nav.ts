@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertTriangle,
   Award,
   BadgeCheck,
@@ -121,6 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Official Sources", href: "/official-sources", icon: BookOpen, adminOnly: true },
       { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
+      { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
       { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
       { label: "Access Matrix", href: "/access-matrix", icon: Shield, adminOnly: true },
       { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },

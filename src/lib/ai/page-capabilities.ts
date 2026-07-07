@@ -120,6 +120,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["Who is due for screening?", "Create a task to screen all staff this month"],
   },
+  "/activity-log": {
+    title: "Daily Activity Log",
+    purpose: "A per-day log of every task by a person or AI, with the ability to undo AI actions.",
+    actions: [TASK],
+    examples: ["What did the AI do today?", "Create a task to review this week's activity"],
+  },
   "/access-matrix": {
     title: "Role Access Matrix",
     purpose: "Documents who can see and do what by role, aligned to HIPAA minimum-necessary and best practice.",

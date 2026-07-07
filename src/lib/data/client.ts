@@ -24,9 +24,11 @@ import type {
   PerformanceReview,
   PolicyAcknowledgment,
   BreachAssessment,
+  ActivityLog,
   AgendaSnooze,
   Audit,
   AuditItem,
+  BackupRecord,
   CcoPreference,
   CorrectiveAction,
   ExclusionScreening,
@@ -85,6 +87,8 @@ export interface DataClient {
   roleRequirements: Collection<RoleRequirement>;
   audits: Collection<Audit>;
   auditItems: Collection<AuditItem>;
+  activityLog: Collection<ActivityLog>;
+  backups: Collection<BackupRecord>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

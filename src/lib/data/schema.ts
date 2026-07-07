@@ -365,6 +365,31 @@ export const CcoPreference = z.object({
 });
 export type CcoPreference = z.infer<typeof CcoPreference>;
 
+export const ActivityLog = z.object({
+  ...base,
+  actorType: z.enum(["user", "ai"]).default("user"),
+  actorName: z.string().nullable().optional(),
+  assistant: z.string().nullable().optional(),
+  action: z.string().default("create"),
+  entityType: z.string().nullable().optional(),
+  entityId: z.string().nullable().optional(),
+  summary: z.string(),
+  reversible: z.boolean().default(false),
+  undone: z.boolean().default(false),
+  undoneAt: z.string().nullable().optional(),
+  undoneBy: z.string().nullable().optional(),
+});
+export type ActivityLog = z.infer<typeof ActivityLog>;
+
+export const BackupRecord = z.object({
+  ...base,
+  performedBy: z.string().nullable().optional(),
+  itemCount: z.number().default(0),
+  format: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type BackupRecord = z.infer<typeof BackupRecord>;
+
 export const AgendaSnooze = z.object({
   ...base,
   userId: z.string(),

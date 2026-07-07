@@ -88,6 +88,8 @@ export function createMockDataClient(): DataClient {
     roleRequirements: new MemoryCollection(seed.roleRequirements),
     audits: new MemoryCollection(seed.audits),
     auditItems: new MemoryCollection(seed.auditItems),
+    activityLog: new MemoryCollection(seed.activityLog),
+    backups: new MemoryCollection(seed.backups),
     policyAcks: new MemoryCollection(seed.policyAcks),
     regulatorySources: new MemoryCollection(seed.regulatorySources),
     recordVersions: new MemoryCollection(seed.recordVersions),

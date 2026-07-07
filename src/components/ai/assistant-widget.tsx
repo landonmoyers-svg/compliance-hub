@@ -45,9 +45,16 @@ export function AssistantWidget() {
   const createSds = useCreate("sdsRecords");
   const createInsurance = useCreate("insurancePolicies");
   const createDrill = useCreate("emergencyDrills");
+  const createActivity = useCreate("activityLog");
 
   // Don't render for signed-out users.
   if (!profile) return null;
+
+  async function logAi(entityType: string | null, entityId: string | null, action: string, summary: string, reversible: boolean) {
+    try {
+      await createActivity.mutateAsync({ actorType: "ai", actorName: profile?.fullName ?? "AI assistant", assistant: "universal_assistant", action, entityType, entityId, summary, reversible, undone: false });
+    } catch { /* non-blocking */ }
+  }
 
   function scrollDown() { setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 40); }
 
@@ -88,44 +95,46 @@ export function AssistantWidget() {
   async function executeAction(mi: number, ai: number, action: ProposedAction) {
     const d = action.data;
     try {
+      let created: { id: string } | null = null;
+      let entityType: string | null = null;
       switch (action.type) {
         case "create_task":
-          await createTask.mutateAsync({ title: str(d.title, "New task"), description: str(d.description) || undefined, status: "open", priority: pick(d.priority, ["low", "medium", "high", "critical"] as const, "medium") });
+          created = await createTask.mutateAsync({ title: str(d.title, "New task"), description: str(d.description) || undefined, status: "open", priority: pick(d.priority, ["low", "medium", "high", "critical"] as const, "medium") }); entityType = "tasks";
           break;
         case "create_location":
-          await createLocation.mutateAsync({ name: str(d.name, "New location"), type: pick(d.type, ["clinic", "office", "remote", "other"] as const, "clinic"), city: str(d.city) || undefined, state: str(d.state) || undefined, active: true });
+          created = await createLocation.mutateAsync({ name: str(d.name, "New location"), type: pick(d.type, ["clinic", "office", "remote", "other"] as const, "clinic"), city: str(d.city) || undefined, state: str(d.state) || undefined, active: true }); entityType = "locations";
           break;
         case "create_credential":
-          await createCredential.mutateAsync({ employeeName: str(d.employeeName, "Unassigned"), credentialName: str(d.credentialName, "New credential"), credentialType: pick(d.credentialType, ["license", "certification", "dea", "cpr_bls_acls", "immunization", "background_check", "other"] as const, "license"), issuingBody: str(d.issuingBody) || undefined, credentialNumber: str(d.credentialNumber) || undefined, issueDate: str(d.issueDate) || null, expirationDate: str(d.expirationDate) || null });
+          created = await createCredential.mutateAsync({ employeeName: str(d.employeeName, "Unassigned"), credentialName: str(d.credentialName, "New credential"), credentialType: pick(d.credentialType, ["license", "certification", "dea", "cpr_bls_acls", "immunization", "background_check", "other"] as const, "license"), issuingBody: str(d.issuingBody) || undefined, credentialNumber: str(d.credentialNumber) || undefined, issueDate: str(d.issueDate) || null, expirationDate: str(d.expirationDate) || null }); entityType = "credentials";
           break;
         case "create_document":
-          await createDocument.mutateAsync({ title: str(d.title, "New document"), documentType: str(d.documentType, "policy"), complianceArea: str(d.complianceArea) || undefined, summary: str(d.summary) || undefined, status: "draft", accessLevel: "all_staff", version: "1.0", requiresAcknowledgment: false });
+          created = await createDocument.mutateAsync({ title: str(d.title, "New document"), documentType: str(d.documentType, "policy"), complianceArea: str(d.complianceArea) || undefined, summary: str(d.summary) || undefined, status: "draft", accessLevel: "all_staff", version: "1.0", requiresAcknowledgment: false }); entityType = "documents";
           break;
         case "create_training_module":
-          await createTrainingModule.mutateAsync({ title: str(d.title, "New training module"), description: str(d.description) || undefined, trainingType: str(d.trainingType, "compliance"), passingScore: num(d.passingScore, 80), active: true });
+          created = await createTrainingModule.mutateAsync({ title: str(d.title, "New training module"), description: str(d.description) || undefined, trainingType: str(d.trainingType, "compliance"), passingScore: num(d.passingScore, 80), active: true }); entityType = "trainingModules";
           break;
         case "create_regulatory_source":
-          await createRegulatorySource.mutateAsync({ title: str(d.title, "New source"), citationLabel: str(d.citationLabel) || undefined, issuingBody: str(d.issuingBody) || undefined, sourceType: pick(d.sourceType, ["regulation", "guidance", "internal", "statute"] as const, "regulation"), reviewStatus: "needs_review" });
+          created = await createRegulatorySource.mutateAsync({ title: str(d.title, "New source"), citationLabel: str(d.citationLabel) || undefined, issuingBody: str(d.issuingBody) || undefined, sourceType: pick(d.sourceType, ["regulation", "guidance", "internal", "statute"] as const, "regulation"), reviewStatus: "needs_review" }); entityType = "regulatorySources";
           break;
         case "create_vendor":
-          await createVendor.mutateAsync({ vendorName: str(d.vendorName, "New vendor"), vendorType: pick(d.vendorType, ["business_associate", "contractor", "supplier", "service_provider", "consultant", "other"] as const, "service_provider"), contactEmail: str(d.contactEmail) || undefined, hasAccessToPHI: d.baaRequired === true, baaRequired: d.baaRequired === true, baaStatus: d.baaRequired === true ? "pending" : "not_required", status: "active" });
+          created = await createVendor.mutateAsync({ vendorName: str(d.vendorName, "New vendor"), vendorType: pick(d.vendorType, ["business_associate", "contractor", "supplier", "service_provider", "consultant", "other"] as const, "service_provider"), contactEmail: str(d.contactEmail) || undefined, hasAccessToPHI: d.baaRequired === true, baaRequired: d.baaRequired === true, baaStatus: d.baaRequired === true ? "pending" : "not_required", status: "active" }); entityType = "vendors";
           break;
         case "create_inventory_item": {
           const cents = typeof d.estimatedValueUsd === "number" ? Math.round(d.estimatedValueUsd * 100) : null;
-          await createInventory.mutateAsync({ itemName: str(d.itemName, "New item"), itemType: str(d.itemType, "equipment"), status: "active", condition: pick(d.condition, ["new", "good", "fair", "poor"] as const, "good"), quantity: num(d.quantity, 1), estimatedValueCents: cents, sublocation: str(d.sublocation) || null, removedFromInventory: false, aiIdentified: false });
+          created = await createInventory.mutateAsync({ itemName: str(d.itemName, "New item"), itemType: str(d.itemType, "equipment"), status: "active", condition: pick(d.condition, ["new", "good", "fair", "poor"] as const, "good"), quantity: num(d.quantity, 1), estimatedValueCents: cents, sublocation: str(d.sublocation) || null, removedFromInventory: false, aiIdentified: false }); entityType = "inventory";
           break;
         }
         case "create_risk_case":
-          await createRiskCase.mutateAsync({ caseTitle: str(d.caseTitle, "New case"), caseType: str(d.caseType, "clinical"), description: str(d.description) || undefined, severity: pick(d.severity, ["low", "medium", "high", "critical"] as const, "medium"), status: "open", accessLevel: "standard", incidentDate: str(d.incidentDate) || null });
+          created = await createRiskCase.mutateAsync({ caseTitle: str(d.caseTitle, "New case"), caseType: str(d.caseType, "clinical"), description: str(d.description) || undefined, severity: pick(d.severity, ["low", "medium", "high", "critical"] as const, "medium"), status: "open", accessLevel: "standard", incidentDate: str(d.incidentDate) || null }); entityType = "riskCases";
           break;
         case "create_sds_record":
-          await createSds.mutateAsync({ productName: str(d.productName, "New product"), manufacturer: str(d.manufacturer) || undefined, signalWord: pick(d.signalWord, ["DANGER", "WARNING", "CAUTION", "NONE"] as const, "NONE"), status: "active" });
+          created = await createSds.mutateAsync({ productName: str(d.productName, "New product"), manufacturer: str(d.manufacturer) || undefined, signalWord: pick(d.signalWord, ["DANGER", "WARNING", "CAUTION", "NONE"] as const, "NONE"), status: "active" }); entityType = "sdsRecords";
           break;
         case "create_insurance_policy":
-          await createInsurance.mutateAsync({ policyName: str(d.policyName, "New policy"), policyType: str(d.policyType, "malpractice"), carrierName: str(d.carrierName) || undefined, policyNumber: str(d.policyNumber) || undefined, renewalDate: str(d.renewalDate) || null });
+          created = await createInsurance.mutateAsync({ policyName: str(d.policyName, "New policy"), policyType: str(d.policyType, "malpractice"), carrierName: str(d.carrierName) || undefined, policyNumber: str(d.policyNumber) || undefined, renewalDate: str(d.renewalDate) || null }); entityType = "insurancePolicies";
           break;
         case "create_emergency_drill":
-          await createDrill.mutateAsync({ drillTitle: str(d.drillTitle, "New drill"), drillType: str(d.drillType, "fire"), scheduledDate: str(d.scheduledDate) || null, status: "scheduled", participantCount: 0 });
+          created = await createDrill.mutateAsync({ drillTitle: str(d.drillTitle, "New drill"), drillType: str(d.drillType, "fire"), scheduledDate: str(d.scheduledDate) || null, status: "scheduled", participantCount: 0 }); entityType = "emergencyDrills";
           break;
         case "create_employee": {
           const email = str(d.email).toLowerCase();
@@ -133,15 +142,16 @@ export function AssistantWidget() {
           const firstName = str(d.firstName, "New");
           const lastName = str(d.lastName, "Employee");
           const dept = pick(d.department, ["ownership", "administration", "clinical", "hr", "billing", "front_desk", "operations", "contractor", "other"] as const, "other");
-          const created = await createEmployee.mutateAsync({ firstName, lastName, email, title: str(d.title) || undefined, department: dept, employmentStatus: "active" });
+          const emp = await createEmployee.mutateAsync({ firstName, lastName, email, title: str(d.title) || undefined, department: dept, employmentStatus: "active" });
           if (d.invite !== false) {
             const role = pick(d.accountRole, ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"] as const, "staff");
             const result = await provisionLogin({ email, fullName: `${firstName} ${lastName}`, accountRole: role, staffRole: str(d.title) || undefined, department: dept });
-            if (result.ok && result.userId) await updateEmployee.mutateAsync({ id: created.id, patch: { userId: result.userId } });
+            if (result.ok && result.userId) await updateEmployee.mutateAsync({ id: emp.id, patch: { userId: result.userId } });
             else if (!result.ok) toast.error(`Employee added, but login failed: ${result.error}`);
           }
           markDone(mi, ai);
           toast.success(`Added ${firstName} ${lastName}`);
+          void logAi("employees", emp.id, "create", `Added employee ${firstName} ${lastName}`, false);
           return;
         }
         default:
@@ -150,6 +160,7 @@ export function AssistantWidget() {
       }
       markDone(mi, ai);
       toast.success(`Created: ${action.label}`);
+      void logAi(entityType, created?.id ?? null, "create", action.label, !!created);
     } catch {
       toast.error("Couldn't create that record. You may not have permission, or a field was invalid.");
     }

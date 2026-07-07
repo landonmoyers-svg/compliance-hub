@@ -126,6 +126,8 @@ export function buildSeed(): SeedData {
     roleRequirements: [],
     audits: [],
     auditItems: [],
+    activityLog: [],
+    backups: [],
     policyAcks: [
       { id: "ack-1", createdDate: days(-30), userId: "user-2", userName: "Jordan Reyes", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },
       { id: "ack-2", createdDate: days(-30), userId: "user-3", userName: "Sam Patel", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },

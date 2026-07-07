@@ -50,6 +50,8 @@ import type {
   ExclusionScreening,
   CcoPreference,
   AgendaSnooze,
+  ActivityLog,
+  BackupRecord,
   RoleRequirement,
   Audit,
   AuditItem,
@@ -572,6 +574,56 @@ function exclusionTo(d: Partial<ExclusionScreening>) {
     ...(d.result !== undefined && { result: d.result }),
     ...(d.notes !== undefined && { notes: d.notes }),
     ...(d.screenedByName !== undefined && { screened_by_name: d.screenedByName }),
+  };
+}
+
+function activityLogFrom(r: Record<string, unknown>): ActivityLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    actorType: r.actor_type as ActivityLog["actorType"],
+    actorName: (r.actor_name as string | null) ?? undefined,
+    assistant: (r.assistant as string | null) ?? undefined,
+    action: r.action as string,
+    entityType: (r.entity_type as string | null) ?? undefined,
+    entityId: (r.entity_id as string | null) ?? undefined,
+    summary: r.summary as string,
+    reversible: (r.reversible as boolean | null) ?? false,
+    undone: (r.undone as boolean | null) ?? false,
+    undoneAt: toISO(r.undone_at as string),
+    undoneBy: (r.undone_by as string | null) ?? undefined,
+  };
+}
+function activityLogTo(d: Partial<ActivityLog>) {
+  return {
+    ...(d.actorType !== undefined && { actor_type: d.actorType }),
+    ...(d.actorName !== undefined && { actor_name: d.actorName }),
+    ...(d.assistant !== undefined && { assistant: d.assistant }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.entityType !== undefined && { entity_type: d.entityType }),
+    ...(d.entityId !== undefined && { entity_id: d.entityId }),
+    ...(d.summary !== undefined && { summary: d.summary }),
+    ...(d.reversible !== undefined && { reversible: d.reversible }),
+    ...(d.undone !== undefined && { undone: d.undone }),
+    ...(d.undoneAt !== undefined && { undone_at: d.undoneAt }),
+    ...(d.undoneBy !== undefined && { undone_by: d.undoneBy }),
+  };
+}
+
+function backupFrom(r: Record<string, unknown>): BackupRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    performedBy: (r.performed_by as string | null) ?? undefined,
+    itemCount: (r.item_count as number | null) ?? 0,
+    format: (r.format as string | null) ?? undefined,
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function backupTo(d: Partial<BackupRecord>) {
+  return {
+    ...(d.performedBy !== undefined && { performed_by: d.performedBy }),
+    ...(d.itemCount !== undefined && { item_count: d.itemCount }),
+    ...(d.format !== undefined && { format: d.format }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 
@@ -1480,6 +1532,8 @@ export function createSupabaseDataClient(): DataClient {
     ccoPreferences:     makeCollection(supabase, "cco_preferences",     ccoPreferenceFrom,      ccoPreferenceTo),
     agendaSnoozes:      makeCollection(supabase, "agenda_snoozes",      agendaSnoozeFrom,       agendaSnoozeTo),
     roleRequirements:   makeCollection(supabase, "role_requirements",   roleRequirementFrom,    roleRequirementTo),
+    activityLog:        makeCollection(supabase, "activity_log",        activityLogFrom,        activityLogTo),
+    backups:            makeCollection(supabase, "backups",             backupFrom,             backupTo),
     audits:             makeCollection(supabase, "audits",              auditRecFrom,           auditRecTo),
     auditItems:         makeCollection(supabase, "audit_items",         auditItemFrom,          auditItemTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
