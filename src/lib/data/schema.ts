@@ -354,6 +354,17 @@ export const InventoryItem = z.object({
   condition: z.enum(["new", "good", "fair", "poor"]).default("good"),
   locationId: z.string().nullable().optional(),
   removedFromInventory: z.boolean().default(false),
+  // AI / image-assisted fields
+  quantity: z.number().default(1),
+  description: z.string().nullable().optional(),
+  estimatedValueCents: z.number().nullable().optional(),
+  sublocation: z.string().nullable().optional(),   // e.g. "Supply Closet A, Shelf 2"
+  imageUrl: z.string().nullable().optional(),        // storage object path
+  capturedAt: z.string().nullable().optional(),      // EXIF DateTimeOriginal
+  capturedLat: z.number().nullable().optional(),     // EXIF GPS
+  capturedLng: z.number().nullable().optional(),
+  aiIdentified: z.boolean().default(false),
+  aiConfidence: z.string().nullable().optional(),
 });
 export type InventoryItem = z.infer<typeof InventoryItem>;
 

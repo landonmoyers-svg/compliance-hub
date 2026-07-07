@@ -520,6 +520,16 @@ function inventoryFrom(r: Record<string, unknown>): InventoryItem {
     condition: r.condition as InventoryItem["condition"],
     locationId: r.location_id as string | undefined,
     removedFromInventory: r.removed_from_inventory as boolean,
+    quantity: (r.quantity as number | null) ?? 1,
+    description: (r.description as string | null) ?? undefined,
+    estimatedValueCents: (r.estimated_value_cents as number | null) ?? undefined,
+    sublocation: (r.sublocation as string | null) ?? undefined,
+    imageUrl: (r.image_url as string | null) ?? undefined,
+    capturedAt: toISO(r.captured_at as string),
+    capturedLat: (r.captured_lat as number | null) ?? undefined,
+    capturedLng: (r.captured_lng as number | null) ?? undefined,
+    aiIdentified: (r.ai_identified as boolean | null) ?? false,
+    aiConfidence: (r.ai_confidence as string | null) ?? undefined,
   };
 }
 function inventoryTo(d: Partial<InventoryItem>) {
@@ -530,6 +540,16 @@ function inventoryTo(d: Partial<InventoryItem>) {
     ...(d.condition !== undefined && { condition: d.condition }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
     ...(d.removedFromInventory !== undefined && { removed_from_inventory: d.removedFromInventory }),
+    ...(d.quantity !== undefined && { quantity: d.quantity }),
+    ...(d.description !== undefined && { description: d.description }),
+    ...(d.estimatedValueCents !== undefined && { estimated_value_cents: d.estimatedValueCents }),
+    ...(d.sublocation !== undefined && { sublocation: d.sublocation }),
+    ...(d.imageUrl !== undefined && { image_url: d.imageUrl }),
+    ...(d.capturedAt !== undefined && { captured_at: d.capturedAt }),
+    ...(d.capturedLat !== undefined && { captured_lat: d.capturedLat }),
+    ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
+    ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
+    ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
   };
 }
 
