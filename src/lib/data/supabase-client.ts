@@ -737,6 +737,7 @@ function employeeFrom(r: Record<string, unknown>): Employee {
     userId: r.user_id as string | undefined,
     managerId: (r.manager_id as string | null) ?? undefined,
     jobRole: (r.job_role as string | null) ?? undefined,
+    reportsNote: (r.reports_note as string | null) ?? undefined,
   };
 }
 function employeeTo(d: Partial<Employee>) {
@@ -752,6 +753,7 @@ function employeeTo(d: Partial<Employee>) {
     ...(d.userId !== undefined && { user_id: d.userId }),
     ...(d.managerId !== undefined && { manager_id: d.managerId }),
     ...(d.jobRole !== undefined && { job_role: d.jobRole }),
+    ...(d.reportsNote !== undefined && { reports_note: d.reportsNote }),
   };
 }
 

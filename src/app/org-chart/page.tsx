@@ -97,6 +97,7 @@ export default function OrgChartPage() {
               {e.jobRole && <Badge variant="secondary">{e.jobRole}</Badge>}
               {e.jobRole && missing > 0 && <Badge variant="warning">{missing} missing</Badge>}
               {!e.jobRole && <Badge variant="outline">no role set</Badge>}
+              {e.reportsNote && <Badge variant="outline" title={e.reportsNote}>dotted line</Badge>}
             </div>
             <p className="truncate text-xs text-muted-foreground">{e.title ?? e.department ?? "—"}</p>
           </div>
@@ -111,11 +112,16 @@ export default function OrgChartPage() {
                   onBlur={(ev) => ev.target.value !== (e.jobRole ?? "") && void updateEmployee.mutateAsync({ id: e.id, patch: { jobRole: ev.target.value || null } })} />
               </label>
               <label className="space-y-1 text-xs">
-                <span className="font-medium text-muted-foreground">Reports to</span>
+                <span className="font-medium text-muted-foreground">Reports to (solid line)</span>
                 <select className="input w-full" value={e.managerId ?? ""} onChange={(ev) => void updateEmployee.mutateAsync({ id: e.id, patch: { managerId: ev.target.value || null } })}>
                   <option value="">— No manager (top of chain) —</option>
                   {managerOptions.filter((m) => m.id !== e.id).map((m) => <option key={m.id} value={m.id}>{fullName(m)}</option>)}
                 </select>
+              </label>
+              <label className="space-y-1 text-xs sm:col-span-2">
+                <span className="font-medium text-muted-foreground">Also reports to / dotted line</span>
+                <input className="input w-full" defaultValue={e.reportsNote ?? ""} placeholder="e.g. Also reports to Josh (CEO) for business & strategy"
+                  onBlur={(ev) => ev.target.value !== (e.reportsNote ?? "") && void updateEmployee.mutateAsync({ id: e.id, patch: { reportsNote: ev.target.value || null } })} />
               </label>
             </div>
             {e.jobRole && (

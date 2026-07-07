@@ -475,6 +475,8 @@ export const Employee = z.object({
   // Chain of command + position (drives role-based training/credential requirements).
   managerId: z.string().nullable().optional(),
   jobRole: z.string().nullable().optional(),
+  // Dotted-line / matrix reporting (e.g. "also reports to Josh for business").
+  reportsNote: z.string().nullable().optional(),
 });
 
 export const Audit = z.object({
