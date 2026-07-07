@@ -51,6 +51,8 @@ import type {
   CcoPreference,
   AgendaSnooze,
   RoleRequirement,
+  Audit,
+  AuditItem,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -753,6 +755,58 @@ function employeeTo(d: Partial<Employee>) {
   };
 }
 
+function auditRecFrom(r: Record<string, unknown>): Audit {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    auditType: r.audit_type as Audit["auditType"],
+    auditDate: toISO(r.audit_date as string),
+    auditorName: r.auditor_name as string | undefined,
+    status: r.status as Audit["status"],
+    scopeNotes: r.scope_notes as string | undefined,
+  };
+}
+function auditRecTo(d: Partial<Audit>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.auditType !== undefined && { audit_type: d.auditType }),
+    ...(d.auditDate !== undefined && { audit_date: d.auditDate }),
+    ...(d.auditorName !== undefined && { auditor_name: d.auditorName }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.scopeNotes !== undefined && { scope_notes: d.scopeNotes }),
+  };
+}
+
+function auditItemFrom(r: Record<string, unknown>): AuditItem {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    auditId: r.audit_id as string,
+    category: r.category as string,
+    question: r.question as string,
+    result: r.result as AuditItem["result"],
+    severity: r.severity as AuditItem["severity"],
+    finding: r.finding as string | undefined,
+    remediation: r.remediation as string | undefined,
+    remediationOwner: r.remediation_owner as string | undefined,
+    remediationDue: toISO(r.remediation_due as string),
+    remediationStatus: r.remediation_status as AuditItem["remediationStatus"],
+  };
+}
+function auditItemTo(d: Partial<AuditItem>) {
+  return {
+    ...(d.auditId !== undefined && { audit_id: d.auditId }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.question !== undefined && { question: d.question }),
+    ...(d.result !== undefined && { result: d.result }),
+    ...(d.severity !== undefined && { severity: d.severity }),
+    ...(d.finding !== undefined && { finding: d.finding }),
+    ...(d.remediation !== undefined && { remediation: d.remediation }),
+    ...(d.remediationOwner !== undefined && { remediation_owner: d.remediationOwner }),
+    ...(d.remediationDue !== undefined && { remediation_due: d.remediationDue }),
+    ...(d.remediationStatus !== undefined && { remediation_status: d.remediationStatus }),
+  };
+}
+
 function roleRequirementFrom(r: Record<string, unknown>): RoleRequirement {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -1424,6 +1478,8 @@ export function createSupabaseDataClient(): DataClient {
     ccoPreferences:     makeCollection(supabase, "cco_preferences",     ccoPreferenceFrom,      ccoPreferenceTo),
     agendaSnoozes:      makeCollection(supabase, "agenda_snoozes",      agendaSnoozeFrom,       agendaSnoozeTo),
     roleRequirements:   makeCollection(supabase, "role_requirements",   roleRequirementFrom,    roleRequirementTo),
+    audits:             makeCollection(supabase, "audits",              auditRecFrom,           auditRecTo),
+    auditItems:         makeCollection(supabase, "audit_items",         auditItemFrom,          auditItemTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),

@@ -66,6 +66,18 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["What does this assessment cover?", "Create a task to remediate a high-risk finding"],
   },
+  "/audits": {
+    title: "Audits & Mock Surveys",
+    purpose: "Run internal audits and mock HIPAA/OSHA/payer surveys; capture findings and corrective actions.",
+    actions: [TASK],
+    examples: ["Start a mock HIPAA survey", "Create a task for a failed audit item"],
+  },
+  "/program-effectiveness": {
+    title: "Program Effectiveness",
+    purpose: "Maps the compliance program to the OIG seven elements and generates a board report.",
+    actions: [TASK],
+    examples: ["Which of the seven elements has a gap?", "Draft a board report"],
+  },
   "/risk-management": {
     title: "HIPAA & Risk",
     purpose: "Document and manage HIPAA incidents and risk cases through investigation to closure.",

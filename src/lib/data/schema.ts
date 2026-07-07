@@ -477,6 +477,32 @@ export const Employee = z.object({
   jobRole: z.string().nullable().optional(),
 });
 
+export const Audit = z.object({
+  ...base,
+  title: z.string(),
+  auditType: z.enum(["internal", "mock_hipaa", "mock_osha", "payer", "other"]).default("internal"),
+  auditDate: z.string().nullable().optional(),
+  auditorName: z.string().optional(),
+  status: z.enum(["planned", "in_progress", "complete"]).default("in_progress"),
+  scopeNotes: z.string().optional(),
+});
+export type Audit = z.infer<typeof Audit>;
+
+export const AuditItem = z.object({
+  ...base,
+  auditId: z.string(),
+  category: z.string().default("general"),
+  question: z.string(),
+  result: z.enum(["pass", "fail", "partial", "na"]).default("na"),
+  severity: z.enum(["low", "medium", "high"]).default("low"),
+  finding: z.string().optional(),
+  remediation: z.string().optional(),
+  remediationOwner: z.string().optional(),
+  remediationDue: z.string().nullable().optional(),
+  remediationStatus: z.enum(["none", "open", "in_progress", "complete", "accepted"]).default("none"),
+});
+export type AuditItem = z.infer<typeof AuditItem>;
+
 export const RoleRequirement = z.object({
   ...base,
   jobRole: z.string(),
