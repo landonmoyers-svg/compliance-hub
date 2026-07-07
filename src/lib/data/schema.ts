@@ -996,6 +996,8 @@ export const OrganizationSettings = z.object({
   // Page visibility (multi-tenant): per-role page access overrides + org-disabled modules.
   pageRoles: z.record(z.string(), z.array(z.string())).default({}),
   disabledPages: z.array(z.string()).default([]),
+  // Default account role applied to newly-invited users (e.g. by the Concierge).
+  defaultAccountRole: z.string().default("staff"),
 });
 
 // Per-user sidebar personalization (cosmetic — never grants access).

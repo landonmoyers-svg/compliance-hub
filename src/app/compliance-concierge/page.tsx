@@ -72,6 +72,9 @@ export default function ComplianceConcierge() {
   const updateEmployee = useUpdate("employees");
   const createChatMsg = useCreate("chatMessages");
   const chatQ = useCollection("chatMessages");
+  const employeesQ = useCollection("employees");
+  const orgSettingsQ = useCollection("organizationSettings");
+  const defaultRole = orgSettingsQ.data?.[0]?.defaultAccountRole ?? "staff";
 
   // Restore this user's saved concierge conversation once (text only).
   const savedHistory = useMemo(
@@ -137,6 +140,13 @@ export default function ComplianceConcierge() {
   }
   function num(v: unknown, fallback: number): number {
     return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  }
+
+  /** Mark a single proposed action as completed in the chat log. */
+  function markDone(msgIndex: number, actionIndex: number) {
+    setChat((c) => c.map((m, mi) => mi === msgIndex && m.actions
+      ? { ...m, actions: m.actions.map((a, ai) => (ai === actionIndex ? { ...a, done: true } : a)) }
+      : m));
   }
 
   /** Execute a proposed action by creating the entity, then mark it done. */
@@ -224,6 +234,62 @@ export default function ComplianceConcierge() {
           setChat((c) => c.map((m, mi) => mi === msgIndex && m.actions
             ? { ...m, actions: m.actions.map((a, ai) => (ai === actionIndex ? { ...a, done: true } : a)) }
             : m));
+          return;
+        }
+        case "invite_employee": {
+          const email = str(d.email).toLowerCase();
+          const emp = (employeesQ.data ?? []).find((e) => (e.email ?? "").toLowerCase() === email);
+          if (!emp) {
+            toast.error("No employee with that email is in the directory. Use “add employee” to create them first.");
+            return;
+          }
+          if (emp.userId) {
+            toast.message(`${emp.firstName} ${emp.lastName} already has an app login.`);
+            markDone(msgIndex, actionIndex);
+            return;
+          }
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            toast.error("That employee has no valid email on file — add one on their record first.");
+            return;
+          }
+          const validRoles = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
+          const role = validRoles.includes(str(d.accountRole)) ? str(d.accountRole) : defaultRole;
+          const result = await provisionLogin({ email, fullName: `${emp.firstName} ${emp.lastName}`, accountRole: role, staffRole: emp.title || emp.jobRole || undefined, department: emp.department });
+          if (result.ok) {
+            if (result.userId) await updateEmployee.mutateAsync({ id: emp.id, patch: { userId: result.userId } });
+            toast.success(`${emp.firstName} ${emp.lastName} invited to the app (${role})`);
+            markDone(msgIndex, actionIndex);
+          } else {
+            toast.error(`Couldn't create the login: ${result.error}`);
+          }
+          return;
+        }
+        case "invite_all_pending": {
+          const validRoles = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
+          const role = validRoles.includes(str(d.accountRole)) ? str(d.accountRole) : defaultRole;
+          const pending = (employeesQ.data ?? []).filter(
+            (e) => !e.userId && e.employmentStatus === "active" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e.email ?? "")),
+          );
+          if (pending.length === 0) {
+            toast.message("Every active employee with an email already has a login.");
+            markDone(msgIndex, actionIndex);
+            return;
+          }
+          const t = toast.loading(`Inviting ${pending.length} employees…`);
+          let ok = 0; const failed: string[] = [];
+          for (const emp of pending) {
+            const result = await provisionLogin({ email: (emp.email ?? "").toLowerCase(), fullName: `${emp.firstName} ${emp.lastName}`, accountRole: role, staffRole: emp.title || emp.jobRole || undefined, department: emp.department });
+            if (result.ok) {
+              ok++;
+              if (result.userId) await updateEmployee.mutateAsync({ id: emp.id, patch: { userId: result.userId } });
+            } else {
+              failed.push(`${emp.firstName} ${emp.lastName}`);
+            }
+          }
+          toast.dismiss(t);
+          if (failed.length === 0) toast.success(`Invited all ${ok} employees (${role})`);
+          else toast.warning(`Invited ${ok}. Couldn't invite ${failed.length}: ${failed.slice(0, 5).join(", ")}${failed.length > 5 ? "…" : ""}`);
+          markDone(msgIndex, actionIndex);
           return;
         }
         default:

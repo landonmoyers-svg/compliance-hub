@@ -82,6 +82,7 @@ export default function SettingsPage() {
           emailNotifications: form.emailNotifications,
           pageRoles: {},
           disabledPages: [],
+          defaultAccountRole: "staff",
           ...patch,
         });
       }
@@ -417,8 +418,9 @@ function PageAccessTab({ current, onSave, saving }: {
   const groups = useMemo(() => Array.from(new Set(pages.map((p) => p.group))), [pages]);
   const [pageRoles, setPageRoles] = useState<Record<string, string[]>>(current?.pageRoles ?? {});
   const [disabled, setDisabled] = useState<Set<string>>(new Set(current?.disabledPages ?? []));
+  const [defaultRole, setDefaultRole] = useState<string>(current?.defaultAccountRole ?? "staff");
 
-  useEffect(() => { setPageRoles(current?.pageRoles ?? {}); setDisabled(new Set(current?.disabledPages ?? [])); }, [current]);
+  useEffect(() => { setPageRoles(current?.pageRoles ?? {}); setDisabled(new Set(current?.disabledPages ?? [])); setDefaultRole(current?.defaultAccountRole ?? "staff"); }, [current]);
 
   const rolesFor = (href: string, adminOnly: boolean) => allowedRolesFor(href, adminOnly, pageRoles);
   function toggleRole(href: string, adminOnly: boolean, role: string) {
@@ -439,9 +441,16 @@ function PageAccessTab({ current, onSave, saving }: {
         <p className="text-sm text-muted-foreground">Turn whole modules on/off for your organization, and set exactly which roles can open each page. Enforced app-wide; this doesn’t replace the data-level protections.</p>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 px-4 py-3">
+          <label className="text-sm font-medium" htmlFor="default-role">Default role for new invited users</label>
+          <select id="default-role" className="input h-9 w-56" value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)}>
+            {SELECTABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_SHORT[r] ?? r}</option>)}
+          </select>
+          <p className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1">Applied when the Setup Concierge or an admin invites someone without picking a role. Roles can always be changed afterward.</p>
+        </div>
         <div className="mb-3 flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setPageRoles({}); setDisabled(new Set()); }}>Reset to defaults</Button>
-          <Button size="sm" onClick={() => void onSave({ pageRoles, disabledPages: [...disabled] })} disabled={saving}>{saving ? "Saving…" : "Save access"}</Button>
+          <Button variant="outline" size="sm" onClick={() => { setPageRoles({}); setDisabled(new Set()); setDefaultRole("staff"); }}>Reset to defaults</Button>
+          <Button size="sm" onClick={() => void onSave({ pageRoles, disabledPages: [...disabled], defaultAccountRole: defaultRole })} disabled={saving}>{saving ? "Saving…" : "Save access"}</Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">

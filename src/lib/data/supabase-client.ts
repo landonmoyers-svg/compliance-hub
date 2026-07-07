@@ -1470,6 +1470,7 @@ function orgSettingsFrom(r: Record<string, unknown>): OrganizationSettings {
     emailNotifications: r.email_notifications as boolean,
     pageRoles: (r.page_roles as Record<string, string[]> | null) ?? {},
     disabledPages: (r.disabled_pages as string[] | null) ?? [],
+    defaultAccountRole: (r.default_account_role as string | null) ?? "staff",
   };
 }
 
@@ -1506,6 +1507,7 @@ function orgSettingsTo(d: Partial<OrganizationSettings>) {
     ...(d.emailNotifications !== undefined && { email_notifications: d.emailNotifications }),
     ...(d.pageRoles !== undefined && { page_roles: d.pageRoles }),
     ...(d.disabledPages !== undefined && { disabled_pages: d.disabledPages }),
+    ...(d.defaultAccountRole !== undefined && { default_account_role: d.defaultAccountRole }),
   };
 }
 
