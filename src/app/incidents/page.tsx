@@ -1,0 +1,352 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { ShieldAlert, Plus, Search, Check, X, AlertTriangle } from "lucide-react";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatCard } from "@/components/shared/stat-card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState, EmptyState } from "@/components/shared/states";
+import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
+import type { Incident, CorrectiveAction } from "@/lib/data/schema";
+import { toast } from "sonner";
+
+const CATEGORY_LABEL: Record<string, string> = {
+  privacy_hipaa: "Privacy / HIPAA", safety_osha: "Safety / OSHA", billing: "Billing",
+  hr_conduct: "HR / Conduct", medication: "Medication", security: "Security", other: "Other",
+};
+const SEVERITY_VARIANT = { low: "secondary", medium: "warning", high: "destructive", critical: "destructive" } as const;
+const STATUS_VARIANT: Record<string, "secondary" | "warning" | "success" | "outline"> = {
+  new: "warning", triaged: "outline", investigating: "warning", corrective_action: "outline", closed: "success",
+};
+const CAPA_STATUS_VARIANT: Record<string, "secondary" | "warning" | "success" | "outline"> = {
+  open: "warning", in_progress: "warning", verifying: "outline", complete: "success", cancelled: "secondary",
+};
+const INCIDENT_STATUSES = ["new", "triaged", "investigating", "corrective_action", "closed"] as const;
+
+/* ------------------------------ report dialog ------------------------------ */
+
+function ReportDialog({ onClose, onSubmit, saving }: {
+  onClose: () => void;
+  onSubmit: (d: { title: string; category: Incident["category"]; description: string; severity: Incident["severity"]; occurredDate: string; anonymous: boolean }) => void;
+  saving: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<Incident["category"]>("other");
+  const [description, setDescription] = useState("");
+  const [severity, setSeverity] = useState<Incident["severity"]>("medium");
+  const [occurredDate, setOccurredDate] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Report an incident or concern</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">What happened? *</label>
+            <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short summary" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Category</label>
+              <select className="input w-full" value={category} onChange={(e) => setCategory(e.target.value as Incident["category"])}>
+                {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Severity</label>
+              <select className="input w-full" value={severity} onChange={(e) => setSeverity(e.target.value as Incident["severity"])}>
+                {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Date it occurred</label>
+            <input type="date" className="input w-full" value={occurredDate} onChange={(e) => setOccurredDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Details</label>
+            <textarea className="input w-full resize-none" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what happened, who was involved, and any immediate actions taken." />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} className="size-4" />
+            Submit anonymously (your name won’t be attached to this report)
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSubmit({ title, category, description, severity, occurredDate, anonymous })} disabled={!title.trim() || saving}>
+            {saving ? "Submitting…" : "Submit report"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ detail + CAPA ------------------------------ */
+
+function IncidentDetail({ incident, capas, isAdmin, onClose, onStatus, onAddCapa, onUpdateCapa }: {
+  incident: Incident;
+  capas: CorrectiveAction[];
+  isAdmin: boolean;
+  onClose: () => void;
+  onStatus: (status: Incident["status"]) => void;
+  onAddCapa: (d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) => void;
+  onUpdateCapa: (id: string, patch: Partial<CorrectiveAction>) => void;
+}) {
+  const [showCapa, setShowCapa] = useState(false);
+  const [title, setTitle] = useState("");
+  const [rootCause, setRootCause] = useState("");
+  const [actionPlan, setActionPlan] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [dueDate, setDueDate] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="font-semibold">{incident.title}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant={SEVERITY_VARIANT[incident.severity]} className="capitalize">{incident.severity}</Badge>
+              <span>{CATEGORY_LABEL[incident.category]}</span>
+              <span>· Reported {formatDate(incident.createdDate)}</span>
+              <span>· by {incident.anonymous ? "Anonymous" : incident.reportedByName || "—"}</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {incident.description && <p className="whitespace-pre-wrap text-sm">{incident.description}</p>}
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">Status</span>
+            {isAdmin ? (
+              <select className="input" value={incident.status} onChange={(e) => onStatus(e.target.value as Incident["status"])}>
+                {INCIDENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+              </select>
+            ) : (
+              <Badge variant={STATUS_VARIANT[incident.status]} className="capitalize">{incident.status.replace("_", " ")}</Badge>
+            )}
+          </div>
+
+          {/* Corrective actions */}
+          <div className="border-t border-border pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Corrective actions ({capas.length})</h3>
+              {isAdmin && <Button size="sm" variant="outline" onClick={() => setShowCapa((s) => !s)}><Plus className="size-3.5" /> Add</Button>}
+            </div>
+
+            {capas.length === 0 && !showCapa && <p className="text-sm text-muted-foreground">No corrective actions yet.</p>}
+
+            <div className="space-y-2">
+              {capas.map((c) => {
+                const overdue = c.status !== "complete" && c.status !== "cancelled" && isExpired(c.dueDate);
+                return (
+                  <div key={c.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium">{c.title}</p>
+                      <Badge variant={CAPA_STATUS_VARIANT[c.status]} className="capitalize shrink-0">{c.status.replace("_", " ")}</Badge>
+                    </div>
+                    {c.rootCause && <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium">Root cause:</span> {c.rootCause}</p>}
+                    {c.actionPlan && <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium">Plan:</span> {c.actionPlan}</p>}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {c.ownerName && <span>Owner: {c.ownerName}</span>}
+                      {c.dueDate && <span className={overdue ? "text-destructive font-medium" : ""}>Due {formatDate(c.dueDate)}{overdue ? " · overdue" : ""}</span>}
+                      {c.verifiedDate && <span className="text-success">Verified {formatDate(c.verifiedDate)}</span>}
+                    </div>
+                    {isAdmin && c.status !== "complete" && c.status !== "cancelled" && (
+                      <div className="mt-2 flex gap-1.5">
+                        {c.status === "open" && <Button size="sm" variant="ghost" onClick={() => onUpdateCapa(c.id, { status: "in_progress" })}>Start</Button>}
+                        <Button size="sm" variant="ghost" onClick={() => onUpdateCapa(c.id, { status: "complete", verifiedDate: new Date().toISOString() })}><Check className="size-3.5" /> Verify complete</Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {showCapa && isAdmin && (
+              <div className="mt-3 space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <input className="input w-full" placeholder="Corrective action title *" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <input className="input w-full" placeholder="Root cause" value={rootCause} onChange={(e) => setRootCause(e.target.value)} />
+                <textarea className="input w-full resize-none" rows={2} placeholder="Action plan" value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input w-full" placeholder="Owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                  <input type="date" className="input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowCapa(false)}>Cancel</Button>
+                  <Button size="sm" disabled={!title.trim()} onClick={() => { onAddCapa({ title, rootCause, actionPlan, ownerName, dueDate }); setShowCapa(false); setTitle(""); setRootCause(""); setActionPlan(""); setOwnerName(""); setDueDate(""); }}>Add corrective action</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ page ------------------------------ */
+
+export default function IncidentsPage() {
+  const { profile, isAdmin } = useAuth();
+  const myUserId = profile?.userId ?? "";
+  const incidentsQ = useCollection("incidents");
+  const capasQ = useCollection("correctiveActions");
+  const createIncident = useCreate("incidents");
+  const updateIncident = useUpdate("incidents");
+  const createCapa = useCreate("correctiveActions");
+  const updateCapa = useUpdate("correctiveActions");
+
+  const [reporting, setReporting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const incidents = useMemo(() => incidentsQ.data ?? [], [incidentsQ.data]);
+  const capas = useMemo(() => capasQ.data ?? [], [capasQ.data]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return incidents.filter((i) => !q || i.title.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q));
+  }, [incidents, search]);
+
+  const openIncident = incidents.find((i) => i.id === openId) ?? null;
+  const capasFor = (incidentId: string) => capas.filter((c) => c.incidentId === incidentId);
+
+  const stats = useMemo(() => {
+    const open = incidents.filter((i) => i.status !== "closed").length;
+    const investigating = incidents.filter((i) => i.status === "investigating").length;
+    const overdueCapas = capas.filter((c) => c.status !== "complete" && c.status !== "cancelled" && isExpired(c.dueDate)).length;
+    return { open, investigating, overdueCapas };
+  }, [incidents, capas]);
+
+  async function submitReport(d: { title: string; category: Incident["category"]; description: string; severity: Incident["severity"]; occurredDate: string; anonymous: boolean }) {
+    setSaving(true);
+    try {
+      await createIncident.mutateAsync({
+        title: d.title.trim(),
+        category: d.category,
+        description: d.description.trim() || undefined,
+        severity: d.severity,
+        status: "new",
+        anonymous: d.anonymous,
+        reportedByUserId: d.anonymous ? null : (myUserId || null),
+        reportedByName: d.anonymous ? undefined : (profile?.fullName || undefined),
+        occurredDate: d.occurredDate ? dateInputToISO(d.occurredDate) : null,
+      });
+      toast.success("Report submitted. Thank you.");
+      setReporting(false);
+    } catch {
+      toast.error("Couldn't submit the report.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addCapa(incidentId: string, d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) {
+    try {
+      await createCapa.mutateAsync({
+        incidentId,
+        title: d.title.trim(),
+        rootCause: d.rootCause.trim() || undefined,
+        actionPlan: d.actionPlan.trim() || undefined,
+        ownerName: d.ownerName.trim() || undefined,
+        dueDate: d.dueDate ? dateInputToISO(d.dueDate) : null,
+        status: "open",
+      });
+      if (openIncident && openIncident.status !== "corrective_action" && openIncident.status !== "closed") {
+        await updateIncident.mutateAsync({ id: incidentId, patch: { status: "corrective_action" } });
+      }
+      toast.success("Corrective action added");
+    } catch { toast.error("Couldn't add the corrective action."); }
+  }
+
+  if (incidentsQ.isError) {
+    return <div className="space-y-6"><PageHeader title="Incidents & Corrective Actions" /><ErrorState message="We couldn't load incidents." onRetry={() => void incidentsQ.refetch()} /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {reporting && <ReportDialog onClose={() => setReporting(false)} onSubmit={submitReport} saving={saving} />}
+      {openIncident && (
+        <IncidentDetail
+          incident={openIncident}
+          capas={capasFor(openIncident.id)}
+          isAdmin={isAdmin}
+          onClose={() => setOpenId(null)}
+          onStatus={(status) => void updateIncident.mutateAsync({ id: openIncident.id, patch: { status } })}
+          onAddCapa={(d) => void addCapa(openIncident.id, d)}
+          onUpdateCapa={(id, patch) => void updateCapa.mutateAsync({ id, patch })}
+        />
+      )}
+
+      <PageHeader
+        title="Incidents & Corrective Actions"
+        description="Report compliance incidents and concerns, then drive each to closure with tracked corrective actions."
+        actions={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Open incidents" value={stats.open} icon={ShieldAlert} tone={stats.open ? "warning" : "success"} loading={incidentsQ.isLoading} />
+        <StatCard label="Under investigation" value={stats.investigating} icon={AlertTriangle} loading={incidentsQ.isLoading} />
+        <StatCard label="Overdue corrective actions" value={stats.overdueCapas} icon={AlertTriangle} tone={stats.overdueCapas ? "destructive" : "default"} loading={capasQ.isLoading} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input className="input w-full pl-9" placeholder="Search incidents…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {incidentsQ.isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : filtered.length === 0 ? (
+            <EmptyState icon={ShieldAlert} title="No incidents" description={isAdmin ? "Reported incidents will appear here." : "You haven't reported any incidents."} action={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Incident</th>
+                    <th className="pb-2 pr-4 font-medium">Category</th>
+                    <th className="pb-2 pr-4 font-medium">Severity</th>
+                    <th className="pb-2 pr-4 font-medium">Reported</th>
+                    <th className="pb-2 pr-4 font-medium">CAPAs</th>
+                    <th className="pb-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((i) => (
+                    <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
+                      <td className="py-3 pr-4 font-medium">{i.title}{i.anonymous && <span className="ml-2 text-xs text-muted-foreground">(anonymous)</span>}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>
+                      <td className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
+                      <td className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
+                      <td className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status.replace("_", " ")}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

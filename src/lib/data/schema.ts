@@ -245,6 +245,44 @@ export const RiskManagementCase = z.object({
 });
 export type RiskManagementCase = z.infer<typeof RiskManagementCase>;
 
+/* --------------------- incidents & corrective actions --------------------- */
+
+export const incidentCategories = [
+  "privacy_hipaa", "safety_osha", "billing", "hr_conduct", "medication", "security", "other",
+] as const;
+
+export const Incident = z.object({
+  ...base,
+  title: z.string(),
+  category: z.enum(incidentCategories).default("other"),
+  description: z.string().optional(),
+  severity: Priority.default("medium"),
+  status: z.enum(["new", "triaged", "investigating", "corrective_action", "closed"]).default("new"),
+  anonymous: z.boolean().default(false),
+  reportedByUserId: z.string().nullable().optional(),
+  reportedByName: z.string().optional(),
+  locationId: z.string().nullable().optional(),
+  occurredDate: z.string().nullable().optional(),
+  resolutionSummary: z.string().optional(),
+});
+export type Incident = z.infer<typeof Incident>;
+
+export const CorrectiveAction = z.object({
+  ...base,
+  incidentId: z.string().nullable().optional(),
+  riskCaseId: z.string().nullable().optional(),
+  title: z.string(),
+  rootCause: z.string().optional(),
+  actionPlan: z.string().optional(),
+  ownerName: z.string().optional(),
+  ownerUserId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  status: z.enum(["open", "in_progress", "verifying", "complete", "cancelled"]).default("open"),
+  verifiedByName: z.string().optional(),
+  verifiedDate: z.string().nullable().optional(),
+});
+export type CorrectiveAction = z.infer<typeof CorrectiveAction>;
+
 /* ------------------------ policy acknowledgments ------------------- */
 
 export const PolicyAcknowledgment = z.object({

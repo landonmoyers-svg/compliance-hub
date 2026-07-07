@@ -42,6 +42,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: ["create_vendor", TASK],
     examples: ["Add Supabase as a business associate that needs a BAA", "Add our shredding vendor"],
   },
+  "/incidents": {
+    title: "Incidents & Corrective Actions",
+    purpose: "Report compliance incidents and drive each to closure with corrective actions (CAPA).",
+    actions: [TASK],
+    examples: ["How do I report an incident?", "Create a task to follow up on an open corrective action"],
+  },
   "/risk-management": {
     title: "HIPAA & Risk",
     purpose: "Document and manage HIPAA incidents and risk cases through investigation to closure.",

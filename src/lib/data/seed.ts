@@ -115,6 +115,8 @@ export function buildSeed(): SeedData {
       { id: "risk-3", createdDate: days(-15), caseTitle: "Medication count discrepancy", caseType: "controlled", severity: "critical", status: "open", accessLevel: "restricted", reportedByName: "Jordan Reyes", incidentDate: days(-16) },
       { id: "risk-4", createdDate: days(-90), caseTitle: "Staff complaint — scheduling", caseType: "hr", severity: "low", status: "resolved", accessLevel: "restricted", reportedByName: "Casey Nguyen", incidentDate: days(-92) },
     ],
+    incidents: [],
+    correctiveActions: [],
     policyAcks: [
       { id: "ack-1", createdDate: days(-30), userId: "user-2", userName: "Jordan Reyes", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },
       { id: "ack-2", createdDate: days(-30), userId: "user-3", userName: "Sam Patel", documentId: "doc-1", documentTitle: "HIPAA Privacy Policy", status: "acknowledged", acknowledgedAt: days(-30), expiresAt: days(335) },

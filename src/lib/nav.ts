@@ -101,6 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
       { label: "Inventory", href: "/inventory", icon: Package },
       { label: "HIPAA & Risk", href: "/risk-management", icon: ShieldAlert, adminOnly: true },
+      { label: "Incidents & CAPA", href: "/incidents", icon: Inbox },
       { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
       { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
       { label: "Insurance Vault", href: "/insurance-vault", icon: Shield, adminOnly: true },

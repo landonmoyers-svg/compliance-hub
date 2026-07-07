@@ -23,6 +23,8 @@ import type {
   PayrollRecord,
   PerformanceReview,
   PolicyAcknowledgment,
+  CorrectiveAction,
+  Incident,
   PTOBalance,
   RecordVersion,
   RegulatorySource,
@@ -63,6 +65,8 @@ export interface DataClient {
   oshaRecords: Collection<OSHARecord>;
   sdsRecords: Collection<SDSRecord>;
   riskCases: Collection<RiskManagementCase>;
+  incidents: Collection<Incident>;
+  correctiveActions: Collection<CorrectiveAction>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

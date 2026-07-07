@@ -42,6 +42,8 @@ import type {
   RecordVersion,
   RegulatorySource,
   RiskManagementCase,
+  Incident,
+  CorrectiveAction,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -373,6 +375,70 @@ function riskTo(d: Partial<RiskManagementCase>) {
     ...(d.accessLevel !== undefined && { access_level: d.accessLevel }),
     ...(d.reportedByName !== undefined && { reported_by_name: d.reportedByName }),
     ...(d.incidentDate !== undefined && { incident_date: d.incidentDate }),
+  };
+}
+
+function incidentFrom(r: Record<string, unknown>): Incident {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    category: r.category as Incident["category"],
+    description: r.description as string | undefined,
+    severity: r.severity as Incident["severity"],
+    status: r.status as Incident["status"],
+    anonymous: r.anonymous as boolean,
+    reportedByUserId: (r.reported_by_user_id as string | null) ?? undefined,
+    reportedByName: r.reported_by_name as string | undefined,
+    locationId: (r.location_id as string | null) ?? undefined,
+    occurredDate: toISO(r.occurred_date as string),
+    resolutionSummary: r.resolution_summary as string | undefined,
+  };
+}
+function incidentTo(d: Partial<Incident>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.description !== undefined && { description: d.description }),
+    ...(d.severity !== undefined && { severity: d.severity }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.anonymous !== undefined && { anonymous: d.anonymous }),
+    ...(d.reportedByUserId !== undefined && { reported_by_user_id: d.reportedByUserId }),
+    ...(d.reportedByName !== undefined && { reported_by_name: d.reportedByName }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.occurredDate !== undefined && { occurred_date: d.occurredDate }),
+    ...(d.resolutionSummary !== undefined && { resolution_summary: d.resolutionSummary }),
+  };
+}
+
+function correctiveActionFrom(r: Record<string, unknown>): CorrectiveAction {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    incidentId: (r.incident_id as string | null) ?? undefined,
+    riskCaseId: (r.risk_case_id as string | null) ?? undefined,
+    title: r.title as string,
+    rootCause: r.root_cause as string | undefined,
+    actionPlan: r.action_plan as string | undefined,
+    ownerName: r.owner_name as string | undefined,
+    ownerUserId: (r.owner_user_id as string | null) ?? undefined,
+    dueDate: toISO(r.due_date as string),
+    status: r.status as CorrectiveAction["status"],
+    verifiedByName: r.verified_by_name as string | undefined,
+    verifiedDate: toISO(r.verified_date as string),
+  };
+}
+function correctiveActionTo(d: Partial<CorrectiveAction>) {
+  return {
+    ...(d.incidentId !== undefined && { incident_id: d.incidentId }),
+    ...(d.riskCaseId !== undefined && { risk_case_id: d.riskCaseId }),
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.rootCause !== undefined && { root_cause: d.rootCause }),
+    ...(d.actionPlan !== undefined && { action_plan: d.actionPlan }),
+    ...(d.ownerName !== undefined && { owner_name: d.ownerName }),
+    ...(d.ownerUserId !== undefined && { owner_user_id: d.ownerUserId }),
+    ...(d.dueDate !== undefined && { due_date: d.dueDate }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
+    ...(d.verifiedDate !== undefined && { verified_date: d.verifiedDate }),
   };
 }
 
@@ -1160,6 +1226,8 @@ export function createSupabaseDataClient(): DataClient {
     oshaRecords:        makeCollection(supabase, "osha_records",        oshaFrom,               oshaTo),
     sdsRecords:         makeCollection(supabase, "sds_records",         sdsFrom,                sdsTo),
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
+    incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
+    correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),
