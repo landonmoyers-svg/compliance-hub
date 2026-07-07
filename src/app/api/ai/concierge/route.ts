@@ -1,12 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
+import { getOrgName } from "@/lib/org-server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const CONCIERGE_SYSTEM = `You are the Compliance Setup Concierge for Lone Peak Psychiatry's Compliance Hub. Your job is to guide administrators through setting up their compliance program step by step.
+const conciergeSystem = (org: string) => `You are the Compliance Setup Concierge for ${org}'s Compliance Hub. Your job is to guide administrators through setting up their compliance program step by step.
 
 You have knowledge of these setup areas:
 - Foundation: adding locations, importing employees, setting up user accounts
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
   }
 
+  const orgName = await getOrgName(supabase);
   const progress = `\n\nCurrent setup progress — completed steps: ${completedSteps.length > 0 ? completedSteps.join(", ") : "none yet"}.`;
 
   const response = await client.messages.create({
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     max_tokens: 900,
     // Large static instructions are cached; only the short progress line varies.
     system: [
-      { type: "text", text: CONCIERGE_SYSTEM, cache_control: { type: "ephemeral" } },
+      { type: "text", text: conciergeSystem(orgName), cache_control: { type: "ephemeral" } },
       { type: "text", text: progress },
     ],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),

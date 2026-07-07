@@ -1,13 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
+import { getOrgName } from "@/lib/org-server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const BASE_PROMPT = `You are the SOP Assistant for Lone Peak Psychiatry, a behavioral health practice. You help staff understand and apply:
+const basePrompt = (org: string) => `You are the SOP Assistant for ${org}, a behavioral health practice. You help staff understand and apply:
 
 - HIPAA Privacy and Security Rules (45 CFR Parts 160 and 164)
 - OSHA standards for healthcare settings (bloodborne pathogens, hazard communication, emergency action plans)
@@ -19,7 +20,7 @@ const BASE_PROMPT = `You are the SOP Assistant for Lone Peak Psychiatry, a behav
 
 Guidelines:
 - PREFER the practice's own approved policies and regulatory sources listed below. When your answer is covered by one of them, ground your answer in it and cite it by its exact title (e.g. "per your SOP 'Bloodborne Pathogens Exposure Control Plan'").
-- If the practice's documents do not cover the question, you may answer from general regulatory knowledge, but say so explicitly ("This isn't covered by a current Lone Peak policy, but in general…") so staff know it's not yet codified internally.
+- If the practice's documents do not cover the question, you may answer from general regulatory knowledge, but say so explicitly ("This isn't covered by a current ${org} policy, but in general…") so staff know it's not yet codified internally.
 - When a regulation number or CFR citation is relevant, include it.
 - Flag when something requires a licensed attorney or compliance officer to decide.
 - Be concise — staff are busy clinicians, not lawyers.
@@ -169,16 +170,17 @@ export async function POST(request: NextRequest) {
   }
 
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  const [org, memory] = await Promise.all([
+  const [org, memory, orgName] = await Promise.all([
     buildOrgContext(supabase, lastUser).catch(() => ({ catalog: "", excerpts: "" })),
     buildUserMemory(supabase, user.id, conversationId ?? null).catch(() => ""),
+    getOrgName(supabase),
   ]);
 
   // Static block (base prompt + policy catalog) is cached; dynamic block
   // (question-specific excerpts + this user's memory) is not.
   const dynamic = org.excerpts + memory;
   const system: Anthropic.TextBlockParam[] = [
-    { type: "text", text: BASE_PROMPT + org.catalog, cache_control: { type: "ephemeral" } },
+    { type: "text", text: basePrompt(orgName) + org.catalog, cache_control: { type: "ephemeral" } },
     ...(dynamic ? [{ type: "text", text: dynamic } as Anthropic.TextBlockParam] : []),
   ];
 

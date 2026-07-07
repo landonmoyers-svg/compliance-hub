@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 
 /**
  * Entity schemas (Zod) + inferred TS types for the Compliance Hub.
@@ -978,7 +979,7 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 
 export const OrganizationSettings = z.object({
   ...base,
-  orgName: z.string().default("Lone Peak Psychiatry"),
+  orgName: z.string().default(DEFAULT_ORG_NAME),
   address: z.string().optional(),
   phone: z.string().optional(),
   website: z.string().optional(),

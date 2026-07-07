@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { toast } from "sonner";
 
 type Tab = "organization" | "locations" | "security" | "notifications";
@@ -30,7 +31,7 @@ interface OrgForm {
 
 function toForm(s: OrganizationSettings | undefined): OrgForm {
   return {
-    orgName: s?.orgName ?? "Lone Peak Psychiatry",
+    orgName: s?.orgName ?? DEFAULT_ORG_NAME,
     address: s?.address ?? "", phone: s?.phone ?? "", website: s?.website ?? "",
     npiNumber: s?.npiNumber ?? "", taxId: s?.taxId ?? "",
     documentRetentionYears: String(s?.documentRetentionYears ?? 7),
@@ -65,7 +66,7 @@ export default function SettingsPage() {
         await updateSettings.mutateAsync({ id: current.id, patch });
       } else {
         await createSettings.mutateAsync({
-          orgName: form.orgName.trim() || "Lone Peak Psychiatry",
+          orgName: form.orgName.trim() || DEFAULT_ORG_NAME,
           documentRetentionYears: parseInt(form.documentRetentionYears, 10) || 7,
           sessionTimeoutMinutes: parseInt(form.sessionTimeoutMinutes, 10) || 30,
           requireTwoFactor: form.requireTwoFactor,

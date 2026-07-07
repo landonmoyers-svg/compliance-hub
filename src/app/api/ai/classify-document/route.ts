@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
+import { getOrgName } from "@/lib/org-server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
 
   if (!fileName) return NextResponse.json({ error: "fileName required" }, { status: 400 });
 
-  const prompt = `You are a compliance document classifier and router for a behavioral health practice (Lone Peak Psychiatry). Your job is to read a document and decide WHICH part of the compliance system it belongs in.
+  const orgName = await getOrgName(supabase);
+  const prompt = `You are a compliance document classifier and router for a behavioral health practice (${orgName}). Your job is to read a document and decide WHICH part of the compliance system it belongs in.
 
 Analyze this document and return a JSON object with these fields:
 - suggestedType: one of "policy", "sop", "form", "reference", "training_material", "credential", "license", "sds", "incident_report", "insurance_policy", "regulation", "hr_record"

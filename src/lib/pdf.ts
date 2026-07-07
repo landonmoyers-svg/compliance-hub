@@ -2,6 +2,7 @@
 
 import { jsPDF } from "jspdf";
 import type { CompletedForm, FillableFormTemplate } from "@/lib/data/schema";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 
 /**
  * Generate and download a PDF of a completed form. Uses the template's field
@@ -11,6 +12,7 @@ import type { CompletedForm, FillableFormTemplate } from "@/lib/data/schema";
 export function downloadCompletedFormPdf(
   completed: CompletedForm,
   template?: FillableFormTemplate,
+  orgName: string = DEFAULT_ORG_NAME,
 ): void {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const margin = 56;
@@ -21,7 +23,7 @@ export function downloadCompletedFormPdf(
   // Header
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Lone Peak Psychiatry", margin, y);
+  doc.text(orgName, margin, y);
   y += 22;
   doc.setFontSize(13);
   doc.text(completed.templateTitle, margin, y);

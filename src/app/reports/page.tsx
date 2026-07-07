@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/dates";
 
 type Tab = "overview" | "credentials" | "training" | "risk";
@@ -102,7 +103,7 @@ export default function ReportsPage() {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const generatedLabel = now.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
-    const orgName = orgSettings[0]?.orgName ?? "Lone Peak Psychiatry";
+    const orgName = orgSettings[0]?.orgName ?? DEFAULT_ORG_NAME;
 
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const margin = 56;

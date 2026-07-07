@@ -6,6 +6,8 @@ import { ExternalLink, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { roleLabel } from "@/lib/auth/roles";
 import { visibleNav } from "@/lib/nav";
+import { useCollection } from "@/lib/data/hooks";
+import { APP_NAME, DEFAULT_ORG_NAME } from "@/lib/org";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
@@ -20,6 +22,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { profile, user, isAdmin, logout } = useAuth();
   const groups = visibleNav(isAdmin);
+  const orgSettings = useCollection("organizationSettings");
+  const orgName = orgSettings.data?.[0]?.orgName ?? DEFAULT_ORG_NAME;
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -30,10 +34,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">
-            Compliance Hub
+            {APP_NAME}
           </p>
           <p className="truncate text-xs text-muted-foreground">
-            Lone Peak Psychiatry
+            {orgName}
           </p>
         </div>
       </div>

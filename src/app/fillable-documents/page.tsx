@@ -5,6 +5,7 @@ import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserP
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { downloadCompletedFormPdf } from "@/lib/pdf";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -395,6 +396,8 @@ export default function FillableDocumentsPage() {
   const assignmentsQ = useCollection("formAssignments");
   const completedQ = useCollection("completedForms");
   const employeesQ = useCollection("employees");
+  const orgSettingsQ = useCollection("organizationSettings");
+  const orgName = orgSettingsQ.data?.[0]?.orgName ?? DEFAULT_ORG_NAME;
 
   const createTemplate = useCreate("formTemplates");
   const updateTemplate = useUpdate("formTemplates");
@@ -765,7 +768,7 @@ export default function FillableDocumentsPage() {
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         </td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId))}>
+                          <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
                             <Download className="size-4" /> PDF
                           </Button>
                         </td>

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
+import { getOrgName } from "@/lib/org-server";
 import { capabilityForPath } from "@/lib/ai/page-capabilities";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -8,7 +9,7 @@ import type { NextRequest } from "next/server";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Static instructions + full action catalog — cached across requests.
-const BASE_SYSTEM = `You are the Compliance Hub Assistant, a universal helper embedded on every page of a behavioral-health compliance and practice-management app for Lone Peak Psychiatry. You help staff understand the page they're on and DO the work by proposing records to create — the user confirms each with one click (you only PROPOSE; never claim anything was created).
+const baseSystem = (org: string) => `You are the Compliance Hub Assistant, a universal helper embedded on every page of a behavioral-health compliance and practice-management app for ${org}. You help staff understand the page they're on and DO the work by proposing records to create — the user confirms each with one click (you only PROPOSE; never claim anything was created).
 
 Behavior:
 - Be concise and practical. Keep "message" to 1–4 sentences.
@@ -60,13 +61,14 @@ export async function POST(request: NextRequest) {
   }
 
   const page = capabilityForPath(path);
+  const orgName = await getOrgName(supabase);
   const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}\n=== END CONTEXT ===`;
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 900,
     system: [
-      { type: "text", text: BASE_SYSTEM, cache_control: { type: "ephemeral" } },
+      { type: "text", text: baseSystem(orgName), cache_control: { type: "ephemeral" } },
       { type: "text", text: context },
     ],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),

@@ -1,13 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
+import { getOrgName } from "@/lib/org-server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const BASE_PROMPT = `You are the Inventory Assistant for Lone Peak Psychiatry. You answer questions about the practice's physical inventory: what items exist, where they are located, their condition, quantity, and estimated value.
+const basePrompt = (org: string) => `You are the Inventory Assistant for ${org}. You answer questions about the practice's physical inventory: what items exist, where they are located, their condition, quantity, and estimated value.
 
 Guidelines:
 - Answer ONLY from the inventory data provided below. Do not invent items, locations, or values.
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: [{ type: "text", text: BASE_PROMPT + context, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: basePrompt(await getOrgName(supabase)) + context, cache_control: { type: "ephemeral" } }],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 
