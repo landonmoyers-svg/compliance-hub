@@ -24,6 +24,8 @@ import type {
   PerformanceReview,
   PolicyAcknowledgment,
   BreachAssessment,
+  AgendaSnooze,
+  CcoPreference,
   CorrectiveAction,
   ExclusionScreening,
   Incident,
@@ -75,6 +77,8 @@ export interface DataClient {
   sraAssessments: Collection<SraAssessment>;
   sraFindings: Collection<SraFinding>;
   exclusionScreenings: Collection<ExclusionScreening>;
+  ccoPreferences: Collection<CcoPreference>;
+  agendaSnoozes: Collection<AgendaSnooze>;
   policyAcks: Collection<PolicyAcknowledgment>;
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;

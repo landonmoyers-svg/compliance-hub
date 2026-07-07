@@ -353,6 +353,26 @@ export const ExclusionScreening = z.object({
 });
 export type ExclusionScreening = z.infer<typeof ExclusionScreening>;
 
+/* --------------------- chief of staff (agent) --------------------- */
+
+export const CcoPreference = z.object({
+  ...base,
+  userId: z.string(),
+  horizonDays: z.number().default(30),
+  showLow: z.boolean().default(false),
+  focusAreas: z.string().optional(),
+  agentNotes: z.string().optional(),   // freeform preferences the agent learns
+});
+export type CcoPreference = z.infer<typeof CcoPreference>;
+
+export const AgendaSnooze = z.object({
+  ...base,
+  userId: z.string(),
+  itemKey: z.string(),
+  snoozedUntil: z.string().nullable().optional(),
+});
+export type AgendaSnooze = z.infer<typeof AgendaSnooze>;
+
 /* ------------------------ policy acknowledgments ------------------- */
 
 export const PolicyAcknowledgment = z.object({

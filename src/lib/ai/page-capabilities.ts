@@ -18,6 +18,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["What should I focus on first?", "Create a task to review expiring credentials this week"],
   },
+  "/chief-of-staff": {
+    title: "Chief of Staff",
+    purpose: "Your prioritized, risk-ranked compliance plan across the whole program, kept a step ahead.",
+    actions: [TASK],
+    examples: ["What should I tackle first today?", "Create a task for the most urgent item"],
+  },
   "/inventory": {
     title: "Inventory",
     purpose: "Track physical assets across locations, with AI photo cataloging and value estimates.",

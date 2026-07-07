@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Overview",
     items: [
       { label: "Command Center", href: "/", icon: LayoutDashboard },
+      { label: "Chief of Staff", href: "/chief-of-staff", icon: Sparkles, adminOnly: true, highlight: true },
       {
         label: "Setup Concierge",
         href: "/compliance-concierge",

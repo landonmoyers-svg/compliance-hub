@@ -48,6 +48,8 @@ import type {
   SraAssessment,
   SraFinding,
   ExclusionScreening,
+  CcoPreference,
+  AgendaSnooze,
   SDSRecord,
   TimeClockEntry,
   TimeOffRequest,
@@ -567,6 +569,42 @@ function exclusionTo(d: Partial<ExclusionScreening>) {
     ...(d.result !== undefined && { result: d.result }),
     ...(d.notes !== undefined && { notes: d.notes }),
     ...(d.screenedByName !== undefined && { screened_by_name: d.screenedByName }),
+  };
+}
+
+function ccoPreferenceFrom(r: Record<string, unknown>): CcoPreference {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string,
+    horizonDays: (r.horizon_days as number | null) ?? 30,
+    showLow: (r.show_low as boolean | null) ?? false,
+    focusAreas: r.focus_areas as string | undefined,
+    agentNotes: r.agent_notes as string | undefined,
+  };
+}
+function ccoPreferenceTo(d: Partial<CcoPreference>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.horizonDays !== undefined && { horizon_days: d.horizonDays }),
+    ...(d.showLow !== undefined && { show_low: d.showLow }),
+    ...(d.focusAreas !== undefined && { focus_areas: d.focusAreas }),
+    ...(d.agentNotes !== undefined && { agent_notes: d.agentNotes }),
+  };
+}
+
+function agendaSnoozeFrom(r: Record<string, unknown>): AgendaSnooze {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    userId: r.user_id as string,
+    itemKey: r.item_key as string,
+    snoozedUntil: toISO(r.snoozed_until as string),
+  };
+}
+function agendaSnoozeTo(d: Partial<AgendaSnooze>) {
+  return {
+    ...(d.userId !== undefined && { user_id: d.userId }),
+    ...(d.itemKey !== undefined && { item_key: d.itemKey }),
+    ...(d.snoozedUntil !== undefined && { snoozed_until: d.snoozedUntil }),
   };
 }
 
@@ -1360,6 +1398,8 @@ export function createSupabaseDataClient(): DataClient {
     sraAssessments:     makeCollection(supabase, "sra_assessments",     sraAssessmentFrom,      sraAssessmentTo),
     sraFindings:        makeCollection(supabase, "sra_findings",        sraFindingFrom,         sraFindingTo),
     exclusionScreenings: makeCollection(supabase, "exclusion_screenings", exclusionFrom,        exclusionTo),
+    ccoPreferences:     makeCollection(supabase, "cco_preferences",     ccoPreferenceFrom,      ccoPreferenceTo),
+    agendaSnoozes:      makeCollection(supabase, "agenda_snoozes",      agendaSnoozeFrom,       agendaSnoozeTo),
     policyAcks:         makeCollection(supabase, "policy_acks",         ackFrom,                ackTo),
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),
