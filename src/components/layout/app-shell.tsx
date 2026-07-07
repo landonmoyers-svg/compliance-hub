@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Menu, ShieldCheck, X } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
+import { AssistantWidget } from "@/components/ai/assistant-widget";
 import { cn } from "@/lib/cn";
 
 /** Authenticated app frame: fixed sidebar on desktop, slide-over drawer on mobile. */
@@ -75,6 +76,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
+
+      {/* Site-wide, page-aware AI assistant */}
+      <AssistantWidget />
     </div>
   );
 }
