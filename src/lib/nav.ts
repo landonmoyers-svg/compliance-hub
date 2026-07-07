@@ -119,6 +119,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
       { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
+      { label: "Access Matrix", href: "/access-matrix", icon: Shield, adminOnly: true },
       { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
       { label: "Settings", href: "/settings", icon: Building2, adminOnly: true },
     ],

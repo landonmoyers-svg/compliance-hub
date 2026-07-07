@@ -108,6 +108,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["Who is due for screening?", "Create a task to screen all staff this month"],
   },
+  "/access-matrix": {
+    title: "Role Access Matrix",
+    purpose: "Documents who can see and do what by role, aligned to HIPAA minimum-necessary and best practice.",
+    actions: [TASK],
+    examples: ["Who can view payroll?", "Create a task to review access for the Manager role"],
+  },
   "/settings": {
     title: "Settings",
     purpose: "Configure the organization profile and Work Locations.",
