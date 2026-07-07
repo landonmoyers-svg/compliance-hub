@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { enforceAiCap } from "@/lib/ai/usage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -71,6 +72,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "messages array required" }, { status: 400 });
   }
 
+  const cap = await enforceAiCap(supabase);
+  if (!cap.ok) {
+    return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
+  }
+
   let context = "";
   try {
     context = await buildInventoryContext(supabase);
@@ -78,10 +84,12 @@ export async function POST(request: NextRequest) {
     context = "";
   }
 
+  // Whole system is static for a given inventory snapshot — cache it so
+  // follow-up questions in the same session cost a fraction.
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: BASE_PROMPT + context,
+    system: [{ type: "text", text: BASE_PROMPT + context, cache_control: { type: "ephemeral" } }],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 

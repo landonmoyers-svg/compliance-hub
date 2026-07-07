@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { enforceAiCap } from "@/lib/ai/usage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -44,14 +45,21 @@ export async function POST(request: NextRequest) {
   };
   const { messages, completedSteps } = body;
 
-  const systemWithContext = `${CONCIERGE_SYSTEM}
+  const cap = await enforceAiCap(supabase);
+  if (!cap.ok) {
+    return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
+  }
 
-Current setup progress — completed steps: ${completedSteps.length > 0 ? completedSteps.join(", ") : "none yet"}.`;
+  const progress = `\n\nCurrent setup progress — completed steps: ${completedSteps.length > 0 ? completedSteps.join(", ") : "none yet"}.`;
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 900,
-    system: systemWithContext,
+    // Large static instructions are cached; only the short progress line varies.
+    system: [
+      { type: "text", text: CONCIERGE_SYSTEM, cache_control: { type: "ephemeral" } },
+      { type: "text", text: progress },
+    ],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 

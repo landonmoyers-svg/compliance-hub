@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { enforceAiCap } from "@/lib/ai/usage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,12 +38,13 @@ function keywords(query: string): string[] {
 }
 
 /**
- * Build a grounding context block from the org's active documents + regulatory
- * sources. Every active policy is listed by title/summary; the policies most
- * relevant to the question also get an excerpt of their actual text so the
- * assistant can answer from real policy content, not just titles.
+ * Build grounding context from the org's active documents + regulatory sources.
+ * Returns two parts so the static half can be prompt-cached:
+ * - `catalog`: the full policy/regulation list — identical across questions, so
+ *   it's sent as a cached system block (repeat questions cost a fraction).
+ * - `excerpts`: text of the policies most relevant to THIS question — dynamic.
  */
-async function buildOrgContext(supabase: SupabaseClient, query: string): Promise<string> {
+async function buildOrgContext(supabase: SupabaseClient, query: string): Promise<{ catalog: string; excerpts: string }> {
   const [docsRes, srcRes] = await Promise.all([
     supabase
       .from("documents")
@@ -62,7 +64,10 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
   const sources = srcRes.data ?? [];
 
   if (docs.length === 0 && sources.length === 0) {
-    return "\n\n(The practice has not yet uploaded any internal policies or regulatory sources. Answer from general regulatory knowledge and recommend codifying key policies.)";
+    return {
+      catalog: "\n\n(The practice has not yet uploaded any internal policies or regulatory sources. Answer from general regulatory knowledge and recommend codifying key policies.)",
+      excerpts: "",
+    };
   }
 
   // Rank documents by keyword overlap with the question, over title + content.
@@ -74,37 +79,38 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
   });
   const relevant = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
 
-  let ctx = "\n\n=== LONE PEAK APPROVED SOURCES (ground answers in these) ===\n";
-
+  // Static catalog — cached across questions.
+  let catalog = "\n\n=== LONE PEAK APPROVED SOURCES (ground answers in these) ===\n";
   if (docs.length > 0) {
-    ctx += `\nInternal policies & SOPs (${docs.length} active):\n`;
+    catalog += `\nInternal policies & SOPs (${docs.length} active):\n`;
     for (const d of docs) {
       const area = d.compliance_area ? ` [${d.compliance_area}]` : "";
       const summary = d.summary ? ` — ${String(d.summary).slice(0, 180)}` : "";
-      ctx += `• "${d.title}" (${d.document_type}${area}, v${d.version ?? "1.0"})${summary}\n`;
+      catalog += `• "${d.title}" (${d.document_type}${area}, v${d.version ?? "1.0"})${summary}\n`;
     }
   }
-
-  if (relevant.length > 0) {
-    ctx += `\n--- Excerpts from the policies most relevant to the question (quote/cite these by title) ---\n`;
-    for (const { d } of relevant) {
-      if (!d.content) continue;
-      ctx += `\n### ${d.title}\n${String(d.content).slice(0, 2200)}\n`;
-    }
-  }
-
   if (sources.length > 0) {
-    ctx += `\nRegulatory sources tracked by the practice (${sources.length}):\n`;
+    catalog += `\nRegulatory sources tracked by the practice (${sources.length}):\n`;
     for (const s of sources) {
       const cite = s.citation_label ? ` (${s.citation_label})` : "";
       const body = s.issuing_body ? ` — ${s.issuing_body}` : "";
       const summary = s.summary ? `: ${String(s.summary).slice(0, 160)}` : "";
-      ctx += `• "${s.title}"${cite}${body}${summary}\n`;
+      catalog += `• "${s.title}"${cite}${body}${summary}\n`;
+    }
+  }
+  catalog += "\n=== END APPROVED SOURCES ===";
+
+  // Dynamic excerpts — specific to this question.
+  let excerpts = "";
+  if (relevant.length > 0) {
+    excerpts += "\n\n--- Excerpts from the policies most relevant to the question (quote/cite these by title) ---\n";
+    for (const { d } of relevant) {
+      if (!d.content) continue;
+      excerpts += `\n### ${d.title}\n${String(d.content).slice(0, 2200)}\n`;
     }
   }
 
-  ctx += "\n=== END APPROVED SOURCES ===";
-  return ctx;
+  return { catalog, excerpts };
 }
 
 /**
@@ -157,16 +163,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "messages array required" }, { status: 400 });
   }
 
+  const cap = await enforceAiCap(supabase);
+  if (!cap.ok) {
+    return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
+  }
+
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  const [orgContext, memory] = await Promise.all([
-    buildOrgContext(supabase, lastUser).catch(() => ""),      // grounding is best-effort
+  const [org, memory] = await Promise.all([
+    buildOrgContext(supabase, lastUser).catch(() => ({ catalog: "", excerpts: "" })),
     buildUserMemory(supabase, user.id, conversationId ?? null).catch(() => ""),
   ]);
 
+  // Static block (base prompt + policy catalog) is cached; dynamic block
+  // (question-specific excerpts + this user's memory) is not.
+  const dynamic = org.excerpts + memory;
+  const system: Anthropic.TextBlockParam[] = [
+    { type: "text", text: BASE_PROMPT + org.catalog, cache_control: { type: "ephemeral" } },
+    ...(dynamic ? [{ type: "text", text: dynamic } as Anthropic.TextBlockParam] : []),
+  ];
+
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: BASE_PROMPT + memory + orgContext,
+    system,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 
