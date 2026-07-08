@@ -131,10 +131,10 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <PageHeader title="Settings" description="Configure your organization profile, locations, security policies, and notification preferences." />
 
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t.id ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors ${tab === t.id ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}>
             {t.label}
           </button>
         ))}

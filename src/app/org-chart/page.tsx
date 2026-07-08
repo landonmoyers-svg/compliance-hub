@@ -174,8 +174,10 @@ export default function OrgChartPage() {
             ) : employees.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Add employees in the Employee Directory first.</p>
             ) : (
-              <div className="space-y-1.5">
-                {roots.map((e) => <OrgNode key={e.id} e={e} depth={0} />)}
+              <div className="overflow-x-auto">
+                <div className="min-w-max space-y-1.5">
+                  {roots.map((e) => <OrgNode key={e.id} e={e} depth={0} />)}
+                </div>
               </div>
             )}
           </CardContent>
