@@ -35,6 +35,24 @@ const STORED_STATUSES = [
 ] as const;
 type StoredStatus = (typeof STORED_STATUSES)[number];
 
+/** Common behavioral-health competencies — offered as a picklist (free text still allowed). */
+const COMMON_COMPETENCIES = [
+  "Suicide risk assessment (C-SSRS)",
+  "De-escalation / crisis intervention",
+  "Medication administration",
+  "Spravato / esketamine REMS administration & monitoring",
+  "Ketamine infusion monitoring",
+  "Vital signs & patient monitoring",
+  "Injection technique (IM/SC)",
+  "CPR / BLS certification",
+  "Controlled-substance handling & reconciliation",
+  "Infection control & hand hygiene",
+  "Telehealth visit workflow",
+  "EHR / documentation standards",
+  "Emergency response / code procedures",
+  "HIPAA privacy in practice",
+];
+
 /** Display status includes a derived "expired" that we never persist on read. */
 type DisplayStatus = StoredStatus;
 
@@ -213,12 +231,16 @@ function CompetencyDialog({
             <label className="text-sm font-medium">Competency name *</label>
             <input
               className="input w-full"
+              list="competency-names"
               value={form.competencyName}
               onChange={(e) =>
                 setForm((p) => ({ ...p, competencyName: e.target.value }))
               }
-              placeholder="e.g. IV Insertion"
+              placeholder="Pick or type…"
             />
+            <datalist id="competency-names">
+              {COMMON_COMPETENCIES.map((c) => <option key={c} value={c} />)}
+            </datalist>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Type</label>
@@ -243,12 +265,16 @@ function CompetencyDialog({
             <label className="text-sm font-medium">Evaluator</label>
             <input
               className="input w-full"
+              list="competency-evaluators"
               value={form.evaluatorName}
               onChange={(e) =>
                 setForm((p) => ({ ...p, evaluatorName: e.target.value }))
               }
               placeholder="Who assessed this"
             />
+            <datalist id="competency-evaluators">
+              {employees.map((e) => <option key={e.id} value={`${e.firstName} ${e.lastName}`.trim()} />)}
+            </datalist>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Status</label>

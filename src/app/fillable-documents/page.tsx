@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download } from "lucide-react";
+import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { downloadCompletedFormPdf } from "@/lib/pdf";
@@ -292,6 +292,7 @@ function FormFiller({
   template,
   assignment,
   signerName,
+  context,
   onClose,
   onSubmit,
   saving,
@@ -299,6 +300,7 @@ function FormFiller({
   template: FillableFormTemplate;
   assignment: FormAssignment;
   signerName: string;
+  context: Record<string, string>;
   onClose: () => void;
   onSubmit: (values: Record<string, string>, signature: string) => void;
   saving: boolean;
@@ -309,8 +311,37 @@ function FormFiller({
     return init;
   });
   const [signature, setSignature] = useState(signerName);
+  const [aiSources, setAiSources] = useState<Record<string, string>>({});
+  const [prefilling, setPrefilling] = useState(false);
 
   const set = (key: string, value: string) => setValues((p) => ({ ...p, [key]: value }));
+
+  async function aiPrefill() {
+    setPrefilling(true);
+    try {
+      const fields = template.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options }));
+      const res = await fetch("/api/ai/form-prefill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields, context }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI prefill failed");
+      const filled = data.values as Record<string, string> | undefined;
+      const sources = data.sources as Record<string, string> | undefined;
+      const validKeys = new Set(template.fields.map((f) => f.key));
+      let n = 0;
+      if (filled) {
+        setValues((p) => {
+          const next = { ...p };
+          for (const [k, v] of Object.entries(filled)) {
+            if (validKeys.has(k) && typeof v === "string" && v.trim()) { next[k] = v; n++; }
+          }
+          return next;
+        });
+      }
+      setAiSources(sources ?? {});
+      toast[n ? "success" : "info"](n ? `AI prefilled ${n} field${n === 1 ? "" : "s"} — review before submitting.` : "Nothing to prefill from known data.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI prefill failed.");
+    } finally { setPrefilling(false); }
+  }
 
   function handleSubmit() {
     const missing = template.fields.find(
@@ -335,7 +366,12 @@ function FormFiller({
             <h2 className="font-semibold">{template.title}</h2>
             <p className="text-xs text-muted-foreground">For {assignment.assignedToName}</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+          <div className="flex items-center gap-2">
+            {template.fields.length > 0 && (
+              <Button size="sm" variant="outline" onClick={aiPrefill} disabled={prefilling || saving}><Sparkles className="size-3.5" /> {prefilling ? "Filling…" : "AI prefill"}</Button>
+            )}
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+          </div>
         </div>
 
         <div className="grid gap-4 overflow-y-auto p-5">
@@ -361,6 +397,7 @@ function FormFiller({
               ) : (
                 <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} className="input w-full" value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
               )}
+              {aiSources[f.key] && <p className="flex items-center gap-1 text-[11px] text-primary"><Sparkles className="size-3" /> AI-filled from {aiSources[f.key]} — verify</p>}
             </div>
           ))}
 
@@ -571,6 +608,21 @@ export default function FillableDocumentsPage() {
           template={fillingTemplate}
           assignment={filling}
           signerName={signerName}
+          context={(() => {
+            const emp = employees.find((e) => e.id === filling.assignedToUserId);
+            return {
+              employeeName: filling.assignedToName,
+              employeeFirstName: emp?.firstName ?? "",
+              employeeLastName: emp?.lastName ?? "",
+              employeeTitle: emp?.title ?? "",
+              employeeDepartment: emp?.department ?? "",
+              employeeEmail: emp?.email ?? "",
+              employeeJobRole: emp?.jobRole ?? "",
+              employeeHireDate: emp?.hireDate ?? "",
+              organization: orgName,
+              today: new Date().toISOString().slice(0, 10),
+            };
+          })()}
           onClose={() => setFilling(null)}
           onSubmit={submitFilled}
           saving={saving}
