@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldAlert, Plus, Search, Check, X, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Plus, Search, Check, X, AlertTriangle, Sparkles } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -94,14 +94,18 @@ function ReportDialog({ onClose, onSubmit, saving }: {
 
 /* ------------------------------ detail + CAPA ------------------------------ */
 
-function IncidentDetail({ incident, capas, isAdmin, onClose, onStatus, onAddCapa, onUpdateCapa }: {
+const ROOT_CAUSES = ["Human error", "Process gap", "Training gap", "System / technical failure", "Communication breakdown", "Policy / procedure gap", "External / vendor issue", "Inadequate supervision", "Documentation error"];
+
+function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, onAddCapa, onUpdateCapa, onAiDraft }: {
   incident: Incident;
   capas: CorrectiveAction[];
   isAdmin: boolean;
+  owners: string[];
   onClose: () => void;
   onStatus: (status: Incident["status"]) => void;
   onAddCapa: (d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) => void;
   onUpdateCapa: (id: string, patch: Partial<CorrectiveAction>) => void;
+  onAiDraft: () => Promise<{ title?: string; rootCause?: string; actionPlan?: string; citation?: string } | null>;
 }) {
   const [showCapa, setShowCapa] = useState(false);
   const [title, setTitle] = useState("");
@@ -109,6 +113,22 @@ function IncidentDetail({ incident, capas, isAdmin, onClose, onStatus, onAddCapa
   const [actionPlan, setActionPlan] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [citation, setCitation] = useState("");
+  const [drafting, setDrafting] = useState(false);
+
+  async function aiDraft() {
+    setDrafting(true);
+    try {
+      const d = await onAiDraft();
+      if (d) {
+        setTitle(d.title ?? "");
+        setRootCause(d.rootCause ?? "");
+        setActionPlan(d.actionPlan ?? "");
+        setCitation(d.citation ?? "");
+        setShowCapa(true);
+      }
+    } finally { setDrafting(false); }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -144,7 +164,12 @@ function IncidentDetail({ incident, capas, isAdmin, onClose, onStatus, onAddCapa
           <div className="border-t border-border pt-4">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold">Corrective actions ({capas.length})</h3>
-              {isAdmin && <Button size="sm" variant="outline" onClick={() => setShowCapa((s) => !s)}><Plus className="size-3.5" /> Add</Button>}
+              {isAdmin && (
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="outline" onClick={aiDraft} disabled={drafting}><Sparkles className="size-3.5" /> {drafting ? "Drafting…" : "AI draft"}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowCapa((s) => !s)}><Plus className="size-3.5" /> Add</Button>
+                </div>
+              )}
             </div>
 
             {capas.length === 0 && !showCapa && <p className="text-sm text-muted-foreground">No corrective actions yet.</p>}
@@ -178,17 +203,24 @@ function IncidentDetail({ incident, capas, isAdmin, onClose, onStatus, onAddCapa
 
             {showCapa && isAdmin && (
               <div className="mt-3 space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                {citation && (
+                  <p className="flex items-start gap-1.5 rounded-md bg-secondary/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+                    <Sparkles className="mt-0.5 size-3 shrink-0 text-primary" /> <span><span className="font-medium text-foreground">AI draft — review &amp; edit.</span> Reference: {citation}</span>
+                  </p>
+                )}
                 <input className="input w-full" placeholder="Corrective action title *" value={title} onChange={(e) => setTitle(e.target.value)} />
-                <input className="input w-full" placeholder="Root cause" value={rootCause} onChange={(e) => setRootCause(e.target.value)} />
-                <textarea className="input w-full resize-none" rows={2} placeholder="Action plan" value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} />
-                <div className="grid grid-cols-2 gap-2">
-                  <input className="input w-full" placeholder="Owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                <input className="input w-full" list="capa-root-causes" placeholder="Root cause" value={rootCause} onChange={(e) => setRootCause(e.target.value)} />
+                <textarea className="input w-full resize-none" rows={3} placeholder="Action plan" value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input className="input w-full" list="capa-owners" placeholder="Owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
                   <input type="date" className="input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setShowCapa(false)}>Cancel</Button>
-                  <Button size="sm" disabled={!title.trim()} onClick={() => { onAddCapa({ title, rootCause, actionPlan, ownerName, dueDate }); setShowCapa(false); setTitle(""); setRootCause(""); setActionPlan(""); setOwnerName(""); setDueDate(""); }}>Add corrective action</Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowCapa(false); setCitation(""); }}>Cancel</Button>
+                  <Button size="sm" disabled={!title.trim()} onClick={() => { onAddCapa({ title, rootCause, actionPlan, ownerName, dueDate }); setShowCapa(false); setTitle(""); setRootCause(""); setActionPlan(""); setOwnerName(""); setDueDate(""); setCitation(""); }}>Add corrective action</Button>
                 </div>
+                <datalist id="capa-root-causes">{ROOT_CAUSES.map((r) => <option key={r} value={r} />)}</datalist>
+                <datalist id="capa-owners">{owners.map((o) => <option key={o} value={o} />)}</datalist>
               </div>
             )}
           </div>
@@ -205,6 +237,7 @@ export default function IncidentsPage() {
   const myUserId = profile?.userId ?? "";
   const incidentsQ = useCollection("incidents");
   const capasQ = useCollection("correctiveActions");
+  const employeesQ = useCollection("employees");
   const createIncident = useCreate("incidents");
   const updateIncident = useUpdate("incidents");
   const createCapa = useCreate("correctiveActions");
@@ -217,6 +250,19 @@ export default function IncidentsPage() {
 
   const incidents = useMemo(() => incidentsQ.data ?? [], [incidentsQ.data]);
   const capas = useMemo(() => capasQ.data ?? [], [capasQ.data]);
+  const owners = useMemo(() => (employeesQ.data ?? []).map((e) => [e.firstName, e.lastName].filter(Boolean).join(" ")).filter(Boolean).sort(), [employeesQ.data]);
+
+  async function aiDraftCapa(incident: Incident) {
+    try {
+      const res = await fetch("/api/ai/capa-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: incident.title, category: incident.category, description: incident.description, severity: incident.severity }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI draft failed");
+      return data as { title?: string; rootCause?: string; actionPlan?: string; citation?: string };
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI draft failed.");
+      return null;
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -286,10 +332,12 @@ export default function IncidentsPage() {
           incident={openIncident}
           capas={capasFor(openIncident.id)}
           isAdmin={isAdmin}
+          owners={owners}
           onClose={() => setOpenId(null)}
           onStatus={(status) => void updateIncident.mutateAsync({ id: openIncident.id, patch: { status } })}
           onAddCapa={(d) => void addCapa(openIncident.id, d)}
           onUpdateCapa={(id, patch) => void updateCapa.mutateAsync({ id, patch })}
+          onAiDraft={() => aiDraftCapa(openIncident)}
         />
       )}
 
