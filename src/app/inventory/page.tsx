@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin } from "lucide-react";
+import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin, Camera } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { uploadFile } from "@/lib/storage";
@@ -10,6 +10,7 @@ import { guessLocation } from "@/lib/geo";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { SignedImage } from "@/components/shared/signed-image";
+import { CameraCapture, type CaptureMeta } from "@/components/shared/camera-capture";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,12 +93,13 @@ function ItemDialog({
   const [analyzing, setAnalyzing] = useState(false);
   const [aiNote, setAiNote] = useState<string | null>(null);
   const [aiState, setAiState] = useState<{ identified: boolean; confidence?: string }>({ identified: initial?.aiIdentified ?? false, confidence: initial?.aiConfidence ?? undefined });
+  const [camOpen, setCamOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const set = (k: keyof ItemForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  async function handleImage(picked: File) {
+  async function handleImage(picked: File, override?: CaptureMeta) {
     if (picked.size > MAX_IMG_MB * 1024 * 1024) {
       toast.error(`Image too large (max ${MAX_IMG_MB}MB).`);
       return;
@@ -105,14 +107,18 @@ function ItemDialog({
     setAnalyzing(true);
     setAiNote(null);
 
-    // Convert HEIC→JPEG (if needed) and read EXIF capture time + GPS.
+    // Convert HEIC→JPEG (if needed) and read EXIF capture time + GPS. A live
+    // camera capture has no EXIF, so use the coords/time passed in from it.
     const norm = await normalizeImage(picked);
+    const lat = override?.lat ?? norm.lat;
+    const lng = override?.lng ?? norm.lng;
+    const capturedAt = override?.capturedAt ?? norm.capturedAt;
     setFile(norm.file);
     setPreview(URL.createObjectURL(norm.file));
-    setExif({ capturedAt: norm.capturedAt, lat: norm.lat, lng: norm.lng });
+    setExif({ capturedAt, lat, lng });
 
     // Guess the location from the photo's GPS (nearest known location).
-    const gpsGuess = guessLocation(norm.lat, norm.lng, locations);
+    const gpsGuess = guessLocation(lat, lng, locations);
     let locNote = "";
     if (gpsGuess) {
       setForm((p) => ({ ...p, locationId: gpsGuess.location.id }));
@@ -180,8 +186,9 @@ function ItemDialog({
           {/* Photo / AI */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Photo {!initial && <span className="text-muted-foreground">— identify with AI</span>}</label>
-            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" capture="environment" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); }} />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = ""; }} />
+            <CameraCapture open={camOpen} wantGeo onCapture={(f, m) => { setCamOpen(false); void handleImage(f, m); }} onClose={() => setCamOpen(false)} />
             <div className="flex items-start gap-3">
               <div className="size-24 shrink-0 overflow-hidden rounded-lg border border-border">
                 {preview ? (
@@ -194,9 +201,14 @@ function ItemDialog({
                 )}
               </div>
               <div className="flex-1 space-y-2">
-                <Button type="button" variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={analyzing}>
-                  {analyzing ? <><Sparkles className="size-4 animate-pulse" /> Analyzing…</> : <><Upload className="size-4" /> {preview || initial?.imageUrl ? "Replace photo" : "Take / upload photo"}</>}
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" className="flex-1" onClick={() => setCamOpen(true)} disabled={analyzing}>
+                    {analyzing ? <><Sparkles className="size-4 animate-pulse" /> Analyzing…</> : <><Camera className="size-4" /> Take photo</>}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={analyzing} title="Upload from library">
+                    <Upload className="size-4" /> Upload
+                  </Button>
+                </div>
                 {aiNote && <p className="rounded-md bg-secondary/40 p-2 text-xs text-muted-foreground">{aiNote}</p>}
                 {(exif.capturedAt || exif.lat != null) && (
                   <p className="text-[11px] text-muted-foreground">
@@ -390,6 +402,7 @@ function BatchDialog({
   const [items, setItems] = useState<BatchItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [camOpen, setCamOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const batchLocSetRef = useRef(false);
 
@@ -441,7 +454,7 @@ function BatchDialog({
     }
   }
 
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | File[] | null) {
     if (!list) return;
     const picked = Array.from(list).filter((f) => f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|webp|gif)$/i.test(f.name));
     const room = MAX_BATCH - items.length;
@@ -522,12 +535,14 @@ function BatchDialog({
           <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
           {/* @ts-expect-error non-standard directory attributes for folder picking */}
           <input id="batch-folder" type="file" accept="image/*,.heic,.heif" multiple webkitdirectory="" directory="" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+          <CameraCapture open={camOpen} multiple wantGeo onCapture={(f) => addFiles([f])} onClose={() => setCamOpen(false)} />
 
           {items.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-8 text-center">
               <Package className="mx-auto mb-2 size-8 text-muted-foreground" />
               <p className="mb-3 text-sm text-muted-foreground">Add photos of the items in this location. AI identifies each one.</p>
-              <div className="flex justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setCamOpen(true)}><Camera className="size-4" /> Take photos</Button>
                 <Button variant="outline" onClick={() => fileRef.current?.click()}><Upload className="size-4" /> Choose photos</Button>
                 <Button variant="outline" onClick={() => document.getElementById("batch-folder")?.click()}><Upload className="size-4" /> Choose folder</Button>
               </div>
@@ -536,7 +551,10 @@ function BatchDialog({
             <div className="space-y-2">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}{analyzing ? " · analyzing…" : ""}</span>
-                <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={saving}><Upload className="size-3.5" /> Add more</Button>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => setCamOpen(true)} disabled={saving}><Camera className="size-3.5" /> Take</Button>
+                  <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={saving}><Upload className="size-3.5" /> Add</Button>
+                </div>
               </div>
               {items.map((it) => (
                 <div key={it.id} className="flex items-start gap-3 rounded-lg border border-border p-2">

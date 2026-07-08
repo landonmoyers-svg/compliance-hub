@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check } from "lucide-react";
+import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { CameraCapture } from "@/components/shared/camera-capture";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -64,6 +65,7 @@ function AILookupDialog({
   const [imageMime, setImageMime] = useState<string>("image/jpeg");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [camOpen, setCamOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleImageFile(file: File) {
@@ -170,10 +172,10 @@ function AILookupDialog({
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
               />
+              <CameraCapture open={camOpen} onCapture={(f) => { setCamOpen(false); handleImageFile(f); }} onClose={() => setCamOpen(false)} />
               {imagePreview ? (
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -186,16 +188,16 @@ function AILookupDialog({
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border p-8 hover:border-primary hover:bg-primary/5 transition-colors"
-                >
-                  <Camera className="size-8 text-muted-foreground" />
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Take photo or upload image</p>
-                    <p className="text-xs text-muted-foreground mt-1">On mobile, this will open your camera</p>
-                  </div>
-                </button>
+                <div className="space-y-2">
+                  <Button className="w-full" onClick={() => setCamOpen(true)}><Camera className="size-4" /> Take photo</Button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 hover:border-primary hover:bg-primary/5 transition-colors"
+                  >
+                    <Upload className="size-6 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">or upload an image of the label / SDS sheet</p>
+                  </button>
+                </div>
               )}
             </div>
           )}
