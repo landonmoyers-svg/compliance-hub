@@ -566,12 +566,21 @@ export default function TrainingPage() {
                         <td data-label="Status" className="py-3 pr-4">
                           {a.status === "completed" ? (
                             <Badge variant="success">Completed</Badge>
-                          ) : overdue ? (
-                            <Badge variant="destructive">Overdue</Badge>
                           ) : (
-                            <Badge variant={a.status === "in_progress" ? "warning" : "secondary"}>
-                              {a.status === "in_progress" ? "In progress" : "Assigned"}
-                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => (questionsFor(a).length > 0 ? setTakingQuiz(a) : markComplete(a))}
+                              title="Open to manage"
+                              className="cursor-pointer"
+                            >
+                              {overdue ? (
+                                <Badge variant="destructive">Overdue</Badge>
+                              ) : (
+                                <Badge variant={a.status === "in_progress" ? "warning" : "secondary"}>
+                                  {a.status === "in_progress" ? "In progress" : "Assigned"}
+                                </Badge>
+                              )}
+                            </button>
                           )}
                         </td>
                         <td data-label="" className="py-3">

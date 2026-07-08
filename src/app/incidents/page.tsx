@@ -338,7 +338,7 @@ export default function IncidentsPage() {
                       <td data-label="Severity" className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
                       <td data-label="Reported" className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
                       <td data-label="CAPAs" className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
-                      <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status.replace("_", " ")}</Badge></td>
+                      <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize cursor-pointer">{i.status.replace("_", " ")}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

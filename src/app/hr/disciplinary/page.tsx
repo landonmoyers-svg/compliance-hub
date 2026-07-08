@@ -409,7 +409,14 @@ export default function DisciplinaryPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold">{r.employeeName || "—"}</p>
                         <Badge variant={TYPE_VARIANT[r.actionType]}>{TYPE_LABEL[r.actionType]}</Badge>
-                        <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(r)}
+                          title="Open to manage"
+                          className="cursor-pointer"
+                        >
+                          <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
+                        </button>
                       </div>
                       <p className="mt-0.5 text-sm text-muted-foreground">
                         Issued {fmtDate(r.issuedDate)}{r.issuedByName ? ` by ${r.issuedByName}` : ""}

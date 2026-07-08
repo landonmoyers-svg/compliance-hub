@@ -491,7 +491,14 @@ export default function EmployeeVaultPage() {
                       <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
                       <td data-label="Flag" className="py-3 pr-4">
                         {d.sensitive ? (
-                          <Badge variant="destructive">Restricted</Badge>
+                          <button
+                            type="button"
+                            onClick={() => setEditing(d)}
+                            title="Open to manage"
+                            className="cursor-pointer"
+                          >
+                            <Badge variant="destructive">Restricted</Badge>
+                          </button>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

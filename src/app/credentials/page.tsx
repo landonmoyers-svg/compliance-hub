@@ -373,7 +373,9 @@ export default function CredentialsPage() {
                           )}
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <Badge variant={STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
+                          <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer">
+                            <Badge variant={STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
+                          </button>
                         </td>
                         <td data-label="" className="py-3">
                           <div className="flex gap-2 md:justify-end">

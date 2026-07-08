@@ -626,9 +626,11 @@ export default function CompetencyTrackerPage() {
                           {r.score != null ? r.score : "—"}
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <Badge variant={STATUS_VARIANT[st]}>
-                            {STATUS_LABEL[st]}
-                          </Badge>
+                          <button type="button" onClick={() => setEditing(r)} title="Open to manage" className="cursor-pointer">
+                            <Badge variant={STATUS_VARIANT[st]}>
+                              {STATUS_LABEL[st]}
+                            </Badge>
+                          </button>
                         </td>
                         <td data-label="" className="py-3">
                           <Button

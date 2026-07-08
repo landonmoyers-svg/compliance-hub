@@ -521,9 +521,11 @@ export default function SDSLibraryPage() {
                         )}
                       </td>
                       <td data-label="Status" className="py-3 pr-4">
-                        <Badge variant={STATUS_VARIANT[r.status]}>
-                          {r.status === "needs_review" ? "Needs review" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                        </Badge>
+                        <button type="button" onClick={() => { setAiPrefill(null); setEditing(r); }} title="Open to manage" className="cursor-pointer">
+                          <Badge variant={STATUS_VARIANT[r.status]}>
+                            {r.status === "needs_review" ? "Needs review" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                          </Badge>
+                        </button>
                       </td>
                       <td data-label="" className="py-3">
                         <Button size="sm" variant="ghost" onClick={() => { setAiPrefill(null); setEditing(r); }}>Edit</Button>

@@ -254,7 +254,7 @@ export default function BreachAssessmentPage() {
                             <span className={urgent ? "font-medium text-destructive" : "text-muted-foreground"}>{formatDate(dl.toISOString())}{du !== null && du >= 0 ? ` · ${du}d left` : du !== null ? " · overdue" : ""}</span>
                           ) : "—"}
                         </td>
-                        <td data-label="Status" className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize">{a.status}</Badge></td>
+                        <td data-label="Status" className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize cursor-pointer">{a.status}</Badge></td>
                       </tr>
                     );
                   })}

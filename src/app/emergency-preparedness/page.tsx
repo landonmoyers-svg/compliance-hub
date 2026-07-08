@@ -304,9 +304,11 @@ export default function EmergencyPreparednessPage() {
                         </td>
                         <td data-label="Participants" className="py-3 pr-4">{d.participantCount}</td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <Badge variant={overdue ? "destructive" : STATUS_VARIANT[d.status]}>
-                            {overdue ? "Overdue" : d.status.charAt(0).toUpperCase() + d.status.slice(1)}
-                          </Badge>
+                          <button type="button" onClick={() => setEditing(d)} title="Open to manage" className="cursor-pointer">
+                            <Badge variant={overdue ? "destructive" : STATUS_VARIANT[d.status]}>
+                              {overdue ? "Overdue" : d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                            </Badge>
+                          </button>
                         </td>
                         <td data-label="" className="py-3">
                           <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>

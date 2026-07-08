@@ -305,9 +305,11 @@ export default function RegulatorySourcesPage() {
                       <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{s.issuingBody ?? "—"}</td>
                       <td data-label="Last checked" className="py-3 pr-4">{s.lastCheckedAt ? formatDate(s.lastCheckedAt) : "—"}</td>
                       <td data-label="Status" className="py-3 pr-4">
-                        <Badge variant={REVIEW_VARIANT[s.reviewStatus]}>
-                          {s.reviewStatus === "needs_review" ? "Needs review" : s.reviewStatus === "under_review" ? "Under review" : s.reviewStatus.charAt(0).toUpperCase() + s.reviewStatus.slice(1)}
-                        </Badge>
+                        <button type="button" onClick={() => setEditing(s)} title="Open to manage" className="cursor-pointer">
+                          <Badge variant={REVIEW_VARIANT[s.reviewStatus]}>
+                            {s.reviewStatus === "needs_review" ? "Needs review" : s.reviewStatus === "under_review" ? "Under review" : s.reviewStatus.charAt(0).toUpperCase() + s.reviewStatus.slice(1)}
+                          </Badge>
+                        </button>
                       </td>
                       <td data-label="" className="py-3">
                         <div className="flex gap-1 md:justify-end">

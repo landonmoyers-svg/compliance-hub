@@ -480,7 +480,9 @@ export default function VendorManagementPage() {
                         </td>
                         <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{TYPE_LABEL[v.vendorType]}</td>
                         <td data-label="BAA" className="py-3 pr-4">
-                          <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
+                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer">
+                            <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
+                          </button>
                         </td>
                         <td data-label="PHI" className="py-3 pr-4">
                           {v.hasAccessToPHI ? (
@@ -503,7 +505,9 @@ export default function VendorManagementPage() {
                           )}
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <Badge variant={STATUS_VARIANT[v.status]}>{STATUS_LABEL[v.status]}</Badge>
+                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer">
+                            <Badge variant={STATUS_VARIANT[v.status]}>{STATUS_LABEL[v.status]}</Badge>
+                          </button>
                         </td>
                         <td data-label="" className="py-3">
                           <div className="flex gap-1 md:justify-end">

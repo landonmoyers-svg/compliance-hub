@@ -18,8 +18,12 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 30_000,
-            retry: 1,
+            // Retry transient failures (e.g. a brief Supabase blip) with backoff
+            // so a page self-heals instead of getting stuck on "Try again".
+            retry: 3,
+            retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
             refetchOnWindowFocus: false,
+            refetchOnReconnect: true,
           },
         },
       }),

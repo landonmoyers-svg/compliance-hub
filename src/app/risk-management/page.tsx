@@ -303,7 +303,9 @@ export default function RiskManagementPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">{c.caseTitle}</p>
                         <Badge variant={SEVERITY_VARIANT[c.severity]}>{c.severity}</Badge>
-                        <Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge>
+                        <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer">
+                          <Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge>
+                        </button>
                         {c.accessLevel === "restricted" && (
                           <Badge variant="outline">Restricted</Badge>
                         )}

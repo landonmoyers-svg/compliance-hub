@@ -784,7 +784,7 @@ export default function InventoryPage() {
                       <td data-label="Qty" className="py-3 pr-4">{i.quantity ?? 1}</td>
                       {isAdmin && <td data-label="Est. value" className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>}
                       <td data-label="Condition" className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{i.condition}</Badge></td>
-                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></td>
+                      <td data-label="Status" className="py-3 pr-4"><button type="button" onClick={() => setEditing(i)} title="Open to manage" className="cursor-pointer"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></button></td>
                       <td data-label="" className="py-3"><Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button></td>
                     </tr>
                   ))}

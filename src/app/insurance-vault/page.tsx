@@ -308,7 +308,9 @@ export default function InsuranceVaultPage() {
                             <div>
                               <div className={expired ? "text-destructive" : expiringSoon ? "text-warning" : ""}>{formatDate(p.renewalDate)}</div>
                               {expired ? (
-                                <Badge variant="destructive" className="mt-1">Expired</Badge>
+                                <button type="button" onClick={() => setEditing(p)} title="Open to manage" className="cursor-pointer">
+                                  <Badge variant="destructive" className="mt-1">Expired</Badge>
+                                </button>
                               ) : expiringSoon ? (
                                 <div className="text-xs text-warning">{days === 0 ? "Today" : `${days}d`}</div>
                               ) : null}
