@@ -166,7 +166,7 @@ export default function OrgChartPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Org chart */}
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader><CardTitle className="text-sm">Chain of command</CardTitle></CardHeader>
           <CardContent>
             {loading ? (
