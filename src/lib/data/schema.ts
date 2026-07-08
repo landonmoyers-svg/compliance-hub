@@ -1006,6 +1006,8 @@ export const NavPreference = z.object({
   userId: z.string(),
   hiddenPages: z.array(z.string()).default([]),
   pageOrder: z.array(z.string()).default([]),
+  groupOrder: z.array(z.string()).default([]),
+  collapsedGroups: z.array(z.string()).default([]),
 });
 export type NavPreference = z.infer<typeof NavPreference>;
 export type OrganizationSettings = z.infer<typeof OrganizationSettings>;

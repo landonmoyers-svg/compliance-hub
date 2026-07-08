@@ -1480,6 +1480,8 @@ function navPreferenceFrom(r: Record<string, unknown>): NavPreference {
     userId: r.user_id as string,
     hiddenPages: (r.hidden_pages as string[] | null) ?? [],
     pageOrder: (r.page_order as string[] | null) ?? [],
+    groupOrder: (r.group_order as string[] | null) ?? [],
+    collapsedGroups: (r.collapsed_groups as string[] | null) ?? [],
   };
 }
 function navPreferenceTo(d: Partial<NavPreference>) {
@@ -1487,6 +1489,8 @@ function navPreferenceTo(d: Partial<NavPreference>) {
     ...(d.userId !== undefined && { user_id: d.userId }),
     ...(d.hiddenPages !== undefined && { hidden_pages: d.hiddenPages }),
     ...(d.pageOrder !== undefined && { page_order: d.pageOrder }),
+    ...(d.groupOrder !== undefined && { group_order: d.groupOrder }),
+    ...(d.collapsedGroups !== undefined && { collapsed_groups: d.collapsedGroups }),
   };
 }
 function orgSettingsTo(d: Partial<OrganizationSettings>) {

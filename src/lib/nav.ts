@@ -193,6 +193,7 @@ export interface VisibilityCtx {
   disabledPages: string[];
   hiddenPages: string[];
   pageOrder: string[];
+  groupOrder?: string[];
 }
 
 /** Sensitive full-page modules that aren't in the sidebar nav but must still be
@@ -217,8 +218,11 @@ export function canAccessPath(pathname: string, role: AccountRole | null | undef
 
 /**
  * The sidebar a user actually sees: pages their ROLE allows ∩ pages the ORG
- * enabled, then their personal hide/reorder. Custom order collapses to a single
- * flat list; otherwise the standard grouped nav is kept.
+ * enabled, then their personal hide/reorder. The grouped structure is always
+ * preserved; personal preferences reorder the groups (groupOrder) and the items
+ * within each group (pageOrder), and hide individual items (hiddenPages).
+ * Sorts are stable, so anything the user hasn't explicitly moved keeps its
+ * default position.
  */
 export function resolveNav(ctx: VisibilityCtx): NavGroup[] {
   const { role } = ctx;
@@ -228,16 +232,23 @@ export function resolveNav(ctx: VisibilityCtx): NavGroup[] {
     allowedRolesFor(item.href, !!item.adminOnly, ctx.pageRoles).includes(role) &&
     !ctx.hiddenPages.includes(item.href);
 
-  const groups = NAV_GROUPS
+  let groups = NAV_GROUPS
     .map((g) => ({ ...g, items: g.items.filter(accessible) }))
     .filter((g) => g.items.length > 0);
 
+  // Personal item order within each group.
   if (ctx.pageOrder && ctx.pageOrder.length > 0) {
-    const flat = groups.flatMap((g) => g.items);
-    const inOrder = new Set(ctx.pageOrder);
-    const ordered = ctx.pageOrder.map((h) => flat.find((i) => i.href === h)).filter(Boolean) as NavItem[];
-    const rest = flat.filter((i) => !inOrder.has(i.href));
-    return [{ label: "My Navigation", items: [...ordered, ...rest] }];
+    const rank = new Map(ctx.pageOrder.map((h, i) => [h, i] as const));
+    const at = (h: string) => (rank.has(h) ? (rank.get(h) as number) : Number.POSITIVE_INFINITY);
+    groups = groups.map((g) => ({ ...g, items: [...g.items].sort((a, b) => at(a.href) - at(b.href)) }));
   }
+
+  // Personal group order.
+  if (ctx.groupOrder && ctx.groupOrder.length > 0) {
+    const rank = new Map(ctx.groupOrder.map((l, i) => [l, i] as const));
+    const at = (l: string) => (rank.has(l) ? (rank.get(l) as number) : Number.POSITIVE_INFINITY);
+    groups = [...groups].sort((a, b) => at(a.label) - at(b.label));
+  }
+
   return groups;
 }
