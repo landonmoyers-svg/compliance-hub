@@ -317,7 +317,7 @@ function LocationsTab() {
     <Card>
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setEditing(null)}>
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <h2 className="font-semibold">{editing === "new" ? "Add location" : "Edit location"}</h2>
               <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
