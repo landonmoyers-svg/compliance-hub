@@ -331,7 +331,7 @@ export default function CredentialsPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -349,16 +349,16 @@ export default function CredentialsPage() {
                     const days = daysUntil(c.expirationDate);
                     return (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{c.employeeName}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">{c.employeeName}</td>
+                        <td data-label="Credential" className="py-3 pr-4">
                           <div>{c.credentialName}</div>
                           {c.credentialNumber && (
                             <div className="text-xs text-muted-foreground">#{c.credentialNumber}</div>
                           )}
                         </td>
-                        <td className="py-3 pr-4 capitalize">{c.credentialType}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{c.issuingBody ?? "—"}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{c.credentialType}</td>
+                        <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{c.issuingBody ?? "—"}</td>
+                        <td data-label="Expiration" className="py-3 pr-4">
                           {c.expirationDate ? (
                             <div>
                               <div>{formatDate(c.expirationDate)}</div>
@@ -372,11 +372,11 @@ export default function CredentialsPage() {
                             <span className="text-muted-foreground">No expiry</span>
                           )}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
                         </td>
-                        <td className="py-3">
-                          <div className="flex gap-2">
+                        <td data-label="" className="py-3">
+                          <div className="flex gap-2 md:justify-end">
                             <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
                               Edit
                             </Button>

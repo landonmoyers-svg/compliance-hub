@@ -134,3 +134,45 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(0 0% 35%);
 }
+
+/*
+  Responsive tables. Add `rtable` to a <table> and `data-label="Column"` to each
+  <td>. On phones (<768px) the table stacks into labeled cards; on md+ it renders
+  as a normal table, unchanged. Cells with data-label="" (actions) get no label
+  and right-align.
+*/
+@media (max-width: 767px) {
+  table.rtable { min-width: 0 !important; display: block; }
+  table.rtable thead { display: none; }
+  table.rtable tbody { display: block; }
+  table.rtable tr {
+    display: block;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.85rem;
+    margin-bottom: 0.5rem;
+    background: hsl(var(--card));
+  }
+  table.rtable td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    text-align: right;
+    border: none !important;
+    padding: 0.4rem 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: normal !important;
+  }
+  table.rtable td + td { border-top: 1px solid hsl(var(--border) / 0.5) !important; }
+  table.rtable td::before {
+    content: attr(data-label);
+    text-align: left;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+  }
+  table.rtable td[data-label=""]::before { content: none; }
+  table.rtable td[data-label=""] { justify-content: flex-end; }
+}
