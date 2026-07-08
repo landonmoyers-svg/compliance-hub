@@ -849,6 +849,8 @@ function auditItemFrom(r: Record<string, unknown>): AuditItem {
     remediationOwner: r.remediation_owner as string | undefined,
     remediationDue: toISO(r.remediation_due as string),
     remediationStatus: r.remediation_status as AuditItem["remediationStatus"],
+    citation: r.citation as string | undefined,
+    aiSuggested: (r.ai_suggested as boolean | null) ?? false,
   };
 }
 function auditItemTo(d: Partial<AuditItem>) {
@@ -863,6 +865,8 @@ function auditItemTo(d: Partial<AuditItem>) {
     ...(d.remediationOwner !== undefined && { remediation_owner: d.remediationOwner }),
     ...(d.remediationDue !== undefined && { remediation_due: d.remediationDue }),
     ...(d.remediationStatus !== undefined && { remediation_status: d.remediationStatus }),
+    ...(d.citation !== undefined && { citation: d.citation }),
+    ...(d.aiSuggested !== undefined && { ai_suggested: d.aiSuggested }),
   };
 }
 

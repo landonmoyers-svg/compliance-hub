@@ -532,6 +532,8 @@ export const AuditItem = z.object({
   remediationOwner: z.string().optional(),
   remediationDue: z.string().nullable().optional(),
   remediationStatus: z.enum(["none", "open", "in_progress", "complete", "accepted"]).default("none"),
+  citation: z.string().optional(),
+  aiSuggested: z.boolean().default(false),
 });
 export type AuditItem = z.infer<typeof AuditItem>;
 

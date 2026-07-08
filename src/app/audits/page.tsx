@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ClipboardCheck, Plus, ArrowLeft, Check, AlertTriangle } from "lucide-react";
+import { ClipboardCheck, Plus, ArrowLeft, Check, AlertTriangle, Sparkles, Quote } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -12,11 +12,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, dateInputToISO } from "@/lib/dates";
+import { cn } from "@/lib/cn";
 import type { Audit, AuditItem } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 const TYPE_LABEL: Record<Audit["auditType"], string> = { internal: "Internal compliance", mock_hipaa: "Mock HIPAA survey", mock_osha: "Mock OSHA survey", payer: "Payer / documentation", other: "Other" };
-const RESULT_VARIANT: Record<string, "success" | "destructive" | "warning" | "secondary"> = { pass: "success", fail: "destructive", partial: "warning", na: "secondary" };
+
+type Result = AuditItem["result"];
+const RESULT_OPTIONS: { value: Result; label: string; active: string }[] = [
+  { value: "pass", label: "Pass", active: "bg-success/20 text-success ring-success/40" },
+  { value: "partial", label: "Partial", active: "bg-warning/20 text-warning ring-warning/40" },
+  { value: "fail", label: "Fail", active: "bg-destructive/20 text-destructive ring-destructive/40" },
+  { value: "na", label: "N/A", active: "bg-secondary text-muted-foreground ring-border" },
+];
 
 const TEMPLATES: Record<Audit["auditType"], { category: string; question: string }[]> = {
   mock_hipaa: [
@@ -54,31 +62,50 @@ const TEMPLATES: Record<Audit["auditType"], { category: string; question: string
   other: [{ category: "General", question: "Define the items for this audit." }],
 };
 
-function ItemRow({ item, onSave }: { item: AuditItem; onSave: (patch: Partial<AuditItem>) => void }) {
+function ItemRow({ item, owners, onSave }: { item: AuditItem; owners: string[]; onSave: (patch: Partial<AuditItem>) => void }) {
   const [finding, setFinding] = useState(item.finding ?? "");
   const [remediation, setRemediation] = useState(item.remediation ?? "");
-  const [owner, setOwner] = useState(item.remediationOwner ?? "");
   const [due, setDue] = useState(item.remediationDue?.slice(0, 10) ?? "");
   const failed = item.result === "fail" || item.result === "partial";
   return (
     <div className="rounded-lg border border-border p-3">
-      <p className="text-sm font-medium">{item.question}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <select className="input h-8 py-0 text-sm" value={item.result} onChange={(e) => onSave({ result: e.target.value as AuditItem["result"] })}>
-          <option value="na">Not assessed</option><option value="pass">Pass</option><option value="partial">Partial</option><option value="fail">Fail</option>
-        </select>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm font-medium">{item.question}</p>
+        {item.aiSuggested && <Badge variant="outline" className="shrink-0 gap-1 border-primary/40 text-primary"><Sparkles className="size-3" /> AI suggested — review</Badge>}
+      </div>
+
+      {/* Tap to set result */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Result">
+        {RESULT_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onSave({ result: o.value, aiSuggested: false })}
+            aria-pressed={item.result === o.value}
+            className={cn("rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors", item.result === o.value ? o.active : "bg-transparent text-muted-foreground ring-border hover:bg-secondary")}
+          >
+            {o.label}
+          </button>
+        ))}
         {failed && (
-          <select className="input h-8 py-0 text-sm" value={item.severity} onChange={(e) => onSave({ severity: e.target.value as AuditItem["severity"] })}>
-            <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+          <select className="input ml-1 h-8 py-0 text-sm" value={item.severity} onChange={(e) => onSave({ severity: e.target.value as AuditItem["severity"] })} aria-label="Severity">
+            <option value="low">Low severity</option><option value="medium">Medium severity</option><option value="high">High severity</option>
           </select>
         )}
       </div>
+
+      {item.citation && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-md bg-secondary/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+          <Quote className="mt-0.5 size-3 shrink-0" /> <span><span className="font-medium text-foreground">Evidence:</span> {item.citation}</span>
+        </p>
+      )}
+
       {failed && (
         <div className="mt-2 space-y-2 rounded-md bg-destructive/5 p-2">
           <textarea className="input w-full resize-none text-sm" rows={2} placeholder="Finding" value={finding} onChange={(e) => setFinding(e.target.value)} onBlur={() => finding !== (item.finding ?? "") && onSave({ finding })} />
           <textarea className="input w-full resize-none text-sm" rows={2} placeholder="Corrective action / remediation" value={remediation} onChange={(e) => setRemediation(e.target.value)} onBlur={() => remediation !== (item.remediation ?? "") && onSave({ remediation })} />
-          <div className="grid grid-cols-3 gap-2">
-            <input className="input text-sm" placeholder="Owner" value={owner} onChange={(e) => setOwner(e.target.value)} onBlur={() => owner !== (item.remediationOwner ?? "") && onSave({ remediationOwner: owner })} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input className="input text-sm" list="audit-owners" placeholder="Owner" defaultValue={item.remediationOwner ?? ""} onBlur={(e) => e.target.value !== (item.remediationOwner ?? "") && onSave({ remediationOwner: e.target.value })} />
             <input type="date" className="input text-sm" value={due} onChange={(e) => setDue(e.target.value)} onBlur={() => onSave({ remediationDue: due ? dateInputToISO(due) : null })} />
             <select className="input text-sm" value={item.remediationStatus} onChange={(e) => onSave({ remediationStatus: e.target.value as AuditItem["remediationStatus"] })}>
               <option value="none">— status —</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="complete">Complete</option><option value="accepted">Accepted</option>
@@ -86,6 +113,7 @@ function ItemRow({ item, onSave }: { item: AuditItem; onSave: (patch: Partial<Au
           </div>
         </div>
       )}
+      <datalist id="audit-owners">{owners.map((o) => <option key={o} value={o} />)}</datalist>
     </div>
   );
 }
@@ -94,6 +122,7 @@ export default function AuditsPage() {
   const { profile } = useAuth();
   const auditsQ = useCollection("audits");
   const itemsQ = useCollection("auditItems");
+  const employeesQ = useCollection("employees");
   const createAudit = useCreate("audits");
   const updateAudit = useUpdate("audits");
   const createItem = useCreate("auditItems");
@@ -102,11 +131,42 @@ export default function AuditsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [type, setType] = useState<Audit["auditType"]>("mock_hipaa");
   const [starting, setStarting] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
 
   const audits = useMemo(() => auditsQ.data ?? [], [auditsQ.data]);
   const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
+  const owners = useMemo(() => (employeesQ.data ?? []).map((e) => [e.firstName, e.lastName].filter(Boolean).join(" ")).filter(Boolean).sort(), [employeesQ.data]);
   const selected = audits.find((a) => a.id === selectedId) ?? null;
   const selItems = useMemo(() => items.filter((i) => i.auditId === selectedId), [items, selectedId]);
+
+  async function aiPrefill() {
+    if (!selected) return;
+    setPrefilling(true);
+    try {
+      const payload = selItems.map((i) => ({ id: i.id, question: i.question, category: i.category }));
+      const res = await fetch("/api/ai/audit-prefill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: payload, auditType: selected.auditType }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI prefill failed");
+      const suggestions: { id: string; result?: Result; severity?: AuditItem["severity"]; finding?: string; remediation?: string; citation?: string }[] = data.suggestions ?? [];
+      const valid = new Set(selItems.map((i) => i.id));
+      let applied = 0;
+      await Promise.all(suggestions.filter((s) => valid.has(s.id)).map((s) => {
+        const result = (["pass", "partial", "fail", "na"] as Result[]).includes(s.result as Result) ? (s.result as Result) : "na";
+        applied++;
+        return updateItem.mutateAsync({ id: s.id, patch: {
+          result,
+          severity: (["low", "medium", "high"] as AuditItem["severity"][]).includes(s.severity as AuditItem["severity"]) ? (s.severity as AuditItem["severity"]) : "low",
+          finding: s.finding ?? undefined,
+          remediation: s.remediation ?? undefined,
+          citation: s.citation ?? undefined,
+          aiSuggested: true,
+        } });
+      }));
+      toast.success(`AI prefilled ${applied} item${applied === 1 ? "" : "s"} from your live data — review each.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI prefill failed.");
+    } finally { setPrefilling(false); }
+  }
 
   function scoreOf(auditId: string) {
     const its = items.filter((i) => i.auditId === auditId && i.result !== "na");
@@ -122,7 +182,7 @@ export default function AuditsPage() {
     setStarting(true);
     try {
       const a = await createAudit.mutateAsync({ title: `${TYPE_LABEL[type]} — ${new Date().toLocaleDateString()}`, auditType: type, status: "in_progress", auditDate: new Date().toISOString(), auditorName: profile?.fullName || undefined });
-      for (const t of TEMPLATES[type]) await createItem.mutateAsync({ auditId: a.id, category: t.category, question: t.question, result: "na", severity: "low", remediationStatus: "none" });
+      for (const t of TEMPLATES[type]) await createItem.mutateAsync({ auditId: a.id, category: t.category, question: t.question, result: "na", severity: "low", remediationStatus: "none", aiSuggested: false });
       toast.success("Audit started");
       setSelectedId(a.id);
     } catch { toast.error("Couldn't start the audit."); }
@@ -138,8 +198,9 @@ export default function AuditsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={selected.title} description={`${TYPE_LABEL[selected.auditType]} · started ${formatDate(selected.auditDate)}`}
-          actions={<div className="flex gap-2">
+          actions={<div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4" /> All audits</Button>
+            <Button variant="outline" onClick={aiPrefill} disabled={prefilling}><Sparkles className="size-4" /> {prefilling ? "Analyzing…" : "AI prefill"}</Button>
             {selected.status !== "complete" && <Button onClick={() => void updateAudit.mutateAsync({ id: selected.id, patch: { status: "complete" } }).then(() => toast.success("Audit completed"))}><Check className="size-4" /> Complete</Button>}
           </div>} />
         <div className="grid gap-4 sm:grid-cols-3">
@@ -151,7 +212,7 @@ export default function AuditsPage() {
           <Card key={c}>
             <CardHeader><CardTitle className="text-sm">{c}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {selItems.filter((i) => i.category === c).map((i) => <ItemRow key={i.id} item={i} onSave={(patch) => void updateItem.mutateAsync({ id: i.id, patch })} />)}
+              {selItems.filter((i) => i.category === c).map((i) => <ItemRow key={i.id} item={i} owners={owners} onSave={(patch) => void updateItem.mutateAsync({ id: i.id, patch })} />)}
             </CardContent>
           </Card>
         ))}
