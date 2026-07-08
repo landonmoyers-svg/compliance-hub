@@ -229,7 +229,7 @@ export default function BreachAssessmentPage() {
             <EmptyState icon={ShieldAlert} title="No assessments yet" description="Start a four-factor assessment when a potential breach is discovered." action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Incident</th>
@@ -246,15 +246,15 @@ export default function BreachAssessmentPage() {
                     const urgent = a.determination === "reportable_breach" && du !== null && du <= 60;
                     return (
                       <tr key={a.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setEditing(a)}>
-                        <td className="py-3 pr-4 font-medium">{a.title}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{formatDate(a.discoveredDate)}</td>
-                        <td className="py-3 pr-4"><Badge variant={DET_VARIANT[a.determination]}>{DET_LABEL[a.determination]}</Badge></td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Incident" className="py-3 pr-4 font-medium">{a.title}</td>
+                        <td data-label="Discovered" className="py-3 pr-4 text-muted-foreground">{formatDate(a.discoveredDate)}</td>
+                        <td data-label="Determination" className="py-3 pr-4"><Badge variant={DET_VARIANT[a.determination]}>{DET_LABEL[a.determination]}</Badge></td>
+                        <td data-label="Notify by" className="py-3 pr-4">
                           {a.determination === "reportable_breach" && dl ? (
                             <span className={urgent ? "font-medium text-destructive" : "text-muted-foreground"}>{formatDate(dl.toISOString())}{du !== null && du >= 0 ? ` · ${du}d left` : du !== null ? " · overdue" : ""}</span>
                           ) : "—"}
                         </td>
-                        <td className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize">{a.status}</Badge></td>
+                        <td data-label="Status" className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize">{a.status}</Badge></td>
                       </tr>
                     );
                   })}

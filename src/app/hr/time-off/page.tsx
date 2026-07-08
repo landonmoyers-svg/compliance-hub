@@ -265,7 +265,7 @@ export default function TimeOffPage() {
             <EmptyState icon={Umbrella} title="No requests yet" description="Submit a time-off request to get started." />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     {isAdmin && <th className="pb-2 pr-4 font-medium">Employee</th>}
@@ -279,12 +279,12 @@ export default function TimeOffPage() {
                 <tbody>
                   {visibleRequests.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      {isAdmin && <td className="py-3 pr-4 font-medium">{r.userName}</td>}
-                      <td className="py-3 pr-4">{TYPE_LABEL[r.requestType]}</td>
-                      <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.startDate} – {r.endDate}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums">{r.hours}h</td>
-                      <td className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
-                      <td className="py-3 text-muted-foreground">{r.reviewerName ?? "—"}</td>
+                      {isAdmin && <td data-label="Employee" className="py-3 pr-4 font-medium">{r.userName}</td>}
+                      <td data-label="Type" className="py-3 pr-4">{TYPE_LABEL[r.requestType]}</td>
+                      <td data-label="Dates" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.startDate} – {r.endDate}</td>
+                      <td data-label="Hours" className="py-3 pr-4 text-right tabular-nums">{r.hours}h</td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
+                      <td data-label="Reviewed by" className="py-3 text-muted-foreground">{r.reviewerName ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -302,7 +302,7 @@ export default function TimeOffPage() {
               <p className="py-6 text-center text-sm text-muted-foreground">No balances tracked yet. Add balance records to enforce PTO limits.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
                       <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -316,12 +316,12 @@ export default function TimeOffPage() {
                   <tbody>
                     {balances.filter((b) => b.year === year).map((b) => (
                       <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{b.userName}</td>
-                        <td className="py-3 pr-4 text-right tabular-nums">{b.ptoAccruedHours}h</td>
-                        <td className="py-3 pr-4 text-right tabular-nums text-muted-foreground">{b.carryOverHours}h</td>
-                        <td className="py-3 pr-4 text-right tabular-nums text-muted-foreground">{b.ptoUsedHours}h</td>
-                        <td className="py-3 pr-4 text-right font-medium tabular-nums">{ptoAvailable(b)}h</td>
-                        <td className="py-3 text-right tabular-nums">{sickAvailable(b)}h</td>
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">{b.userName}</td>
+                        <td data-label="PTO accrued" className="py-3 pr-4 text-right tabular-nums">{b.ptoAccruedHours}h</td>
+                        <td data-label="Carryover" className="py-3 pr-4 text-right tabular-nums text-muted-foreground">{b.carryOverHours}h</td>
+                        <td data-label="PTO used" className="py-3 pr-4 text-right tabular-nums text-muted-foreground">{b.ptoUsedHours}h</td>
+                        <td data-label="PTO remaining" className="py-3 pr-4 text-right font-medium tabular-nums">{ptoAvailable(b)}h</td>
+                        <td data-label="Sick remaining" className="py-3 text-right tabular-nums">{sickAvailable(b)}h</td>
                       </tr>
                     ))}
                   </tbody>

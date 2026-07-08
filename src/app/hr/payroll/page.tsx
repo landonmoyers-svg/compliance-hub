@@ -317,7 +317,7 @@ export default function PayrollPage() {
             <EmptyState icon={DollarSign} title="No payroll records" description="Create a payroll record to get started." action={<Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> New record</Button>} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -331,13 +331,13 @@ export default function PayrollPage() {
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4 font-medium">{r.employeeName}</td>
-                      <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums">{formatCents(r.grossPayCents)}</td>
-                      <td className="py-3 pr-4 text-right font-medium tabular-nums">{formatCents(r.netPayCents)}</td>
-                      <td className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
-                      <td className="py-3">
-                        <div className="flex gap-1.5">
+                      <td data-label="Employee" className="py-3 pr-4 font-medium">{r.employeeName}</td>
+                      <td data-label="Pay period" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>
+                      <td data-label="Gross" className="py-3 pr-4 text-right tabular-nums">{formatCents(r.grossPayCents)}</td>
+                      <td data-label="Net pay" className="py-3 pr-4 text-right font-medium tabular-nums">{formatCents(r.netPayCents)}</td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
+                      <td data-label="" className="py-3">
+                        <div className="flex gap-1.5 md:justify-end">
                           {r.status === "draft" && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => transition(r, "approved", "approved")} disabled={busy}>Approve</Button>

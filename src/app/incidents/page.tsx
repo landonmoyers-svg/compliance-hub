@@ -319,7 +319,7 @@ export default function IncidentsPage() {
             <EmptyState icon={ShieldAlert} title="No incidents" description={isAdmin ? "Reported incidents will appear here." : "You haven't reported any incidents."} action={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Incident</th>
@@ -333,12 +333,12 @@ export default function IncidentsPage() {
                 <tbody>
                   {filtered.map((i) => (
                     <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
-                      <td className="py-3 pr-4 font-medium">{i.title}{i.anonymous && <span className="ml-2 text-xs text-muted-foreground">(anonymous)</span>}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>
-                      <td className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
-                      <td className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
-                      <td className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status.replace("_", " ")}</Badge></td>
+                      <td data-label="Incident" className="py-3 pr-4 font-medium">{i.title}{i.anonymous && <span className="ml-2 text-xs text-muted-foreground">(anonymous)</span>}</td>
+                      <td data-label="Category" className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>
+                      <td data-label="Severity" className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
+                      <td data-label="Reported" className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
+                      <td data-label="CAPAs" className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
+                      <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status.replace("_", " ")}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

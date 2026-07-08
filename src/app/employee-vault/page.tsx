@@ -470,7 +470,7 @@ export default function EmployeeVaultPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Title</th>
@@ -486,27 +486,27 @@ export default function EmployeeVaultPage() {
                 <tbody>
                   {filtered.map((d) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4 font-medium">{d.title}</td>
-                      <td className="py-3 pr-4">{d.employeeName}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Title" className="py-3 pr-4 font-medium">{d.title}</td>
+                      <td data-label="Employee" className="py-3 pr-4">{d.employeeName}</td>
+                      <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
+                      <td data-label="Flag" className="py-3 pr-4">
                         {d.sensitive ? (
                           <Badge variant="destructive">Restricted</Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{formatDate(d.createdDate)}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{d.uploadedByName ?? "—"}</td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Uploaded" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{formatDate(d.createdDate)}</td>
+                      <td data-label="By" className="py-3 pr-4 text-muted-foreground">{d.uploadedByName ?? "—"}</td>
+                      <td data-label="File" className="py-3 pr-4">
                         {d.fileUrl ? (
                           <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 text-primary hover:underline" />
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-1">
+                      <td data-label="" className="py-3">
+                        <div className="flex items-center gap-1 md:justify-end">
                           <VersionHistoryButton entityType="employee_documents" entityId={d.id} title={`${d.title} — ${d.employeeName}`} />
                           <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
                           <Button size="sm" variant="ghost" onClick={() => handleDelete(d)} aria-label="Delete document">

@@ -310,7 +310,7 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 function TimelineTable({ rows }: { rows: AuditLog[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm rtable">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
             <th className="pb-2 pr-4 font-medium">Timestamp</th>
@@ -325,19 +325,19 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
         <tbody>
           {rows.map((e) => (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-              <td className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
-              <td className="py-2.5 pr-4">
+              <td data-label="Timestamp" className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
+              <td data-label="Actor" className="py-2.5 pr-4">
                 <div className="font-medium">{e.actorName}</div>
                 {e.actorEmail && <div className="text-xs text-muted-foreground">{e.actorEmail}</div>}
               </td>
-              <td className="py-2.5 pr-4"><ActionBadge action={e.action} /></td>
-              <td className="py-2.5 pr-4">
+              <td data-label="Action" className="py-2.5 pr-4"><ActionBadge action={e.action} /></td>
+              <td data-label="Entity" className="py-2.5 pr-4">
                 {e.entityType && <div className="text-xs text-muted-foreground">{e.entityType}</div>}
                 <div>{e.entityLabel || "—"}</div>
               </td>
-              <td className="py-2.5 pr-4 text-muted-foreground">{e.details || "—"}</td>
-              <td className="py-2.5 pr-4"><RiskBadge level={e.riskLevel} /></td>
-              <td className="py-2.5">
+              <td data-label="Details" className="py-2.5 pr-4 text-muted-foreground">{e.details || "—"}</td>
+              <td data-label="Risk" className="py-2.5 pr-4"><RiskBadge level={e.riskLevel} /></td>
+              <td data-label="Flag" className="py-2.5">
                 {e.flagged ? (
                   <span className="inline-flex items-center gap-1 text-warning" title={e.flagReason ?? undefined}>
                     <Flag className="size-3.5" />
@@ -357,7 +357,7 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
 function FlaggedTable({ rows }: { rows: AuditLog[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm rtable">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
             <th className="pb-2 pr-4 font-medium">Timestamp</th>
@@ -371,18 +371,18 @@ function FlaggedTable({ rows }: { rows: AuditLog[] }) {
         <tbody>
           {rows.map((e) => (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-              <td className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
-              <td className="py-2.5 pr-4">
+              <td data-label="Timestamp" className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
+              <td data-label="Actor" className="py-2.5 pr-4">
                 <div className="font-medium">{e.actorName}</div>
                 {e.actorEmail && <div className="text-xs text-muted-foreground">{e.actorEmail}</div>}
               </td>
-              <td className="py-2.5 pr-4"><ActionBadge action={e.action} /></td>
-              <td className="py-2.5 pr-4">
+              <td data-label="Action" className="py-2.5 pr-4"><ActionBadge action={e.action} /></td>
+              <td data-label="Entity" className="py-2.5 pr-4">
                 {e.entityType && <div className="text-xs text-muted-foreground">{e.entityType}</div>}
                 <div>{e.entityLabel || "—"}</div>
               </td>
-              <td className="py-2.5 pr-4"><RiskBadge level={e.riskLevel} /></td>
-              <td className="py-2.5 text-warning">{e.flagReason || "Flagged"}</td>
+              <td data-label="Risk" className="py-2.5 pr-4"><RiskBadge level={e.riskLevel} /></td>
+              <td data-label="Flag reason" className="py-2.5 text-warning">{e.flagReason || "Flagged"}</td>
             </tr>
           ))}
         </tbody>

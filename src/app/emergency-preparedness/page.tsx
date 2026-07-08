@@ -271,7 +271,7 @@ export default function EmergencyPreparednessPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Title</th>
@@ -288,9 +288,9 @@ export default function EmergencyPreparednessPage() {
                     const overdue = d.status === "scheduled" && isExpired(d.scheduledDate);
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{d.drillTitle}</td>
-                        <td className="py-3 pr-4 capitalize">{d.drillType}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Title" className="py-3 pr-4 font-medium">{d.drillTitle}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{d.drillType}</td>
+                        <td data-label="Date" className="py-3 pr-4">
                           {d.scheduledDate ? (
                             <div>
                               <div className={overdue ? "text-destructive" : ""}>{formatDate(d.scheduledDate)}</div>
@@ -302,13 +302,13 @@ export default function EmergencyPreparednessPage() {
                             </div>
                           ) : "—"}
                         </td>
-                        <td className="py-3 pr-4">{d.participantCount}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Participants" className="py-3 pr-4">{d.participantCount}</td>
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={overdue ? "destructive" : STATUS_VARIANT[d.status]}>
                             {overdue ? "Overdue" : d.status.charAt(0).toUpperCase() + d.status.slice(1)}
                           </Badge>
                         </td>
-                        <td className="py-3">
+                        <td data-label="" className="py-3">
                           <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
                         </td>
                       </tr>

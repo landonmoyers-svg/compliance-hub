@@ -360,7 +360,7 @@ export default function SOPLibraryPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Title</th>
@@ -377,21 +377,21 @@ export default function SOPLibraryPage() {
                     const pastReview = documentNeedsReview(d);
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4">
+                        <td data-label="Title" className="py-3 pr-4">
                           <div className="font-medium">{d.title}</div>
                           {d.requiresAcknowledgment && (
                             <div className="text-xs text-muted-foreground">Acknowledgment required</div>
                           )}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Type / Area" className="py-3 pr-4">
                           <div className="capitalize">{d.documentType}</div>
                           {d.complianceArea && (
                             <div className="text-xs text-muted-foreground">{d.complianceArea}</div>
                           )}
                         </td>
-                        <td className="py-3 pr-4">v{d.version}</td>
-                        <td className="py-3 pr-4">{ACCESS_LABEL[d.accessLevel]}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Version" className="py-3 pr-4">v{d.version}</td>
+                        <td data-label="Access" className="py-3 pr-4">{ACCESS_LABEL[d.accessLevel]}</td>
+                        <td data-label="Review date" className="py-3 pr-4">
                           {d.reviewDate ? (
                             <div>
                               <div className={pastReview ? "text-warning" : ""}>{formatDate(d.reviewDate)}</div>
@@ -399,13 +399,13 @@ export default function SOPLibraryPage() {
                             </div>
                           ) : "—"}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={STATUS_VARIANT[d.status]}>
                             {d.status.replace("_", " ")}
                           </Badge>
                         </td>
-                        <td className="py-3">
-                          <div className="flex items-center gap-1">
+                        <td data-label="" className="py-3">
+                          <div className="flex items-center gap-1 md:justify-end">
                             {d.fileUrl && (
                               <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" />
                             )}

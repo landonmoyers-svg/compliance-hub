@@ -261,7 +261,7 @@ export default function UserManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Name</th>
@@ -276,7 +276,7 @@ export default function UserManagementPage() {
                   {filtered.map((p) => {
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4">
+                        <td data-label="Name" className="py-3 pr-4">
                           <div className="flex items-center gap-2">
                             <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
                               {p.fullName.charAt(0)}
@@ -284,18 +284,18 @@ export default function UserManagementPage() {
                             <span className="font-medium">{p.fullName}</span>
                           </div>
                         </td>
-                        <td className="py-3 pr-4 text-muted-foreground">{p.email}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{p.email}</td>
+                        <td data-label="Role" className="py-3 pr-4">
                           <Badge variant="secondary">{roleLabel(p.accountRole)}</Badge>
                         </td>
-                        <td className="py-3 pr-4 text-xs text-muted-foreground">—</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Permissions" className="py-3 pr-4 text-xs text-muted-foreground">—</td>
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={p.active ? "success" : "secondary"}>
                             {p.active ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="py-3">
-                          <div className="flex gap-1">
+                        <td data-label="" className="py-3">
+                          <div className="flex gap-1 md:justify-end">
                             <Button size="sm" variant="ghost" onClick={() => setViewingRecords(p)}><FolderOpen className="size-3.5" /> Records</Button>
                             <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
                           </div>

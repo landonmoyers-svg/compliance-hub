@@ -702,7 +702,7 @@ export default function FillableDocumentsPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
                       <th className="pb-2 pr-4 font-medium">Form</th>
@@ -715,11 +715,11 @@ export default function FillableDocumentsPage() {
                   <tbody>
                     {assignments.map((a) => (
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{a.templateTitle}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{a.assignedToName}</td>
-                        <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ?? "—"}</td>
-                        <td className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
-                        <td className="py-3 text-right">
+                        <td data-label="Form" className="py-3 pr-4 font-medium">{a.templateTitle}</td>
+                        <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground">{a.assignedToName}</td>
+                        <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ?? "—"}</td>
+                        <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
+                        <td data-label="" className="py-3 text-right">
                           {a.status !== "completed" ? (
                             <Button size="sm" onClick={() => setFilling(a)} disabled={!templateById.has(a.templateId)}>
                               <PenLine className="size-3" /> Fill out
@@ -748,7 +748,7 @@ export default function FillableDocumentsPage() {
               <EmptyState icon={Check} title="No completed forms yet" description="Completed submissions will appear here." />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
                       <th className="pb-2 pr-4 font-medium">Form</th>
@@ -761,13 +761,13 @@ export default function FillableDocumentsPage() {
                   <tbody>
                     {completed.map((c: CompletedForm) => (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{c.templateTitle}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{c.employeeName}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
-                        <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">
+                        <td data-label="Form" className="py-3 pr-4 font-medium">{c.templateTitle}</td>
+                        <td data-label="Employee" className="py-3 pr-4 text-muted-foreground">{c.employeeName}</td>
+                        <td data-label="Signed by" className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
+                        <td data-label="Completed" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         </td>
-                        <td className="py-3">
+                        <td data-label="PDF" className="py-3">
                           <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
                             <Download className="size-4" /> PDF
                           </Button>

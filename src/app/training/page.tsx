@@ -533,7 +533,7 @@ export default function TrainingPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -549,9 +549,9 @@ export default function TrainingPage() {
                     const days = daysUntil(a.dueDate);
                     return (
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">{a.assignedToName}</td>
-                        <td className="py-3 pr-4">{a.moduleTitle}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">{a.assignedToName}</td>
+                        <td data-label="Module" className="py-3 pr-4">{a.moduleTitle}</td>
+                        <td data-label="Due date" className="py-3 pr-4">
                           {a.dueDate ? (
                             <div>
                               <div>{formatDate(a.dueDate)}</div>
@@ -563,7 +563,7 @@ export default function TrainingPage() {
                             </div>
                           ) : "—"}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Status" className="py-3 pr-4">
                           {a.status === "completed" ? (
                             <Badge variant="success">Completed</Badge>
                           ) : overdue ? (
@@ -574,9 +574,9 @@ export default function TrainingPage() {
                             </Badge>
                           )}
                         </td>
-                        <td className="py-3">
+                        <td data-label="" className="py-3">
                           {a.status !== "completed" && (
-                            <div className="flex gap-1.5">
+                            <div className="flex gap-1.5 md:justify-end">
                               {questionsFor(a).length > 0 ? (
                                 <Button size="sm" onClick={() => setTakingQuiz(a)}>
                                   <ListChecks className="size-4" /> Take quiz

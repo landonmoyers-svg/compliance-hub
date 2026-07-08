@@ -343,7 +343,7 @@ export default function ControlledSubstancesPage() {
             <p className="py-6 text-center text-sm text-muted-foreground">No substances tracked yet. Record a transaction to begin building inventory.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Substance</th>
@@ -355,10 +355,10 @@ export default function ControlledSubstancesPage() {
                 <tbody>
                   {inventory.map((i) => (
                     <tr key={i.substanceName} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4 font-medium">{i.substanceName}</td>
-                      <td className="py-3 pr-4"><Badge variant={SCHED_VARIANT[i.scheduleClass]}>Schedule {i.scheduleClass}</Badge></td>
-                      <td className={`py-3 pr-4 tabular-nums text-right font-medium ${i.currentBalance <= 0 ? "text-destructive" : ""}`}>{i.currentBalance}</td>
-                      <td className="py-3 text-muted-foreground">{i.lastCounted ? formatDate(i.lastCounted) : "—"}</td>
+                      <td data-label="Substance" className="py-3 pr-4 font-medium">{i.substanceName}</td>
+                      <td data-label="Schedule" className="py-3 pr-4"><Badge variant={SCHED_VARIANT[i.scheduleClass]}>Schedule {i.scheduleClass}</Badge></td>
+                      <td data-label="Current balance" className={`py-3 pr-4 tabular-nums text-right font-medium ${i.currentBalance <= 0 ? "text-destructive" : ""}`}>{i.currentBalance}</td>
+                      <td data-label="Last counted" className="py-3 text-muted-foreground">{i.lastCounted ? formatDate(i.lastCounted) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -399,7 +399,7 @@ export default function ControlledSubstancesPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Date</th>
@@ -416,15 +416,15 @@ export default function ControlledSubstancesPage() {
                 <tbody>
                   {filteredLog.map((e) => (
                     <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="whitespace-nowrap py-2.5 pr-4 text-muted-foreground">{formatDate(effectiveDate(e))}</td>
-                      <td className="py-2.5 pr-4 font-medium">{e.substanceName}</td>
-                      <td className="py-2.5 pr-4"><Badge variant={SCHED_VARIANT[e.scheduleClass]}>{e.scheduleClass}</Badge></td>
-                      <td className="py-2.5 pr-4"><Badge variant={TX_VARIANT[e.transactionType]}>{TX_LABEL[e.transactionType]}</Badge></td>
-                      <td className={`py-2.5 pr-4 tabular-nums text-right ${ADDS.includes(e.transactionType) ? "text-success" : SUBTRACTS.includes(e.transactionType) ? "text-destructive" : ""}`}>{signedQuantity(e)}</td>
-                      <td className={`py-2.5 pr-4 tabular-nums text-right font-medium ${e.balanceAfter < 0 ? "text-destructive" : ""}`}>{e.balanceAfter}</td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">{e.prescriberName ?? "—"}</td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">{e.witnessName ?? "—"}</td>
-                      <td className="py-2.5 font-mono text-xs text-muted-foreground">{e.patientRef ?? "—"}</td>
+                      <td data-label="Date" className="whitespace-nowrap py-2.5 pr-4 text-muted-foreground">{formatDate(effectiveDate(e))}</td>
+                      <td data-label="Substance" className="py-2.5 pr-4 font-medium">{e.substanceName}</td>
+                      <td data-label="Schedule" className="py-2.5 pr-4"><Badge variant={SCHED_VARIANT[e.scheduleClass]}>{e.scheduleClass}</Badge></td>
+                      <td data-label="Type" className="py-2.5 pr-4"><Badge variant={TX_VARIANT[e.transactionType]}>{TX_LABEL[e.transactionType]}</Badge></td>
+                      <td data-label="Quantity" className={`py-2.5 pr-4 tabular-nums text-right ${ADDS.includes(e.transactionType) ? "text-success" : SUBTRACTS.includes(e.transactionType) ? "text-destructive" : ""}`}>{signedQuantity(e)}</td>
+                      <td data-label="Balance" className={`py-2.5 pr-4 tabular-nums text-right font-medium ${e.balanceAfter < 0 ? "text-destructive" : ""}`}>{e.balanceAfter}</td>
+                      <td data-label="Prescriber" className="py-2.5 pr-4 text-muted-foreground">{e.prescriberName ?? "—"}</td>
+                      <td data-label="Witness" className="py-2.5 pr-4 text-muted-foreground">{e.witnessName ?? "—"}</td>
+                      <td data-label="Patient ref" className="py-2.5 font-mono text-xs text-muted-foreground">{e.patientRef ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

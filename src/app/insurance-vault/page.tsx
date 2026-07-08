@@ -273,7 +273,7 @@ export default function InsuranceVaultPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Policy name</th>
@@ -292,18 +292,18 @@ export default function InsuranceVaultPage() {
                     const expiringSoon = days !== null && days >= 0 && days <= 60;
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="py-3 pr-4 font-medium">
+                        <td data-label="Policy name" className="py-3 pr-4 font-medium">
                           <div>{p.policyName}</div>
                           {p.holderName && <div className="text-xs font-normal text-muted-foreground">Holder: {p.holderName}</div>}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Type / Carrier" className="py-3 pr-4">
                           <div className="capitalize">{p.policyType}</div>
                           {p.carrierName && <div className="text-xs text-muted-foreground">{p.carrierName}</div>}
                         </td>
-                        <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
-                        <td className="py-3 pr-4">{formatCents(p.coverageAmountCents)}</td>
-                        <td className="py-3 pr-4">{formatCents(p.annualPremiumCents)}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Policy #" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
+                        <td data-label="Coverage" className="py-3 pr-4">{formatCents(p.coverageAmountCents)}</td>
+                        <td data-label="Premium / yr" className="py-3 pr-4">{formatCents(p.annualPremiumCents)}</td>
+                        <td data-label="Renewal" className="py-3 pr-4">
                           {p.renewalDate ? (
                             <div>
                               <div className={expired ? "text-destructive" : expiringSoon ? "text-warning" : ""}>{formatDate(p.renewalDate)}</div>
@@ -315,7 +315,7 @@ export default function InsuranceVaultPage() {
                             </div>
                           ) : "—"}
                         </td>
-                        <td className="py-3">
+                        <td data-label="" className="py-3">
                           <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
                         </td>
                       </tr>

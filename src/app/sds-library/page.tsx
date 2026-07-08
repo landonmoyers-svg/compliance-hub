@@ -496,7 +496,7 @@ export default function SDSLibraryPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Product</th>
@@ -510,22 +510,22 @@ export default function SDSLibraryPage() {
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4 font-medium">{r.productName}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{r.manufacturer ?? "—"}</td>
-                      <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">{r.upc ?? "—"}</td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Product" className="py-3 pr-4 font-medium">{r.productName}</td>
+                      <td data-label="Manufacturer" className="py-3 pr-4 text-muted-foreground">{r.manufacturer ?? "—"}</td>
+                      <td data-label="UPC / ID" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{r.upc ?? "—"}</td>
+                      <td data-label="Signal" className="py-3 pr-4">
                         {r.signalWord !== "NONE" ? (
                           <Badge variant={SIGNAL_VARIANT[r.signalWord]}>{r.signalWord}</Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Status" className="py-3 pr-4">
                         <Badge variant={STATUS_VARIANT[r.status]}>
                           {r.status === "needs_review" ? "Needs review" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                         </Badge>
                       </td>
-                      <td className="py-3">
+                      <td data-label="" className="py-3">
                         <Button size="sm" variant="ghost" onClick={() => { setAiPrefill(null); setEditing(r); }}>Edit</Button>
                       </td>
                     </tr>

@@ -467,7 +467,7 @@ export default function ReportsPage() {
                 <Skeleton className="h-48 w-full" />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm rtable">
                     <thead>
                       <tr className="border-b border-border text-left text-muted-foreground">
                         <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -479,10 +479,10 @@ export default function ReportsPage() {
                     <tbody>
                       {credentials.map((c) => (
                         <tr key={c.id} className="border-b border-border/50">
-                          <td className="py-2 pr-4">{c.employeeName}</td>
-                          <td className="py-2 pr-4">{c.credentialName}</td>
-                          <td className="py-2 pr-4">{c.expirationDate ? formatDate(c.expirationDate) : "No expiry"}</td>
-                          <td className="py-2 capitalize">{credentialStatus(c).replace("_", " ")}</td>
+                          <td data-label="Employee" className="py-2 pr-4">{c.employeeName}</td>
+                          <td data-label="Credential" className="py-2 pr-4">{c.credentialName}</td>
+                          <td data-label="Expiration" className="py-2 pr-4">{c.expirationDate ? formatDate(c.expirationDate) : "No expiry"}</td>
+                          <td data-label="Status" className="py-2 capitalize">{credentialStatus(c).replace("_", " ")}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -513,7 +513,7 @@ export default function ReportsPage() {
                 <Skeleton className="h-48 w-full" />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm rtable">
                     <thead>
                       <tr className="border-b border-border text-left text-muted-foreground">
                         <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -525,10 +525,10 @@ export default function ReportsPage() {
                     <tbody>
                       {training.map((a) => (
                         <tr key={a.id} className="border-b border-border/50">
-                          <td className="py-2 pr-4">{a.assignedToName}</td>
-                          <td className="py-2 pr-4">{a.moduleTitle}</td>
-                          <td className="py-2 pr-4">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
-                          <td className="py-2">
+                          <td data-label="Employee" className="py-2 pr-4">{a.assignedToName}</td>
+                          <td data-label="Module" className="py-2 pr-4">{a.moduleTitle}</td>
+                          <td data-label="Due date" className="py-2 pr-4">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
+                          <td data-label="Status" className="py-2">
                             {assignmentIsOverdue(a) ? "Overdue" : a.status}
                           </td>
                         </tr>
@@ -556,7 +556,7 @@ export default function ReportsPage() {
                 <Skeleton className="h-48 w-full" />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm rtable">
                     <thead>
                       <tr className="border-b border-border text-left text-muted-foreground">
                         <th className="pb-2 pr-4 font-medium">Case</th>
@@ -569,11 +569,11 @@ export default function ReportsPage() {
                     <tbody>
                       {risk.map((r) => (
                         <tr key={r.id} className="border-b border-border/50">
-                          <td className="py-2 pr-4">{r.caseTitle}</td>
-                          <td className="py-2 pr-4 capitalize">{r.caseType}</td>
-                          <td className="py-2 pr-4 capitalize">{r.severity}</td>
-                          <td className="py-2 pr-4 capitalize">{r.status}</td>
-                          <td className="py-2">{r.incidentDate ? formatDate(r.incidentDate) : "—"}</td>
+                          <td data-label="Case" className="py-2 pr-4">{r.caseTitle}</td>
+                          <td data-label="Type" className="py-2 pr-4 capitalize">{r.caseType}</td>
+                          <td data-label="Severity" className="py-2 pr-4 capitalize">{r.severity}</td>
+                          <td data-label="Status" className="py-2 pr-4 capitalize">{r.status}</td>
+                          <td data-label="Incident date" className="py-2">{r.incidentDate ? formatDate(r.incidentDate) : "—"}</td>
                         </tr>
                       ))}
                     </tbody>

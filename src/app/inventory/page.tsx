@@ -747,7 +747,7 @@ export default function InventoryPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Item</th>
@@ -762,7 +762,7 @@ export default function InventoryPage() {
                 <tbody>
                   {filtered.map((i) => (
                     <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4">
+                      <td data-label="Item" className="py-3 pr-4">
                         <div className="flex items-center gap-3">
                           <SignedImage path={i.imageUrl} alt={i.itemName} className="size-10 shrink-0 rounded-md border border-border" />
                           <div>
@@ -773,7 +773,7 @@ export default function InventoryPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Location" className="py-3 pr-4">
                         {i.locationId ? (
                           <div>
                             <div>{locName.get(i.locationId) ?? "—"}</div>
@@ -781,11 +781,11 @@ export default function InventoryPage() {
                           </div>
                         ) : <span className="text-muted-foreground">Unassigned</span>}
                       </td>
-                      <td className="py-3 pr-4">{i.quantity ?? 1}</td>
-                      {isAdmin && <td className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>}
-                      <td className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{i.condition}</Badge></td>
-                      <td className="py-3 pr-4"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></td>
-                      <td className="py-3"><Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button></td>
+                      <td data-label="Qty" className="py-3 pr-4">{i.quantity ?? 1}</td>
+                      {isAdmin && <td data-label="Est. value" className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>}
+                      <td data-label="Condition" className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{i.condition}</Badge></td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></td>
+                      <td data-label="" className="py-3"><Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button></td>
                     </tr>
                   ))}
                 </tbody>

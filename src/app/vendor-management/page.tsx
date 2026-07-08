@@ -449,7 +449,7 @@ export default function VendorManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Vendor</th>
@@ -467,7 +467,7 @@ export default function VendorManagementPage() {
                     const ins = insuranceState(v.insuranceExpirationDate);
                     return (
                       <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/20 ${gap ? "bg-destructive/5" : ""}`}>
-                        <td className="py-3 pr-4">
+                        <td data-label="Vendor" className="py-3 pr-4">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{v.vendorName}</span>
                             {gap && (
@@ -478,11 +478,11 @@ export default function VendorManagementPage() {
                           </div>
                           {v.contactName && <p className="text-xs text-muted-foreground">{v.contactName}</p>}
                         </td>
-                        <td className="py-3 pr-4 text-muted-foreground">{TYPE_LABEL[v.vendorType]}</td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{TYPE_LABEL[v.vendorType]}</td>
+                        <td data-label="BAA" className="py-3 pr-4">
                           <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="PHI" className="py-3 pr-4">
                           {v.hasAccessToPHI ? (
                             <span className="inline-flex items-center gap-1 text-warning">
                               <ShieldCheck className="size-3.5" /> Yes
@@ -491,7 +491,7 @@ export default function VendorManagementPage() {
                             <span className="text-muted-foreground">No</span>
                           )}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Insurance exp." className="py-3 pr-4">
                           {ins === "none" ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
@@ -502,11 +502,11 @@ export default function VendorManagementPage() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={STATUS_VARIANT[v.status]}>{STATUS_LABEL[v.status]}</Badge>
                         </td>
-                        <td className="py-3">
-                          <div className="flex gap-1">
+                        <td data-label="" className="py-3">
+                          <div className="flex gap-1 md:justify-end">
                             <VersionHistoryButton entityType="vendors" entityId={v.id} title={v.vendorName} />
                             <Button size="sm" variant="ghost" onClick={() => setEditing(v)}>Edit</Button>
                           </div>

@@ -281,7 +281,7 @@ export default function RegulatorySourcesPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Title</th>
@@ -296,21 +296,21 @@ export default function RegulatorySourcesPage() {
                 <tbody>
                   {filtered.map((s) => (
                     <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-3 pr-4">
+                      <td data-label="Title" className="py-3 pr-4">
                         <div className="font-medium">{s.title}</div>
                         {s.jurisdiction && <div className="text-xs text-muted-foreground">{s.jurisdiction}</div>}
                       </td>
-                      <td className="py-3 pr-4 font-mono text-xs">{s.citationLabel ?? "—"}</td>
-                      <td className="py-3 pr-4">{TYPE_LABELS[s.sourceType]}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{s.issuingBody ?? "—"}</td>
-                      <td className="py-3 pr-4">{s.lastCheckedAt ? formatDate(s.lastCheckedAt) : "—"}</td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Citation" className="py-3 pr-4 font-mono text-xs">{s.citationLabel ?? "—"}</td>
+                      <td data-label="Type" className="py-3 pr-4">{TYPE_LABELS[s.sourceType]}</td>
+                      <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{s.issuingBody ?? "—"}</td>
+                      <td data-label="Last checked" className="py-3 pr-4">{s.lastCheckedAt ? formatDate(s.lastCheckedAt) : "—"}</td>
+                      <td data-label="Status" className="py-3 pr-4">
                         <Badge variant={REVIEW_VARIANT[s.reviewStatus]}>
                           {s.reviewStatus === "needs_review" ? "Needs review" : s.reviewStatus === "under_review" ? "Under review" : s.reviewStatus.charAt(0).toUpperCase() + s.reviewStatus.slice(1)}
                         </Badge>
                       </td>
-                      <td className="py-3">
-                        <div className="flex gap-1">
+                      <td data-label="" className="py-3">
+                        <div className="flex gap-1 md:justify-end">
                           <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>Edit</Button>
                           {s.officialUrl && (
                             <Button size="sm" variant="ghost" asChild>

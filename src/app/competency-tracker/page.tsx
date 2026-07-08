@@ -581,7 +581,7 @@ export default function CompetencyTrackerPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Employee</th>
@@ -604,16 +604,16 @@ export default function CompetencyTrackerPage() {
                         key={r.id}
                         className="border-b border-border/50 hover:bg-secondary/20"
                       >
-                        <td className="py-3 pr-4 font-medium">{r.employeeName}</td>
-                        <td className="py-3 pr-4">{r.competencyName}</td>
-                        <td className="py-3 pr-4 capitalize">{r.competencyType}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">{r.employeeName}</td>
+                        <td data-label="Competency" className="py-3 pr-4">{r.competencyName}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{r.competencyType}</td>
+                        <td data-label="Evaluator" className="py-3 pr-4 text-muted-foreground">
                           {r.evaluatorName || "—"}
                         </td>
-                        <td className="py-3 pr-4 text-muted-foreground">
+                        <td data-label="Assessment" className="py-3 pr-4 text-muted-foreground">
                           {r.assessmentDate ? formatDate(r.assessmentDate) : "—"}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Valid until" className="py-3 pr-4">
                           {r.validUntil ? (
                             <span className={isExpiredRow ? "text-destructive font-medium" : ""}>
                               {formatDate(r.validUntil)}
@@ -622,15 +622,15 @@ export default function CompetencyTrackerPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="py-3 pr-4 text-right tabular-nums">
+                        <td data-label="Score" className="py-3 pr-4 text-right tabular-nums">
                           {r.score != null ? r.score : "—"}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={STATUS_VARIANT[st]}>
                             {STATUS_LABEL[st]}
                           </Badge>
                         </td>
-                        <td className="py-3">
+                        <td data-label="" className="py-3">
                           <Button
                             size="sm"
                             variant="ghost"

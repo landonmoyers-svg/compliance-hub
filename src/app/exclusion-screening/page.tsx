@@ -189,7 +189,7 @@ export default function ExclusionScreeningPage() {
             <p className="py-8 text-center text-sm text-muted-foreground">Add employees and vendors first, then screen them here.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Subject</th>
@@ -202,11 +202,11 @@ export default function ExclusionScreeningPage() {
                 <tbody>
                   {rows.sort((a, b) => Number(b.due) - Number(a.due)).map(({ sub, last, daysAgo, due }) => (
                     <tr key={sub.key} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setLogging(sub)}>
-                      <td className="py-3 pr-4 font-medium">{sub.name}</td>
-                      <td className="py-3 pr-4 capitalize text-muted-foreground">{sub.type}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{last?.screenedDate ? `${formatDate(last.screenedDate)}${daysAgo !== null ? ` · ${daysAgo}d ago` : ""}` : "Never"}</td>
-                      <td className="py-3 pr-4">{last ? <Badge variant={RESULT_VARIANT[last.result]} className="capitalize">{last.result}</Badge> : "—"}</td>
-                      <td className="py-3">{due ? <Badge variant="warning">Due</Badge> : <Badge variant="success">Current</Badge>}</td>
+                      <td data-label="Subject" className="py-3 pr-4 font-medium">{sub.name}</td>
+                      <td data-label="Type" className="py-3 pr-4 capitalize text-muted-foreground">{sub.type}</td>
+                      <td data-label="Last screened" className="py-3 pr-4 text-muted-foreground">{last?.screenedDate ? `${formatDate(last.screenedDate)}${daysAgo !== null ? ` · ${daysAgo}d ago` : ""}` : "Never"}</td>
+                      <td data-label="Result" className="py-3 pr-4">{last ? <Badge variant={RESULT_VARIANT[last.result]} className="capitalize">{last.result}</Badge> : "—"}</td>
+                      <td data-label="Status" className="py-3">{due ? <Badge variant="warning">Due</Badge> : <Badge variant="success">Current</Badge>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -221,7 +221,7 @@ export default function ExclusionScreeningPage() {
           <CardHeader><CardTitle className="text-sm">Screening history</CardTitle></CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Subject</th>
@@ -234,11 +234,11 @@ export default function ExclusionScreeningPage() {
                 <tbody>
                   {[...screenings].sort((a, b) => (b.screenedDate ?? b.createdDate).localeCompare(a.screenedDate ?? a.createdDate)).slice(0, 50).map((s) => (
                     <tr key={s.id} className="border-b border-border/50">
-                      <td className="py-2.5 pr-4">{s.subjectName}</td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">{formatDate(s.screenedDate)}</td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">{s.sources ?? "—"}</td>
-                      <td className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{s.result}</Badge></td>
-                      <td className="py-2.5 text-muted-foreground">{s.screenedByName ?? "—"}</td>
+                      <td data-label="Subject" className="py-2.5 pr-4">{s.subjectName}</td>
+                      <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">{formatDate(s.screenedDate)}</td>
+                      <td data-label="Lists" className="py-2.5 pr-4 text-muted-foreground">{s.sources ?? "—"}</td>
+                      <td data-label="Result" className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{s.result}</Badge></td>
+                      <td data-label="By" className="py-2.5 text-muted-foreground">{s.screenedByName ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

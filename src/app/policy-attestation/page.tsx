@@ -219,7 +219,7 @@ export default function PolicyAttestationPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Staff member</th>
@@ -231,10 +231,10 @@ export default function PolicyAttestationPage() {
                 <tbody>
                   {acks.map((a) => (
                     <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-2.5 pr-4 font-medium">{a.userName}</td>
-                      <td className="py-2.5 pr-4">{a.documentTitle}</td>
-                      <td className="py-2.5 pr-4">{a.acknowledgedAt ? formatDate(a.acknowledgedAt) : "—"}</td>
-                      <td className="py-2.5">
+                      <td data-label="Staff member" className="py-2.5 pr-4 font-medium">{a.userName}</td>
+                      <td data-label="Document" className="py-2.5 pr-4">{a.documentTitle}</td>
+                      <td data-label="Acknowledged" className="py-2.5 pr-4">{a.acknowledgedAt ? formatDate(a.acknowledgedAt) : "—"}</td>
+                      <td data-label="Expires" className="py-2.5">
                         {a.expiresAt ? (
                           <span className={new Date(a.expiresAt) < new Date() ? "text-destructive" : ""}>
                             {formatDate(a.expiresAt)}

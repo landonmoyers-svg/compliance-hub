@@ -185,7 +185,7 @@ export default function TimeClockPage() {
             <p className="py-8 text-center text-sm text-muted-foreground">No time entries for this period.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     {isAdmin && <th className="pb-2 pr-4 font-medium">Employee</th>}
@@ -199,12 +199,12 @@ export default function TimeClockPage() {
                 <tbody>
                   {visible.map((e: TimeClockEntry) => (
                     <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      {isAdmin && <td className="py-3 pr-4 font-medium">{e.userName}</td>}
-                      <td className="py-3 pr-4 text-muted-foreground">{new Date(e.clockInAt).toLocaleDateString()}</td>
-                      <td className="py-3 pr-4">{fmt(e.clockInAt)}</td>
-                      <td className="py-3 pr-4">{e.clockOutAt ? fmt(e.clockOutAt) : <span className="text-muted-foreground">—</span>}</td>
-                      <td className="py-3 pr-4">{e.totalMinutes != null ? minutesToHours(e.totalMinutes) : <span className="text-muted-foreground">Active</span>}</td>
-                      <td className="py-3">
+                      {isAdmin && <td data-label="Employee" className="py-3 pr-4 font-medium">{e.userName}</td>}
+                      <td data-label="Date" className="py-3 pr-4 text-muted-foreground">{new Date(e.clockInAt).toLocaleDateString()}</td>
+                      <td data-label="Clock in" className="py-3 pr-4">{fmt(e.clockInAt)}</td>
+                      <td data-label="Clock out" className="py-3 pr-4">{e.clockOutAt ? fmt(e.clockOutAt) : <span className="text-muted-foreground">—</span>}</td>
+                      <td data-label="Total" className="py-3 pr-4">{e.totalMinutes != null ? minutesToHours(e.totalMinutes) : <span className="text-muted-foreground">Active</span>}</td>
+                      <td data-label="Status" className="py-3">
                         <Badge variant={e.status === "active" ? "success" : e.status === "edited" ? "warning" : "secondary"}>
                           {e.status === "active" ? "Active" : e.status === "edited" ? "Edited" : "Completed"}
                         </Badge>
