@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { RegulatorySource } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -228,9 +229,18 @@ export default function RegulatorySourcesPage() {
         title="Regulatory Sources"
         description="Track applicable regulations, guidance documents, and internal policies that govern your compliance program."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add source
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={sources}
+              collection="regulatorySources"
+              keyOf={(r) => dupNorm(r.citationLabel) || dupNorm(r.title) || null}
+              describe={(r) => ({ title: r.title, subtitle: [r.citationLabel, r.jurisdiction].filter(Boolean).join(" · "), hasFile: false })}
+              score={(r) => (r.officialUrl ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add source
+            </Button>
+          </div>
         }
       />
 

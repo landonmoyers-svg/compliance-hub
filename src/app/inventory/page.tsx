@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { SignedImage } from "@/components/shared/signed-image";
 import { CameraCapture, type CaptureMeta } from "@/components/shared/camera-capture";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -707,7 +708,14 @@ export default function InventoryPage() {
         title="Inventory"
         description="Track assets across locations. Snap a photo and AI identifies the item, estimates its value, and suggests where it lives."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={items}
+              collection="inventory"
+              keyOf={(i) => { const k = dupNorm(i.itemName); return k ? `${k}::${i.locationId ?? ""}::${dupNorm(i.sublocation)}` : null; }}
+              describe={(i) => ({ title: i.itemName, subtitle: [i.itemType, i.quantity != null ? `qty ${i.quantity}` : ""].filter(Boolean).join(" · "), hasFile: !!i.imageUrl })}
+              score={(i) => (i.imageUrl ? 2 : 0) + (i.estimatedValueCents ? 1 : 0)}
+            />
             <Button variant="outline" onClick={() => setChatOpen(true)}><MessageSquare className="size-4" /> Ask AI</Button>
             <Button variant="outline" onClick={() => setBatchOpen(true)}><Upload className="size-4" /> Batch add</Button>
             <Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add item</Button>

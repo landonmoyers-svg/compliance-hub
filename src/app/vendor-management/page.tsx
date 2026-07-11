@@ -5,6 +5,7 @@ import { Building2, Plus, Search, AlertTriangle, ShieldCheck, X, Check } from "l
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { VersionHistoryButton } from "@/components/shared/version-history";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -393,7 +394,18 @@ export default function VendorManagementPage() {
       <PageHeader
         title="Vendor Management"
         description="Track business associates, BAA status, PHI access, and insurance certificates."
-        actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add vendor</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={vendors}
+              collection="vendors"
+              keyOf={(v) => dupNorm(v.vendorName) || null}
+              describe={(v) => ({ title: v.vendorName, subtitle: [v.vendorType, v.contactEmail].filter(Boolean).join(" · ") })}
+              score={(v) => (v.baaStatus === "signed" ? 2 : 0) + (v.contactEmail ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add vendor</Button>
+          </div>
+        }
       />
 
       {!isLoading && stats.baaGaps > 0 && (

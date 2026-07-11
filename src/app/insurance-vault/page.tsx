@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import type { InsurancePolicyRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -233,9 +234,18 @@ export default function InsuranceVaultPage() {
         title="Insurance Vault"
         description="Track all insurance policies, renewal dates, and coverage amounts."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add policy
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={policies}
+              collection="insurancePolicies"
+              keyOf={(p) => dupNorm(p.policyNumber) || (dupNorm(p.policyName) + dupNorm(p.carrierName)) || null}
+              describe={(p) => ({ title: p.policyName, subtitle: [p.carrierName, p.policyNumber ? `#${p.policyNumber}` : ""].filter(Boolean).join(" · "), hasFile: !!p.documentUrl })}
+              score={(p) => (p.documentUrl ? 2 : 0) + (p.policyNumber ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add policy
+            </Button>
+          </div>
         }
       />
 

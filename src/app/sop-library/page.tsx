@@ -6,6 +6,7 @@ import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -306,9 +307,18 @@ export default function SOPLibraryPage() {
         title="SOP Library"
         description="Policies, procedures, and compliance documents. Review dates are tracked and flagged automatically."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add document
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={docs}
+              collection="documents"
+              keyOf={(d) => { const k = dupNorm(d.title); return k ? `${k}::${dupNorm(d.documentType)}` : null; }}
+              describe={(d) => ({ title: d.title, subtitle: [d.documentType, d.version ? `v${d.version}` : ""].filter(Boolean).join(" · "), hasFile: !!d.fileUrl })}
+              score={(d) => (d.fileUrl ? 3 : 0) + (d.content ? 1 : 0) + (d.reviewDate ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add document
+            </Button>
+          </div>
         }
       />
 

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { provisionLogin } from "@/lib/admin";
 import { roleLabel } from "@/lib/auth/roles";
@@ -320,9 +321,18 @@ export default function EmployeesPage() {
         title="Employees"
         description="Searchable employee directory with employment status and department information."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add employee
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={employees}
+              collection="employees"
+              keyOf={(e) => dupNorm(e.email) || (dupNorm(e.firstName) + dupNorm(e.lastName)) || null}
+              describe={(e) => ({ title: `${e.firstName} ${e.lastName}`.trim(), subtitle: [e.email, e.title].filter(Boolean).join(" · "), badges: e.workerType === "contractor" ? ["Contractor"] : undefined })}
+              score={(e) => (e.userId ? 2 : 0) + (e.email ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add employee
+            </Button>
+          </div>
         }
       />
 

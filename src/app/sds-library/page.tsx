@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -431,7 +432,14 @@ export default function SDSLibraryPage() {
         title="SDS Library"
         description="Safety Data Sheets for all chemical and hazardous products used in your facility."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={records}
+              collection="sdsRecords"
+              keyOf={(s) => { const k = dupNorm(s.productName); return k ? `${k}::${dupNorm(s.upc) || dupNorm(s.manufacturer)}` : null; }}
+              describe={(s) => ({ title: s.productName, subtitle: [s.manufacturer, s.upc ? `UPC ${s.upc}` : ""].filter(Boolean).join(" · ") })}
+              score={(s) => (s.upc ? 1 : 0) + (s.manufacturer ? 1 : 0)}
+            />
             <Button variant="outline" onClick={() => setShowAILookup(true)}>
               <Bot className="size-4" /> Add with AI
             </Button>

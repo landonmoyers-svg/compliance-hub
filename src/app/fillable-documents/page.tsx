@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   FillableFormTemplate,
@@ -634,7 +635,17 @@ export default function FillableDocumentsPage() {
         description="Build form templates, assign them to employees, and track completed submissions."
         actions={
           tab === "templates" ? (
-            <Button onClick={() => setEditingTemplate("new")}><Plus className="size-4" /> New template</Button>
+            <div className="flex flex-wrap gap-2">
+              <DuplicateFinder
+                items={templates}
+                collection="formTemplates"
+                keyOf={(t) => { const k = dupNorm(t.title); return k ? `${k}::${dupNorm(t.category)}` : null; }}
+                describe={(t) => ({ title: t.title, subtitle: t.category, hasFile: !!t.fileUrl })}
+                score={(t) => (t.fileUrl ? 2 : 0) + ((t.fields?.length ?? 0) > 0 ? 1 : 0)}
+                label="Find duplicate templates"
+              />
+              <Button onClick={() => setEditingTemplate("new")}><Plus className="size-4" /> New template</Button>
+            </div>
           ) : tab === "assignments" ? (
             <Button onClick={() => setShowAssign(true)} disabled={templates.filter((t) => t.status === "active").length === 0 || employees.length === 0}>
               <UserPlus className="size-4" /> Assign form
