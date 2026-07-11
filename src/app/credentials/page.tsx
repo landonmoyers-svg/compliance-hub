@@ -1,15 +1,16 @@
 "use client";
 
 import { Fragment, useState, useMemo } from "react";
-import { BadgeCheck, Plus, Search, Sparkles, X, CopyCheck } from "lucide-react";
-import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
+import { BadgeCheck, Plus, Search, Sparkles, X } from "lucide-react";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { getSignedUrl } from "@/lib/storage";
 import { cn } from "@/lib/cn";
+import { DuplicateFinder } from "@/components/shared/duplicate-finder";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,11 +87,6 @@ function completeness(c: CredentialRecord): number {
   if (c.expirationDate) s += 1;
   if (c.issuingBody) s += 1;
   return s;
-}
-
-/** The best record to keep from a duplicate set: most complete, then most recent. */
-function bestKeeper(items: CredentialRecord[]): CredentialRecord {
-  return [...items].sort((a, b) => completeness(b) - completeness(a) || (b.createdDate ?? "").localeCompare(a.createdDate ?? ""))[0];
 }
 
 type GroupBy = "none" | "type" | "employee";
@@ -339,79 +335,12 @@ function HolderResolver({ items, employees, onClose, onApply }: {
   );
 }
 
-/* ------------------- duplicate resolver ------------------- */
-
-function DuplicateResolver({ groups, onClose, onDelete }: {
-  groups: { key: string; items: CredentialRecord[] }[];
-  onClose: () => void;
-  onDelete: (ids: string[]) => Promise<void>;
-}) {
-  const [keep, setKeep] = useState<Record<string, string>>(() => {
-    const m: Record<string, string> = {};
-    for (const g of groups) m[g.key] = bestKeeper(g.items).id;
-    return m;
-  });
-  const [saving, setSaving] = useState(false);
-  const toDelete = groups.flatMap((g) => g.items.filter((it) => it.id !== keep[g.key]).map((it) => it.id));
-
-  async function apply() { setSaving(true); try { await onDelete(toDelete); } finally { setSaving(false); } }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-start justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 className="font-semibold">Duplicate credentials ({groups.length} {groups.length === 1 ? "set" : "sets"})</h2>
-            <p className="text-xs text-muted-foreground">For each set, pick the record to keep — the others will be deleted. The most complete one is pre-selected.</p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
-        </div>
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {groups.map((g) => (
-            <div key={g.key} className="rounded-lg border border-border p-3">
-              <div className="space-y-1.5">
-                {g.items.map((c) => {
-                  const kept = keep[g.key] === c.id;
-                  return (
-                    <label key={c.id} className={cn("flex cursor-pointer items-start gap-2 rounded-md border p-2 text-sm", kept ? "border-primary/50 bg-primary/5" : "border-border/60 opacity-70")}>
-                      <input type="radio" name={`keep-${g.key}`} className="mt-1" checked={kept} onChange={() => setKeep((m) => ({ ...m, [g.key]: c.id }))} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{c.credentialName}</span>
-                          <Badge variant="secondary">{credTypeLabel(c.credentialType)}</Badge>
-                          {c.documentUrl && <Badge variant="outline" className="text-primary">has file</Badge>}
-                          {kept ? <span className="text-xs font-medium text-primary">Keep</span> : <span className="text-xs text-destructive">Delete</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {c.employeeName || "Unassigned"}{c.credentialNumber ? ` · #${c.credentialNumber}` : ""}{c.expirationDate ? ` · exp ${formatDate(c.expirationDate)}` : ""}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
-          <span className="text-sm text-muted-foreground">{toDelete.length} to delete</span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button onClick={apply} disabled={saving || toDelete.length === 0}>{saving ? "Deleting…" : `Delete ${toDelete.length} duplicate${toDelete.length === 1 ? "" : "s"}`}</Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
   const profilesQ = useCollection("profiles");
   const employeesQ = useCollection("employees");
   const createMut = useCreate("credentials");
   const updateMut = useUpdate("credentials");
-  const removeMut = useRemove("credentials");
   const createEmployee = useCreate("employees");
 
   const [search, setSearch] = useState("");
@@ -421,7 +350,6 @@ export default function CredentialsPage() {
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [resolveQueue, setResolveQueue] = useState<Unresolved[] | null>(null);
-  const [dupGroups, setDupGroups] = useState<{ key: string; items: CredentialRecord[] }[] | null>(null);
 
   const credentials = useMemo(() => data ?? [], [data]);
 
@@ -528,28 +456,6 @@ export default function CredentialsPage() {
     }
   }
 
-  // Scan for duplicate credentials and open the review modal.
-  function findDuplicates() {
-    const map = new Map<string, CredentialRecord[]>();
-    for (const c of credentials) {
-      const key = dupKey(c);
-      if (!key) continue;
-      const arr = map.get(key) ?? [];
-      arr.push(c);
-      map.set(key, arr);
-    }
-    const groups = [...map.values()].filter((items) => items.length > 1).map((items) => ({ key: dupKey(items[0]) as string, items }));
-    if (groups.length === 0) { toast.info("No duplicate credentials found."); return; }
-    setDupGroups(groups);
-  }
-
-  async function deleteDuplicates(ids: string[]) {
-    let n = 0;
-    for (const id of ids) { try { await removeMut.mutateAsync(id); n++; } catch { /* skip */ } }
-    setDupGroups(null);
-    toast.success(`Deleted ${n} duplicate${n === 1 ? "" : "s"}.`);
-  }
-
   // Apply the holder decisions from the resolver modal.
   async function applyResolutions(state: ResItem[]) {
     let n = 0;
@@ -644,22 +550,24 @@ export default function CredentialsPage() {
         />
       )}
 
-      {dupGroups && (
-        <DuplicateResolver
-          groups={dupGroups}
-          onClose={() => setDupGroups(null)}
-          onDelete={deleteDuplicates}
-        />
-      )}
 
       <PageHeader
         title="Credentials"
         description="Track licenses, certifications, and clearances. Expiration status is always derived from expiration dates — never stale stored values."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={findDuplicates}>
-              <CopyCheck className="size-4" /> Find duplicates
-            </Button>
+            <DuplicateFinder
+              items={credentials}
+              collection="credentials"
+              keyOf={dupKey}
+              describe={(c) => ({
+                title: c.credentialName,
+                subtitle: [c.employeeName || "Unassigned", c.credentialNumber ? `#${c.credentialNumber}` : "", c.expirationDate ? `exp ${formatDate(c.expirationDate)}` : ""].filter(Boolean).join(" · "),
+                badges: [credTypeLabel(c.credentialType)],
+                hasFile: !!c.documentUrl,
+              })}
+              score={completeness}
+            />
             <Button variant="outline" onClick={reanalyze} disabled={reanalyzing}>
               <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Reanalyze documents"}
             </Button>

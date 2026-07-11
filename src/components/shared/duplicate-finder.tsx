@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CopyCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useRemove } from "@/lib/data/hooks";
+import { useRemove, useUpdate } from "@/lib/data/hooks";
 import type { CollectionName } from "@/lib/data/client";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
@@ -14,6 +14,25 @@ export interface DupDescribe { title: string; subtitle?: string; badges?: string
 
 /** Normalize a string for duplicate-key comparison (lowercase, alphanumerics only). */
 export const dupNorm = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const isEmptyVal = (v: unknown): boolean => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+
+/** Fill the kept record's EMPTY fields from the duplicates being removed. Never
+ *  overwrites a value the kept record already has; skips id/createdDate. */
+function mergePatch<T extends DupItem>(kept: T, dropped: T[]): Partial<T> {
+  const patch: Record<string, unknown> = {};
+  const keys = new Set<string>();
+  for (const o of [kept, ...dropped]) for (const k of Object.keys(o as object)) keys.add(k);
+  for (const k of keys) {
+    if (k === "id" || k === "createdDate") continue;
+    if (!isEmptyVal((kept as Record<string, unknown>)[k])) continue;
+    for (const o of dropped) {
+      const v = (o as Record<string, unknown>)[k];
+      if (!isEmptyVal(v)) { patch[k] = v; break; }
+    }
+  }
+  return patch as Partial<T>;
+}
 
 /**
  * Drop-in "Find duplicates" button + review/delete modal for any list page.
@@ -39,8 +58,10 @@ export function DuplicateFinder<T extends DupItem>({
   variant?: "outline" | "ghost" | "default";
 }) {
   const remove = useRemove(collection);
+  const update = useUpdate(collection);
   const [groups, setGroups] = useState<{ key: string; items: T[] }[] | null>(null);
   const [keep, setKeep] = useState<Record<string, string>>({});
+  const [merge, setMerge] = useState(true);
   const [saving, setSaving] = useState(false);
 
   function scan() {
@@ -66,14 +87,26 @@ export function DuplicateFinder<T extends DupItem>({
   const toDelete = (groups ?? []).flatMap((g) => g.items.filter((it) => it.id !== keep[g.key]).map((it) => it.id));
 
   async function apply() {
+    if (!groups) return;
     setSaving(true);
     let n = 0;
     try {
-      for (const id of toDelete) { try { await remove.mutateAsync(id); n++; } catch { /* skip */ } }
+      for (const g of groups) {
+        const keptId = keep[g.key];
+        const dropped = g.items.filter((it) => it.id !== keptId);
+        if (merge) {
+          const keptItem = g.items.find((it) => it.id === keptId);
+          if (keptItem) {
+            const patch = mergePatch(keptItem, dropped);
+            if (Object.keys(patch).length > 0) { try { await update.mutateAsync({ id: keptId, patch }); } catch { /* skip merge */ } }
+          }
+        }
+        for (const it of dropped) { try { await remove.mutateAsync(it.id); n++; } catch { /* skip */ } }
+      }
     } finally {
       setSaving(false);
       setGroups(null);
-      toast.success(`Deleted ${n} duplicate${n === 1 ? "" : "s"}.`);
+      toast.success(`${merge ? "Merged & deleted" : "Deleted"} ${n} duplicate${n === 1 ? "" : "s"}.`);
     }
   }
 
@@ -114,11 +147,15 @@ export function DuplicateFinder<T extends DupItem>({
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
-              <span className="text-sm text-muted-foreground">{toDelete.length} to delete</span>
-              <div className="flex gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-3">
+              <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
+                <input type="checkbox" className="size-4" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
+                Merge details into the kept record
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{toDelete.length} to delete</span>
                 <Button variant="outline" onClick={() => setGroups(null)} disabled={saving}>Cancel</Button>
-                <Button onClick={apply} disabled={saving || toDelete.length === 0}>{saving ? "Deleting…" : `Delete ${toDelete.length}`}</Button>
+                <Button onClick={apply} disabled={saving || toDelete.length === 0}>{saving ? "Working…" : `${merge ? "Merge & delete" : "Delete"} ${toDelete.length}`}</Button>
               </div>
             </div>
           </div>
