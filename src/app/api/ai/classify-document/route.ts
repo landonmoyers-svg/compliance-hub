@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
   const cap = await enforceAiCap(supabase);
   if (!cap.ok) return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
 
-  const body = await request.json() as { fileName: string; textContent?: string };
-  const { fileName, textContent } = body;
+  const body = await request.json() as { fileName: string; textContent?: string; fileBase64?: string; mediaType?: string };
+  const { fileName, textContent, fileBase64, mediaType } = body;
 
   if (!fileName) return NextResponse.json({ error: "fileName required" }, { status: 400 });
 
@@ -44,16 +44,30 @@ Analyze this document and return a JSON object with these fields:
 Distinguish carefully: a DEA *registration certificate* → credentialing; a DEA *dispensing/inventory log* → osha is wrong, use "sop_library" only if it's a procedure, otherwise credentialing for the registration. A *policy about* HIPAA → sop_library; the *HIPAA regulation text itself* → regulatory_sources.
 
 File name: ${fileName}
-${textContent ? `\nDocument content (first 2000 chars):\n${textContent.slice(0, 2000)}` : "(No text content — classifying from filename only)"}
+${fileBase64
+    ? "\nThe ACTUAL DOCUMENT is attached above. READ ITS CONTENTS — the identifiers, headings, and body text — to classify it. Do NOT rely on the file name alone; the file name is often generic or wrong."
+    : textContent
+      ? `\nDocument content:\n${textContent.slice(0, 8000)}`
+      : "(No readable content could be extracted — classify from the file name only, and set confidence no higher than \"medium\".)"}
 
 Respond ONLY with valid JSON, no markdown or explanation.`;
+
+  // When we have the real file bytes, hand Claude the document/image directly so
+  // it classifies from actual contents (PDFs and images read natively, incl. scans).
+  const content: Anthropic.ContentBlockParam[] = [];
+  if (fileBase64 && mediaType === "application/pdf") {
+    content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } });
+  } else if (fileBase64 && mediaType && mediaType.startsWith("image/")) {
+    content.push({ type: "image", source: { type: "base64", media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: fileBase64 } });
+  }
+  content.push({ type: "text", text: prompt });
 
   let response: Anthropic.Messages.Message;
   try {
     response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 512,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     });
   } catch {
     return NextResponse.json({

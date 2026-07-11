@@ -19,6 +19,37 @@ import { toast } from "sonner";
 
 const MAX_FILE_MB = 25;
 const MAX_BATCH = 60; // cap files processed per drop to keep the AI/storage load sane
+const CONTENT_MAX_MB = 8; // only send file bytes to the classifier below this size
+
+/** Base64-encode a File's bytes (chunked to avoid call-stack limits on large files). */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Extract readable text from a .docx (it's a zip of XML) using the JSZip we already load. */
+async function docxToText(file: File): Promise<string | undefined> {
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const doc = zip.file("word/document.xml");
+    if (!doc) return undefined;
+    const xml = await doc.async("string");
+    const text = xml
+      .replace(/<\/w:p>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    return text || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 const ACCEPTED_RE = /\.(pdf|docx?|txt|png|jpe?g|webp|csv|rtf)$/i;
 
@@ -158,16 +189,29 @@ export default function DocumentIntakePage() {
       fileUrl = null; // upload best-effort; classification still proceeds
     }
 
+    // Give the classifier the ACTUAL document contents, not just the file name.
+    const mime = file.type || guessMime(file.name);
+    const smallEnough = file.size <= CONTENT_MAX_MB * 1024 * 1024;
     let textContent: string | undefined;
-    if (file.type === "text/plain") {
-      try { textContent = await file.text(); } catch { /* ignore */ }
-    }
+    let fileBase64: string | undefined;
+    let mediaType: string | undefined;
+    try {
+      if (mime === "application/pdf" && smallEnough) {
+        fileBase64 = await fileToBase64(file); mediaType = "application/pdf";
+      } else if (mime.startsWith("image/") && smallEnough) {
+        fileBase64 = await fileToBase64(file); mediaType = mime;
+      } else if (/\.docx$/i.test(file.name)) {
+        textContent = await docxToText(file);
+      } else if (mime === "text/plain" || mime === "text/csv" || /\.(txt|csv|rtf)$/i.test(file.name)) {
+        textContent = await file.text();
+      }
+    } catch { /* fall back to filename-only classification */ }
 
     try {
       const res = await fetch("/api/ai/classify-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, textContent }),
+        body: JSON.stringify({ fileName: file.name, textContent, fileBase64, mediaType }),
       });
       const data = await res.json() as {
         suggestedType: string; suggestedTitle: string; complianceArea: string | null;
