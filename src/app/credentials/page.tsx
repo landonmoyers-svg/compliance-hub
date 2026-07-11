@@ -41,12 +41,23 @@ const STATUS_VARIANT: Record<
 const CRED_TYPES = [
   "license",
   "certification",
-  "clearance",
-  "insurance",
-  "training",
+  "dea",
+  "cpr_bls_acls",
+  "immunization",
+  "background_check",
   "other",
 ] as const;
 const CRED_TYPE_SET = new Set<string>(CRED_TYPES);
+const CRED_TYPE_LABEL: Record<string, string> = {
+  license: "License",
+  certification: "Certification",
+  dea: "DEA Registration",
+  cpr_bls_acls: "CPR / BLS / ACLS",
+  immunization: "Immunization",
+  background_check: "Background Check",
+  other: "Other",
+};
+const credTypeLabel = (t: string) => CRED_TYPE_LABEL[t] ?? t;
 
 type GroupBy = "none" | "type" | "employee";
 
@@ -166,7 +177,7 @@ function CredentialDialog({
             <select className="input w-full" value={form.credentialType} onChange={set("credentialType")}>
               {CRED_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {credTypeLabel(t)}
                 </option>
               ))}
             </select>
@@ -213,6 +224,7 @@ function CredentialDialog({
 
 export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
+  const profilesQ = useCollection("profiles");
   const createMut = useCreate("credentials");
   const updateMut = useUpdate("credentials");
 
@@ -248,7 +260,7 @@ export default function CredentialsPage() {
     }
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([key, items]) => ({ key, label: key, items }));
+      .map(([key, items]) => ({ key, label: groupBy === "type" ? credTypeLabel(key) : key, items }));
   }, [filtered, groupBy]);
 
   // Re-read every credential that has an attached document and update its type /
@@ -260,6 +272,9 @@ export default function CredentialsPage() {
       toast.info("No credential documents are attached to analyze. Attach a license/certificate file first.");
       return;
     }
+    const roster = (profilesQ.data ?? []).map((p) => ({ userId: p.userId, name: p.fullName }));
+    const profileName = new Map(roster.map((p) => [p.userId, p.name]));
+    const isUnassigned = (c: CredentialRecord) => !c.employeeUserId && (!c.employeeName?.trim() || c.employeeName === "Unassigned — set employee");
     setReanalyzing(true);
     const tId = toast.loading(`Analyzing 0/${withDocs.length} credential documents…`);
     let done = 0, updated = 0;
@@ -287,11 +302,11 @@ export default function CredentialsPage() {
             body: JSON.stringify({
               credentialName: c.credentialName, credentialType: c.credentialType,
               issuingBody: c.issuingBody, credentialNumber: c.credentialNumber,
-              employeeName: c.employeeName, fileBase64, mediaType,
+              employeeName: c.employeeName, fileBase64, mediaType, people: roster,
             }),
           });
           if (res.status === 429) { toast.error("Daily AI limit reached — stopping reanalysis.", { id: tId }); break; }
-          const d = await res.json() as { credentialType?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null };
+          const d = await res.json() as { credentialType?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null; matchedUserId?: string | null; holderName?: string | null };
           if (res.ok) {
             const patch: Partial<CredentialRecord> = {};
             if (d.credentialType && CRED_TYPE_SET.has(d.credentialType) && d.credentialType !== c.credentialType) patch.credentialType = d.credentialType as CredentialRecord["credentialType"];
@@ -299,6 +314,15 @@ export default function CredentialsPage() {
             if (!c.credentialNumber && d.credentialNumber) patch.credentialNumber = d.credentialNumber;
             if (!c.issueDate && d.issueDate) patch.issueDate = dateInputToISO(d.issueDate);
             if (!c.expirationDate && d.expirationDate) patch.expirationDate = dateInputToISO(d.expirationDate);
+            // Assign the holder when the record is still unassigned.
+            if (isUnassigned(c)) {
+              if (d.matchedUserId && profileName.has(d.matchedUserId)) {
+                patch.employeeUserId = d.matchedUserId;
+                patch.employeeName = profileName.get(d.matchedUserId) as string;
+              } else if (d.holderName && d.holderName.trim()) {
+                patch.employeeName = d.holderName.trim();
+              }
+            }
             if (Object.keys(patch).length > 0) { await updateMut.mutateAsync({ id: c.id, patch }); updated++; }
           }
         } catch { /* skip this one */ }
@@ -469,7 +493,7 @@ export default function CredentialsPage() {
                       {groupBy !== "none" && (
                         <tr className="bg-secondary/40">
                           <td colSpan={7} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            <span className="capitalize">{g.label}</span> · {g.items.length}
+                            <span>{g.label}</span> · {g.items.length}
                           </td>
                         </tr>
                       )}
@@ -485,7 +509,7 @@ export default function CredentialsPage() {
                             <div className="text-xs text-muted-foreground">#{c.credentialNumber}</div>
                           )}
                         </td>
-                        <td data-label="Type" className="py-3 pr-4 capitalize">{c.credentialType}</td>
+                        <td data-label="Type" className="py-3 pr-4">{credTypeLabel(c.credentialType)}</td>
                         <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{c.issuingBody ?? "—"}</td>
                         <td data-label="Expiration" className="py-3 pr-4">
                           {c.expirationDate ? (

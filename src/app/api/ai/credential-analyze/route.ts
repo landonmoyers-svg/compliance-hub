@@ -5,19 +5,21 @@ import { enforceAiCap } from "@/lib/ai/usage";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM = `You analyze a professional CREDENTIAL for a behavioral-health practice — a license, certification, clearance, DEA registration, CPR/BLS/ACLS card, board certification, or an insurance/malpractice certificate — and return structured metadata a compliance officer will review.
+const SYSTEM = `You analyze a professional CREDENTIAL for a behavioral-health practice — a license, board certification, DEA registration, CPR/BLS/ACLS card, immunization record, background check, etc. — and return structured metadata a compliance officer will review.
 
-You are given the credential's existing fields and, when available, the ACTUAL DOCUMENT (PDF/image). When the document is attached, READ IT and prefer what it says over the existing fields.
+You are given the credential's existing fields, a PEOPLE roster of app users (each with userId + name), and — when available — the ACTUAL DOCUMENT (PDF/image). When the document is attached, READ IT and prefer what it says over the existing fields.
 
 Return ONLY valid JSON:
-{"credentialType":"license"|"certification"|"clearance"|"insurance"|"training"|"other","credentialName":string,"issuingBody":string|null,"credentialNumber":string|null,"issueDate":string|null,"expirationDate":string|null,"summary":string}
+{"credentialType":"license"|"certification"|"dea"|"cpr_bls_acls"|"immunization"|"background_check"|"other","credentialName":string,"issuingBody":string|null,"credentialNumber":string|null,"issueDate":string|null,"expirationDate":string|null,"holderName":string|null,"matchedUserId":string|null,"summary":string}
 
 Rules:
-- "credentialType": license = a professional license to practice (MD/DO/APRN/PA/RN/LCSW/DEA registration); certification = board certs, CPR/BLS/ACLS, specialty certs; clearance = background checks / OIG-SAM / fingerprint clearances; insurance = malpractice / liability / COI; training = course completion certificates; other = anything else.
+- "credentialType": license = a professional license to practice (MD/DO/APRN/PMHNP/PA/RN/LCSW/DOPL professional license); dea = a DEA registration/certificate specifically; certification = board certifications and specialty certs; cpr_bls_acls = CPR/BLS/ACLS cards; immunization = vaccination/immunization records; background_check = background checks / BCI/FBI / OIG-SAM / fingerprint clearances; other = anything that isn't a clinician credential (e.g. a conflict-of-interest declaration or an HR form).
 - "credentialName": a clean, specific name (e.g. "Utah Physician & Surgeon License", "DEA Registration", "BLS Provider Card").
-- "issuingBody": the issuing authority (state board, ANCC, AHA, DEA, insurer…), or null.
+- "issuingBody": the issuing authority (state board/DOPL, ANCC, AHA, DEA…), or null.
 - "credentialNumber": the license/registration/certificate number, or null.
 - "issueDate" / "expirationDate": YYYY-MM-DD, or null if not shown. NEVER invent a date or number — use null when it isn't clearly present.
+- "holderName": the full name of the person this credential belongs to, as read from the document (or its title), or null if you truly cannot tell.
+- "matchedUserId": if the holder clearly corresponds to exactly one person in the PEOPLE roster (match on name; a last name or first name is enough when unambiguous), return THAT person's exact userId string. If there is no clear single match, return null. Never guess between two similar names.
 - "summary": one short sentence describing what the document is.
 Return only the JSON object.`;
 
@@ -32,10 +34,12 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     credentialName?: string; credentialType?: string; issuingBody?: string; credentialNumber?: string;
     employeeName?: string; fileBase64?: string; mediaType?: string;
+    people?: { userId: string; name: string }[];
   };
 
-  const known = `Existing fields:\n- Name: ${body.credentialName ?? ""}\n- Type: ${body.credentialType ?? ""}\n- Issuing body: ${body.issuingBody ?? ""}\n- Number: ${body.credentialNumber ?? ""}\n- Held by: ${body.employeeName ?? ""}`;
-  const prompt = `${known}\n\n${body.fileBase64 ? "The actual credential document is attached above — read it and extract the metadata." : "No document is attached — infer the metadata from the existing fields above."}\n\nReturn the JSON.`;
+  const known = `Existing fields:\n- Name: ${body.credentialName ?? ""}\n- Type: ${body.credentialType ?? ""}\n- Issuing body: ${body.issuingBody ?? ""}\n- Number: ${body.credentialNumber ?? ""}\n- Currently held by: ${body.employeeName ?? "(unassigned)"}`;
+  const roster = `PEOPLE roster (match the holder to one of these; return the userId):\n${JSON.stringify((body.people ?? []).slice(0, 200))}`;
+  const prompt = `${known}\n\n${roster}\n\n${body.fileBase64 ? "The actual credential document is attached above — read it and extract the metadata, including who it belongs to." : "No document is attached — infer the metadata from the existing fields above."}\n\nReturn the JSON.`;
 
   const content: Anthropic.ContentBlockParam[] = [];
   if (body.fileBase64 && body.mediaType === "application/pdf") {
