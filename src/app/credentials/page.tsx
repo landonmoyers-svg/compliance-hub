@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { BadgeCheck, Plus, Search } from "lucide-react";
+import { Fragment, useState, useMemo } from "react";
+import { BadgeCheck, Plus, Search, Sparkles } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { getSignedUrl } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
@@ -45,6 +46,26 @@ const CRED_TYPES = [
   "training",
   "other",
 ] as const;
+const CRED_TYPE_SET = new Set<string>(CRED_TYPES);
+
+type GroupBy = "none" | "type" | "employee";
+
+/** Best-effort media type from a stored file path/extension. */
+function mediaFromName(name: string): string {
+  const ext = name.toLowerCase().split("?")[0].split(".").pop() ?? "";
+  const map: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+  return map[ext] ?? "application/octet-stream";
+}
+
+/** Base64-encode a Blob (without the data: prefix). */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const s = reader.result as string; resolve(s.slice(s.indexOf(",") + 1)); };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
 
 /* ------------------------------ form -------------------------------- */
 
@@ -197,8 +218,10 @@ export default function CredentialsPage() {
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [editing, setEditing] = useState<CredentialRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   const credentials = useMemo(() => data ?? [], [data]);
 
@@ -212,6 +235,82 @@ export default function CredentialsPage() {
       })
       .sort(bySoonest((c) => c.expirationDate));
   }, [credentials, search, filterStatus]);
+
+  // Group the filtered rows by credential type or by the person who holds them.
+  const groups = useMemo(() => {
+    if (groupBy === "none") return [] as { key: string; label: string; items: CredentialRecord[] }[];
+    const map = new Map<string, CredentialRecord[]>();
+    for (const c of filtered) {
+      const key = groupBy === "type" ? (c.credentialType || "other") : (c.employeeName.trim() || "Unassigned");
+      const arr = map.get(key) ?? [];
+      arr.push(c);
+      map.set(key, arr);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, items]) => ({ key, label: key, items }));
+  }, [filtered, groupBy]);
+
+  // Re-read every credential that has an attached document and update its type /
+  // fill missing fields from the ACTUAL document contents. Never overwrites a
+  // field that already has a value (except the type, which is a safe enum).
+  async function reanalyze() {
+    const withDocs = credentials.filter((c) => c.documentUrl);
+    if (withDocs.length === 0) {
+      toast.info("No credential documents are attached to analyze. Attach a license/certificate file first.");
+      return;
+    }
+    setReanalyzing(true);
+    const tId = toast.loading(`Analyzing 0/${withDocs.length} credential documents…`);
+    let done = 0, updated = 0;
+    try {
+      for (const c of withDocs) {
+        let fileBase64: string | undefined;
+        let mediaType: string | undefined;
+        try {
+          const url = await getSignedUrl(c.documentUrl as string);
+          if (url) {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const mt = blob.type && blob.type !== "application/octet-stream" ? blob.type : mediaFromName(c.documentUrl as string);
+            if (blob.size <= 8 * 1024 * 1024 && (mt === "application/pdf" || mt.startsWith("image/"))) {
+              fileBase64 = await blobToBase64(blob);
+              mediaType = mt;
+            }
+          }
+        } catch { /* fall back to text-only analysis */ }
+
+        try {
+          const res = await fetch("/api/ai/credential-analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              credentialName: c.credentialName, credentialType: c.credentialType,
+              issuingBody: c.issuingBody, credentialNumber: c.credentialNumber,
+              employeeName: c.employeeName, fileBase64, mediaType,
+            }),
+          });
+          if (res.status === 429) { toast.error("Daily AI limit reached — stopping reanalysis.", { id: tId }); break; }
+          const d = await res.json() as { credentialType?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null };
+          if (res.ok) {
+            const patch: Partial<CredentialRecord> = {};
+            if (d.credentialType && CRED_TYPE_SET.has(d.credentialType) && d.credentialType !== c.credentialType) patch.credentialType = d.credentialType as CredentialRecord["credentialType"];
+            if (!c.issuingBody && d.issuingBody) patch.issuingBody = d.issuingBody;
+            if (!c.credentialNumber && d.credentialNumber) patch.credentialNumber = d.credentialNumber;
+            if (!c.issueDate && d.issueDate) patch.issueDate = dateInputToISO(d.issueDate);
+            if (!c.expirationDate && d.expirationDate) patch.expirationDate = dateInputToISO(d.expirationDate);
+            if (Object.keys(patch).length > 0) { await updateMut.mutateAsync({ id: c.id, patch }); updated++; }
+          }
+        } catch { /* skip this one */ }
+
+        done++;
+        toast.loading(`Analyzing ${done}/${withDocs.length} credential documents…`, { id: tId });
+      }
+      toast.success(`Reanalyzed ${done} document${done === 1 ? "" : "s"} — updated ${updated}.`, { id: tId });
+    } finally {
+      setReanalyzing(false);
+    }
+  }
 
   const counts = useMemo(() => {
     const out = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
@@ -271,9 +370,14 @@ export default function CredentialsPage() {
         title="Credentials"
         description="Track licenses, certifications, and clearances. Expiration status is always derived from expiration dates — never stale stored values."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add credential
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={reanalyze} disabled={reanalyzing}>
+              <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Reanalyze documents"}
+            </Button>
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add credential
+            </Button>
+          </div>
         }
       />
 
@@ -313,6 +417,22 @@ export default function CredentialsPage() {
                 </button>
               ),
             )}
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-sm text-muted-foreground">Group by</span>
+              {(["none", "type", "employee"] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setGroupBy(g)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium capitalize transition-colors ${
+                    groupBy === g
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -344,7 +464,16 @@ export default function CredentialsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => {
+                  {(groupBy === "none" ? [{ key: "__all__", label: "", items: filtered }] : groups).map((g) => (
+                    <Fragment key={g.key}>
+                      {groupBy !== "none" && (
+                        <tr className="bg-secondary/40">
+                          <td colSpan={7} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span className="capitalize">{g.label}</span> · {g.items.length}
+                          </td>
+                        </tr>
+                      )}
+                      {g.items.map((c) => {
                     const st = credentialStatus(c);
                     const days = daysUntil(c.expirationDate);
                     return (
@@ -390,7 +519,9 @@ export default function CredentialsPage() {
                         </td>
                       </tr>
                     );
-                  })}
+                      })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
