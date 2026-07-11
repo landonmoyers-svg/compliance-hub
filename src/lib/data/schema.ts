@@ -498,6 +498,7 @@ export const Employee = z.object({
   employmentStatus: z
     .enum(["active", "on_leave", "terminated", "resigned", "laid_off"])
     .default("active"),
+  workerType: z.enum(["employee", "contractor"]).optional(),
   hireDate: z.string().nullable().optional(),
   locationId: z.string().nullable().optional(),
   // Links to the auth login/profile when the employee has been invited to the app.

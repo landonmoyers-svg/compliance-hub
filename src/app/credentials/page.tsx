@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useState, useMemo } from "react";
-import { BadgeCheck, Plus, Search, Sparkles } from "lucide-react";
+import { BadgeCheck, Plus, Search, Sparkles, X } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { getSignedUrl } from "@/lib/storage";
+import { cn } from "@/lib/cn";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,8 +17,11 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, bySoonest } from "@/lib/compliance";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
-import type { CredentialRecord } from "@/lib/data/schema";
+import type { CredentialRecord, Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
+
+type Unresolved = { id: string; credentialName: string; holderName: string };
+type ResItem = { mode: "existing" | "new" | "skip"; employeeId: string; newName: string; email: string; workerType: Employee["workerType"]; former: boolean };
 
 type Status = ReturnType<typeof credentialStatus>;
 
@@ -222,11 +226,96 @@ function CredentialDialog({
 
 /* ----------------------------- page --------------------------------- */
 
+/* ------------------- holder resolver (unmatched credentials) ------------------- */
+
+function HolderResolver({ items, employees, onClose, onApply }: {
+  items: Unresolved[];
+  employees: Employee[];
+  onClose: () => void;
+  onApply: (state: ResItem[]) => Promise<void>;
+}) {
+  const [state, setState] = useState<ResItem[]>(() =>
+    items.map((it) => ({ mode: "existing", employeeId: "", newName: it.holderName, email: "", workerType: "employee", former: false })),
+  );
+  const [saving, setSaving] = useState(false);
+  const sortedEmp = useMemo(
+    () => [...employees].sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
+    [employees],
+  );
+  const upd = (i: number, patch: Partial<ResItem>) => setState((s) => s.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  async function save() { setSaving(true); try { await onApply(state); } finally { setSaving(false); } }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="font-semibold">Assign credential holders</h2>
+            <p className="text-xs text-muted-foreground">These documents named a person we couldn&apos;t match to your directory. For each, assign an existing employee or create a new / former one.</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+          {items.map((it, i) => {
+            const r = state[i];
+            return (
+              <div key={it.id} className="rounded-lg border border-border p-3">
+                <p className="text-sm font-medium">{it.credentialName}</p>
+                <p className="text-xs text-muted-foreground">Detected holder: <span className="text-foreground">{it.holderName}</span></p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(["existing", "new", "skip"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => upd(i, { mode: m })}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors",
+                        r.mode === m ? "bg-primary text-primary-foreground ring-primary" : "bg-transparent text-muted-foreground ring-border hover:bg-secondary",
+                      )}
+                    >
+                      {m === "existing" ? "Assign existing" : m === "new" ? "Create new / former" : "Skip"}
+                    </button>
+                  ))}
+                </div>
+                {r.mode === "existing" && (
+                  <select className="input mt-2 w-full text-sm" value={r.employeeId} onChange={(e) => upd(i, { employeeId: e.target.value })}>
+                    <option value="">Select an employee…</option>
+                    {sortedEmp.map((e) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}{e.workerType === "contractor" ? " (contractor)" : ""}</option>)}
+                  </select>
+                )}
+                {r.mode === "new" && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <input className="input text-sm" placeholder="Full name" value={r.newName} onChange={(e) => upd(i, { newName: e.target.value })} />
+                    <input className="input text-sm" placeholder="Email (required)" value={r.email} onChange={(e) => upd(i, { email: e.target.value })} />
+                    <select className="input text-sm" value={r.workerType} onChange={(e) => upd(i, { workerType: e.target.value as Employee["workerType"] })}>
+                      <option value="employee">Employee (W‑2)</option>
+                      <option value="contractor">Contractor (1099)</option>
+                    </select>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" className="size-4" checked={r.former} onChange={(e) => upd(i, { former: e.target.checked })} /> Former / past
+                    </label>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Apply"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
   const profilesQ = useCollection("profiles");
+  const employeesQ = useCollection("employees");
   const createMut = useCreate("credentials");
   const updateMut = useUpdate("credentials");
+  const createEmployee = useCreate("employees");
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
@@ -234,6 +323,7 @@ export default function CredentialsPage() {
   const [editing, setEditing] = useState<CredentialRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [resolveQueue, setResolveQueue] = useState<Unresolved[] | null>(null);
 
   const credentials = useMemo(() => data ?? [], [data]);
 
@@ -278,6 +368,7 @@ export default function CredentialsPage() {
     setReanalyzing(true);
     const tId = toast.loading(`Analyzing 0/${withDocs.length} credential documents…`);
     let done = 0, updated = 0;
+    const unresolved: Unresolved[] = [];
     try {
       for (const c of withDocs) {
         let fileBase64: string | undefined;
@@ -320,7 +411,8 @@ export default function CredentialsPage() {
                 patch.employeeUserId = d.matchedUserId;
                 patch.employeeName = profileName.get(d.matchedUserId) as string;
               } else if (d.holderName && d.holderName.trim()) {
-                patch.employeeName = d.holderName.trim();
+                // No directory match — queue it so the user can confirm.
+                unresolved.push({ id: c.id, credentialName: c.credentialName, holderName: d.holderName.trim() });
               }
             }
             if (Object.keys(patch).length > 0) { await updateMut.mutateAsync({ id: c.id, patch }); updated++; }
@@ -330,10 +422,43 @@ export default function CredentialsPage() {
         done++;
         toast.loading(`Analyzing ${done}/${withDocs.length} credential documents…`, { id: tId });
       }
-      toast.success(`Reanalyzed ${done} document${done === 1 ? "" : "s"} — updated ${updated}.`, { id: tId });
+      const tail = unresolved.length ? ` · ${unresolved.length} need a holder` : "";
+      toast.success(`Reanalyzed ${done} document${done === 1 ? "" : "s"} — updated ${updated}${tail}.`, { id: tId });
+      if (unresolved.length) setResolveQueue(unresolved);
     } finally {
       setReanalyzing(false);
     }
+  }
+
+  // Apply the holder decisions from the resolver modal.
+  async function applyResolutions(state: ResItem[]) {
+    let n = 0;
+    for (let i = 0; i < (resolveQueue?.length ?? 0); i++) {
+      const item = resolveQueue![i];
+      const r = state[i];
+      if (!r || r.mode === "skip") continue;
+      try {
+        if (r.mode === "existing" && r.employeeId) {
+          const emp = (employeesQ.data ?? []).find((e) => e.id === r.employeeId);
+          if (emp) {
+            await updateMut.mutateAsync({ id: item.id, patch: { employeeName: `${emp.firstName} ${emp.lastName}`.trim(), employeeUserId: emp.userId ?? null } });
+            n++;
+          }
+        } else if (r.mode === "new" && r.newName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email.trim())) {
+          const parts = r.newName.trim().split(/\s+/);
+          const created = await createEmployee.mutateAsync({
+            firstName: parts[0], lastName: parts.slice(1).join(" "),
+            email: r.email.trim().toLowerCase(),
+            employmentStatus: r.former ? "resigned" : "active",
+            workerType: r.workerType,
+          });
+          await updateMut.mutateAsync({ id: item.id, patch: { employeeName: `${created.firstName} ${created.lastName}`.trim(), employeeUserId: created.userId ?? null } });
+          n++;
+        }
+      } catch { /* skip this one */ }
+    }
+    setResolveQueue(null);
+    toast.success(`Assigned ${n} credential${n === 1 ? "" : "s"}.`);
   }
 
   const counts = useMemo(() => {
@@ -387,6 +512,15 @@ export default function CredentialsPage() {
           onClose={() => setEditing(null)}
           onSave={handleSave}
           saving={saving}
+        />
+      )}
+
+      {resolveQueue && (
+        <HolderResolver
+          items={resolveQueue}
+          employees={employeesQ.data ?? []}
+          onClose={() => setResolveQueue(null)}
+          onApply={applyResolutions}
         />
       )}
 

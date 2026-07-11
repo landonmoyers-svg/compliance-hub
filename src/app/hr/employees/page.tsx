@@ -45,6 +45,7 @@ interface EmployeeForm {
   title: string;
   department: string;
   employmentStatus: Employee["employmentStatus"];
+  workerType: Employee["workerType"];
   hireDate: string;
   inviteToApp: boolean;
   accountRole: string;
@@ -57,6 +58,7 @@ const EMPTY: EmployeeForm = {
   title: "",
   department: "",
   employmentStatus: "active",
+  workerType: "employee",
   hireDate: "",
   inviteToApp: false,
   accountRole: "staff",
@@ -82,6 +84,7 @@ function EmployeeDialog({
           title: initial.title ?? "",
           department: initial.department ?? "",
           employmentStatus: initial.employmentStatus,
+          workerType: initial.workerType ?? "employee",
           hireDate: initial.hireDate ?? "",
           inviteToApp: false,
           accountRole: "staff",
@@ -138,15 +141,24 @@ function EmployeeDialog({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Employment status</label>
-            <select className="input w-full" value={form.employmentStatus} onChange={set("employmentStatus")}>
-              <option value="active">Active</option>
-              <option value="on_leave">On leave</option>
-              <option value="terminated">Terminated</option>
-              <option value="resigned">Resigned</option>
-              <option value="laid_off">Laid off</option>
-            </select>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Worker type</label>
+              <select className="input w-full" value={form.workerType} onChange={set("workerType")}>
+                <option value="employee">Employee (W‑2)</option>
+                <option value="contractor">Contractor (1099)</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Employment status</label>
+              <select className="input w-full" value={form.employmentStatus} onChange={set("employmentStatus")}>
+                <option value="active">Active</option>
+                <option value="on_leave">On leave</option>
+                <option value="terminated">Terminated</option>
+                <option value="resigned">Resigned</option>
+                <option value="laid_off">Laid off</option>
+              </select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Hire date</label>
@@ -231,6 +243,7 @@ export default function EmployeesPage() {
         title: form.title.trim() || undefined,
         department: (form.department as Employee["department"]) || undefined,
         employmentStatus: form.employmentStatus,
+        workerType: form.workerType,
         hireDate: form.hireDate ? dateInputToISO(form.hireDate) : undefined,
       };
       if (editing && editing !== "new") {
@@ -381,6 +394,7 @@ export default function EmployeesPage() {
                             {e.firstName.charAt(0)}{e.lastName.charAt(0)}
                           </div>
                           <span className="font-medium">{e.firstName} {e.lastName}</span>
+                          {e.workerType === "contractor" && <Badge variant="outline" className="border-primary/40 text-primary">Contractor</Badge>}
                         </div>
                       </td>
                       <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email}</td>
