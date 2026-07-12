@@ -11,7 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
-import { credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
+import {
+  buildHolderIndex,
+  holderIsActive, credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/dates";
 
@@ -45,23 +47,31 @@ export default function ReportsPage() {
   const orgSettings = useMemo(() => orgSettingsQ.data ?? [], [orgSettingsQ.data]);
 
   const score = useMemo(
-    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk }),
-    [tasks, credentials, training, documents, risk],
+    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, employees }),
+    [tasks, credentials, training, documents, risk, employees],
+  );
+
+  // Context: former employees' items are history, not warnings.
+  const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
+  const activeCreds = useMemo(() => credentials.filter((c) => holderIsActive(c, holderIdx)), [credentials, holderIdx]);
+  const activeTrainingRows = useMemo(
+    () => training.filter((a) => holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, holderIdx)),
+    [training, holderIdx],
   );
 
   const credStats = useMemo(() => {
-    const active = credentials.filter((c) => credentialStatus(c) === "active").length;
-    const expiring = credentials.filter((c) => credentialStatus(c) === "expiring_soon").length;
-    const expired = credentials.filter((c) => credentialStatus(c) === "expired").length;
-    return { active, expiring, expired, total: credentials.length };
-  }, [credentials]);
+    const active = activeCreds.filter((c) => credentialStatus(c) === "active").length;
+    const expiring = activeCreds.filter((c) => credentialStatus(c) === "expiring_soon").length;
+    const expired = activeCreds.filter((c) => credentialStatus(c) === "expired").length;
+    return { active, expiring, expired, total: activeCreds.length };
+  }, [activeCreds]);
 
   const trainingStats = useMemo(() => {
-    const completed = training.filter((a) => a.status === "completed").length;
-    const overdue = training.filter(assignmentIsOverdue).length;
-    const pending = training.filter((a) => a.status !== "completed" && !assignmentIsOverdue(a)).length;
-    return { completed, overdue, pending, total: training.length };
-  }, [training]);
+    const completed = activeTrainingRows.filter((a) => a.status === "completed").length;
+    const overdue = activeTrainingRows.filter(assignmentIsOverdue).length;
+    const pending = activeTrainingRows.filter((a) => a.status !== "completed" && !assignmentIsOverdue(a)).length;
+    return { completed, overdue, pending, total: activeTrainingRows.length };
+  }, [activeTrainingRows]);
 
   function exportCSV(rows: string[][], filename: string) {
     const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");

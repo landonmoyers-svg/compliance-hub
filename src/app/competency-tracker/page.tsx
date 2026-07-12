@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
+import { buildHolderIndex, holderIsActive } from "@/lib/compliance";
 import type { CompetencyRecord, Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -401,6 +402,18 @@ export default function CompetencyTrackerPage() {
     });
   }, [records, search, filterStatus, filterType]);
 
+  // Context: expired/pending warnings only count current staff. CompetencyRecord
+  // links via employeeId (employees.id) — resolve through the directory.
+  const activeEmployeeIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of employees) if (e.employmentStatus === "active" || e.employmentStatus === "on_leave") set.add(e.id);
+    return set;
+  }, [employees]);
+  const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
+  const isCurrentStaff = useMemo(() => (r: CompetencyRecord) =>
+    r.employeeId ? activeEmployeeIds.has(r.employeeId) : holderIsActive({ employeeName: r.employeeName }, holderIdx),
+  [activeEmployeeIds, holderIdx]);
+
   const stats = useMemo(() => {
     let total = 0;
     let passed = 0;
@@ -410,11 +423,11 @@ export default function CompetencyTrackerPage() {
       total++;
       const st = displayStatus(r);
       if (st === "passed") passed++;
-      if (st === "pending") pending++;
-      if (st === "expired") expired++;
+      if (st === "pending" && isCurrentStaff(r)) pending++;
+      if (st === "expired" && isCurrentStaff(r)) expired++;
     }
     return { total, passed, pending, expired };
-  }, [records]);
+  }, [records, isCurrentStaff]);
 
   async function handleSave(form: FormState) {
     const scoreNum = form.score.trim() === "" ? null : Number(form.score);

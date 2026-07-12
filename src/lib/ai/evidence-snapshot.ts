@@ -42,7 +42,8 @@ export async function buildComplianceSnapshot(supabase: SupabaseClient): Promise
     countRows("policy_acks"),
     countRows("locations"),
     countRows("credentials"),
-    countRows("credentials", (q) => q.lt("expiration_date", new Date().toISOString().slice(0, 10))),
+    // Expired creds: fetch holder fields so we can exclude former staff below.
+    supabase.from("credentials").select("employee_user_id, employee_name").lt("expiration_date", new Date().toISOString().slice(0, 10)),
     countRows("sds_records"),
     countRows("osha_records"),
     countRows("emergency_drills"),
@@ -52,12 +53,29 @@ export async function buildComplianceSnapshot(supabase: SupabaseClient): Promise
 
   const lastBackupDate = (lastBackup?.data as { created_date?: string } | null)?.created_date;
 
+  // Context: only count expired credentials whose holder still works here.
+  const { data: empRows } = await supabase.from("employees").select("user_id, first_name, last_name, employment_status");
+  const normName = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const activeIds = new Set<string>();
+  const nameActive = new Map<string, boolean>();
+  for (const e of empRows ?? []) {
+    const active = e.employment_status === "active" || e.employment_status === "on_leave";
+    if (e.user_id && active) activeIds.add(e.user_id);
+    const n = normName(`${e.first_name} ${e.last_name}`);
+    if (n) nameActive.set(n, nameActive.get(n) === true ? true : active);
+  }
+  const expiredRows = (credExpired?.data ?? []) as { employee_user_id: string | null; employee_name: string | null }[];
+  const credExpiredActive = expiredRows.filter((c) => {
+    if (c.employee_user_id && activeIds.has(c.employee_user_id)) return true;
+    return nameActive.get(normName(c.employee_name)) !== false;
+  }).length;
+
   return `PRACTICE: ${orgName}
 LIVE COMPLIANCE-SYSTEM SNAPSHOT (every item is real data already in the app):
 - Active employees / workforce: ${employees}
 - Locations on file: ${locations}
 - Vendors requiring a BAA: ${vendorsReq}; of those, BAAs signed: ${vendorsSigned}; BAAs expired: ${vendorsExpired}
-- Provider/staff credentials tracked: ${credentials}; currently expired: ${credExpired}
+- Provider/staff credentials tracked: ${credentials}; currently expired (current staff only): ${credExpiredActive}
 - Training modules available: ${trainingModules}; training assignments: ${trainingAssigned}; completed: ${trainingDone}
 - Offsite backups recorded: ${backups}${lastBackupDate ? ` (most recent ${lastBackupDate.slice(0, 10)})` : " (none yet)"}
 - Audit-log entries captured (system logs every data change): ${auditLogs}

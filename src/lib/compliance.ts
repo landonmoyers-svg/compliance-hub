@@ -3,6 +3,7 @@ import type {
   ComplianceDocument,
   ComplianceTask,
   CredentialRecord,
+  Employee,
   RiskManagementCase,
   TrainingAssignment,
 } from "./data/schema";
@@ -31,6 +32,64 @@ export function credentialStatus(
   if (isExpired(c.expirationDate)) return "expired";
   if (isExpiringSoon(c.expirationDate, within)) return "expiring_soon";
   return "active";
+}
+
+/* ------------------------- holder context (active vs former) -------------------------
+ * Compliance warnings must respect CONTEXT: an expired license held by someone
+ * who left the practice is history, not an alarm. These helpers resolve the
+ * person behind a record (by stable userId when linked, else normalized name)
+ * to their employment status so every warning surface can exclude or downgrade
+ * former-staff items consistently.
+ */
+
+export type HolderStatus = "active" | "former" | "unknown";
+
+export interface HolderIndex {
+  byUserId: Map<string, HolderStatus>;
+  byName: Map<string, HolderStatus>;
+}
+
+const normName = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** "Active" = still working here (active or on leave). Everything else is former. */
+function employeeHolderStatus(e: Pick<Employee, "employmentStatus">): HolderStatus {
+  return e.employmentStatus === "active" || e.employmentStatus === "on_leave" ? "active" : "former";
+}
+
+export function buildHolderIndex(employees: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[]): HolderIndex {
+  const byUserId = new Map<string, HolderStatus>();
+  const byName = new Map<string, HolderStatus>();
+  for (const e of employees) {
+    const st = employeeHolderStatus(e);
+    if (e.userId) byUserId.set(e.userId, st);
+    const n = normName(`${e.firstName} ${e.lastName}`);
+    // If two people share a normalized name, prefer marking the name active so
+    // we never silence a warning that might belong to a current employee.
+    if (n) byName.set(n, byName.get(n) === "active" ? "active" : st);
+  }
+  return { byUserId, byName };
+}
+
+/** Resolve the employment status of the person behind a record. */
+export function holderStatus(
+  rec: { employeeUserId?: string | null; employeeName?: string | null },
+  index: HolderIndex,
+): HolderStatus {
+  if (rec.employeeUserId) {
+    const byId = index.byUserId.get(rec.employeeUserId);
+    if (byId) return byId;
+  }
+  const byName = index.byName.get(normName(rec.employeeName));
+  return byName ?? "unknown";
+}
+
+/** True when the record's holder still works here (unknown holders count as
+ *  active — never silence a warning we can't attribute). */
+export function holderIsActive(
+  rec: { employeeUserId?: string | null; employeeName?: string | null },
+  index: HolderIndex,
+): boolean {
+  return holderStatus(rec, index) !== "former";
 }
 
 export function taskIsOpen(t: ComplianceTask): boolean {
@@ -73,6 +132,9 @@ interface ScoreInput {
   trainingAssignments: TrainingAssignment[];
   documents: ComplianceDocument[];
   riskCases: RiskManagementCase[];
+  /** When provided, credential/training penalties only count people who still
+   *  work here — an expired license of a former employee is history, not risk. */
+  employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
 }
 
 function deduct(count: number, per: number, cap: number): number {
@@ -84,15 +146,24 @@ function deduct(count: number, per: number, cap: number): number {
  * Every deduction is surfaced in `factors` so the UI can explain the number.
  */
 export function computeComplianceScore(input: ScoreInput): ComplianceScore {
+  // Context: only current staff's credentials/training count against the score.
+  const index = input.employees ? buildHolderIndex(input.employees) : null;
+  const creds = index
+    ? input.credentials.filter((c) => holderIsActive(c, index))
+    : input.credentials;
+  const training = index
+    ? input.trainingAssignments.filter((a) =>
+        holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, index))
+    : input.trainingAssignments;
+
   const overdueTasks = input.tasks.filter(taskIsOverdue).length;
-  const expiredCreds = input.credentials.filter(
+  const expiredCreds = creds.filter(
     (c) => credentialStatus(c) === "expired",
   ).length;
-  const expiringCreds = input.credentials.filter(
+  const expiringCreds = creds.filter(
     (c) => credentialStatus(c) === "expiring_soon",
   ).length;
-  const overdueTraining =
-    input.trainingAssignments.filter(assignmentIsOverdue).length;
+  const overdueTraining = training.filter(assignmentIsOverdue).length;
   const docsNeedingReview = input.documents.filter(documentNeedsReview).length;
 
   const openRisk = input.riskCases.filter(

@@ -46,19 +46,40 @@ async function runScan(): Promise<{ created: number }> {
 
   const candidates: NewNote[] = [];
 
-  // Credentials expiring within the configured window or expired
-  const { data: creds } = await admin.from("credentials").select("id, employee_name, credential_name, expiration_date");
+  // Context: only warn about people who still work here. A former employee's
+  // expired license or unfinished training is history, not an action item.
+  const { data: emps } = await admin.from("employees").select("user_id, first_name, last_name, employment_status");
+  const normName = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const activeIds = new Set<string>();
+  const nameStatus = new Map<string, boolean>(); // normalized name -> is active
+  for (const e of emps ?? []) {
+    const active = e.employment_status === "active" || e.employment_status === "on_leave";
+    if (e.user_id && active) activeIds.add(e.user_id);
+    const n = normName(`${e.first_name} ${e.last_name}`);
+    if (n) nameStatus.set(n, nameStatus.get(n) === true ? true : active);
+  }
+  // Unknown people stay warnable — never silence a warning we can't attribute.
+  const personIsActive = (userId: string | null, name: string | null) => {
+    if (userId && activeIds.has(userId)) return true;
+    const byName = nameStatus.get(normName(name));
+    return byName !== false;
+  };
+
+  // Credentials expiring within the configured window or expired (active staff only)
+  const { data: creds } = await admin.from("credentials").select("id, employee_user_id, employee_name, credential_name, expiration_date");
   for (const c of creds ?? []) {
+    if (!personIsActive(c.employee_user_id, c.employee_name)) continue;
     const d = daysUntil(c.expiration_date);
     if (d === null) continue;
     if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
     else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
   }
 
-  // Training overdue or due within the configured window
-  const { data: training } = await admin.from("training_assignments").select("id, assigned_to_name, module_title, due_date, status");
+  // Training overdue or due within the configured window (active staff only)
+  const { data: training } = await admin.from("training_assignments").select("id, assigned_to_user_id, assigned_to_name, module_title, due_date, status");
   for (const t of training ?? []) {
     if (t.status === "completed") continue;
+    if (!personIsActive(t.assigned_to_user_id, t.assigned_to_name)) continue;
     const d = daysUntil(t.due_date);
     if (d === null) continue;
     if (d < 0) candidates.push({ title: `Training overdue: ${t.module_title}`, body: `${t.assigned_to_name} is ${Math.abs(d)} day(s) overdue on ${t.module_title}.`, category: "training", severity: "warning", entity_type: "training_assignments", entity_id: t.id, link: "/training" });

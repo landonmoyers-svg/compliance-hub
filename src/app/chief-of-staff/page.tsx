@@ -99,7 +99,8 @@ export default function ChiefOfStaffPage() {
     tasks: tasks.data ?? [],
     screeningDueCount,
     lastBackupAt: (backupsQ.data ?? []).slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate))[0]?.createdDate ?? null,
-  }), [pref, snoozedKeys, credentials.data, training.data, documents.data, capas.data, sra.data, incidents.data, breaches.data, insurance.data, vendors.data, tasks.data, screeningDueCount, backupsQ.data]);
+    employees: employees.data ?? [],
+  }), [pref, snoozedKeys, credentials.data, training.data, documents.data, capas.data, sra.data, incidents.data, breaches.data, insurance.data, vendors.data, tasks.data, screeningDueCount, backupsQ.data, employees.data]);
 
   const grouped = useMemo(() => groupByBucket(items), [items]);
   const overdue = grouped.overdue.length;

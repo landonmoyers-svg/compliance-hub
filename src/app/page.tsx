@@ -27,8 +27,10 @@ import { cn } from "@/lib/cn";
 import { daysUntil, formatDate } from "@/lib/dates";
 import {
   assignmentIsOverdue,
+  buildHolderIndex,
   bySoonest,
   computeComplianceScore,
+  holderIsActive,
   credentialStatus,
   documentNeedsReview,
   scoreBand,
@@ -145,6 +147,7 @@ export default function CommandCenterPage() {
   const riskQ = useCollection("riskCases");
   const regQ = useCollection("regulatorySources");
   const invQ = useCollection("inventory");
+  const employeesQ = useCollection("employees");
 
   const queries = [tasksQ, credsQ, docsQ, trainingQ, sdsQ, riskQ, regQ, invQ];
   const loading = queries.some((q) => q.isLoading);
@@ -159,6 +162,19 @@ export default function CommandCenterPage() {
   const risk = useMemo(() => riskQ.data ?? [], [riskQ.data]);
   const regs = useMemo(() => regQ.data ?? [], [regQ.data]);
   const inventory = useMemo(() => invQ.data ?? [], [invQ.data]);
+  const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+
+  // Context: warnings only for people who still work here. A former employee's
+  // expired license is history, not an action item.
+  const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
+  const activeCredentials = useMemo(
+    () => credentials.filter((c) => holderIsActive(c, holderIdx)),
+    [credentials, holderIdx],
+  );
+  const activeTraining = useMemo(
+    () => training.filter((a) => holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, holderIdx)),
+    [training, holderIdx],
+  );
 
   const score = useMemo(
     () =>
@@ -168,8 +184,9 @@ export default function CommandCenterPage() {
         trainingAssignments: training,
         documents,
         riskCases: risk,
+        employees,
       }),
-    [tasks, credentials, training, documents, risk],
+    [tasks, credentials, training, documents, risk, employees],
   );
   const band = scoreBand(score.score);
   // The program is "configured" once there's operational data to score against
@@ -183,7 +200,7 @@ export default function CommandCenterPage() {
       secondary: t.assignedToName ? `Assigned to ${t.assignedToName}` : undefined,
       badge: dueBadge(t.dueDate),
     }));
-    const expiredCreds = credentials
+    const expiredCreds = activeCredentials
       .filter((c) => credentialStatus(c) === "expired")
       .map<QueueItem>((c) => ({
         id: `c-${c.id}`,
@@ -192,11 +209,11 @@ export default function CommandCenterPage() {
         badge: { label: "Expired", tone: "destructive" },
       }));
     return [...overdueTasks, ...expiredCreds];
-  }, [tasks, credentials]);
+  }, [tasks, activeCredentials]);
 
   const expiringCreds: QueueItem[] = useMemo(
     () =>
-      [...credentials]
+      [...activeCredentials]
         .filter((c) => credentialStatus(c) === "expiring_soon")
         .sort(bySoonest((c) => c.expirationDate))
         .map((c) => ({
@@ -205,12 +222,12 @@ export default function CommandCenterPage() {
           secondary: c.issuingBody ?? undefined,
           badge: dueBadge(c.expirationDate),
         })),
-    [credentials],
+    [activeCredentials],
   );
 
   const trainingDue: QueueItem[] = useMemo(
     () =>
-      [...training]
+      [...activeTraining]
         .filter((a) => {
           if (a.status === "completed") return false;
           const d = daysUntil(a.dueDate);
@@ -225,7 +242,7 @@ export default function CommandCenterPage() {
             ? { label: "Overdue", tone: "destructive" }
             : dueBadge(a.dueDate),
         })),
-    [training],
+    [activeTraining],
   );
 
   const riskItems: QueueItem[] = useMemo(

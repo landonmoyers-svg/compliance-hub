@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
-import { credentialStatus, bySoonest } from "@/lib/compliance";
+import { credentialStatus, bySoonest, buildHolderIndex, holderStatus } from "@/lib/compliance";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
 import type { CredentialRecord, Employee } from "@/lib/data/schema";
@@ -498,11 +498,19 @@ export default function CredentialsPage() {
     toast.success(`Assigned ${n} credential${n === 1 ? "" : "s"}.`);
   }
 
+  // Context: a former employee's expired license is history, not an alarm —
+  // exclude former staff from the warning counts and mark their rows instead.
+  const holderIdx = useMemo(() => buildHolderIndex(employeesQ.data ?? []), [employeesQ.data]);
+  const isFormerHolder = useMemo(() => (c: CredentialRecord) => holderStatus(c, holderIdx) === "former", [holderIdx]);
+
   const counts = useMemo(() => {
     const out = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
-    for (const c of credentials) out[credentialStatus(c)]++;
+    for (const c of credentials) {
+      if (isFormerHolder(c)) continue;
+      out[credentialStatus(c)]++;
+    }
     return out;
-  }, [credentials]);
+  }, [credentials, isFormerHolder]);
 
   async function handleSave(form: FormState) {
     setSaving(true);
@@ -686,7 +694,12 @@ export default function CredentialsPage() {
                     const days = daysUntil(c.expirationDate);
                     return (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Employee" className="py-3 pr-4 font-medium"><PersonLink userId={c.employeeUserId ?? null} name={c.employeeName} /></td>
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">
+                          <span className="inline-flex flex-wrap items-center gap-1.5">
+                            <PersonLink userId={c.employeeUserId ?? null} name={c.employeeName} />
+                            {isFormerHolder(c) && <Badge variant="secondary">Former</Badge>}
+                          </span>
+                        </td>
                         <td data-label="Credential" className="py-3 pr-4">
                           <div>{c.credentialName}</div>
                           {c.credentialNumber && (
@@ -711,7 +724,7 @@ export default function CredentialsPage() {
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
                           <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer">
-                            <Badge variant={STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
+                            <Badge variant={isFormerHolder(c) ? "secondary" : STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
                           </button>
                         </td>
                         <td data-label="" className="py-3">

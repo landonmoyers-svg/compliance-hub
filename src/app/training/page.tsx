@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
-import { assignmentIsOverdue } from "@/lib/compliance";
+import {
+  buildHolderIndex,
+  holderIsActive, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
 import type { TrainingAssignment, TrainingModule, TrainingQuestion } from "@/lib/data/schema";
@@ -261,6 +263,7 @@ export default function TrainingPage() {
   const { profile, user } = useAuth();
   const modulesQ = useCollection("trainingModules");
   const assignQ = useCollection("trainingAssignments");
+  const employeesCtxQ = useCollection("employees");
   const questionsQ = useCollection("trainingQuestions");
   const profilesQ = useCollection("profiles");
   const createMut = useCreate("trainingAssignments");
@@ -299,12 +302,14 @@ export default function TrainingPage() {
     });
   }, [assignments, search, tab]);
 
+  // Context: overdue only counts people who still work here.
+  const holderIdx = useMemo(() => buildHolderIndex(employeesCtxQ.data ?? []), [employeesCtxQ.data]);
   const stats = useMemo(() => ({
     total: assignments.length,
     completed: assignments.filter((a) => a.status === "completed").length,
-    overdue: assignments.filter(assignmentIsOverdue).length,
+    overdue: assignments.filter((a) => assignmentIsOverdue(a) && holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, holderIdx)).length,
     pending: assignments.filter((a) => a.status !== "completed" && !assignmentIsOverdue(a)).length,
-  }), [assignments]);
+  }), [assignments, holderIdx]);
 
   async function handleAssign(form: AssignForm) {
     setSaving(true);

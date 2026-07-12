@@ -1,7 +1,8 @@
 import { daysUntil } from "@/lib/dates";
+import { buildHolderIndex, holderIsActive } from "@/lib/compliance";
 import type {
   CredentialRecord, TrainingAssignment, ComplianceDocument, CorrectiveAction,
-  SraFinding, Incident, BreachAssessment, InsurancePolicyRecord, VendorRecord, ComplianceTask,
+  SraFinding, Incident, BreachAssessment, InsurancePolicyRecord, VendorRecord, ComplianceTask, Employee,
 } from "@/lib/data/schema";
 
 export type Bucket = "overdue" | "today" | "week" | "horizon";
@@ -35,6 +36,9 @@ export interface AgendaInput {
   tasks: ComplianceTask[];
   screeningDueCount: number;
   lastBackupAt?: string | null;
+  /** Directory used for context: former employees' expired credentials and
+   *  unfinished training are history, not agenda items. */
+  employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
 }
 
 // Fixed high-value regulatory deadlines to surface proactively.
@@ -73,8 +77,14 @@ export function buildAgenda(input: AgendaInput): WorkItem[] {
     items.push({ key, category, title, why, dueDate, daysUntil: d, risk, bucket, href, score: scoreFor(risk, d) });
   };
 
+  // Context filter: skip items whose person no longer works here.
+  const holderIdx = buildHolderIndex(input.employees ?? []);
+  const activeHolder = (rec: { employeeUserId?: string | null; employeeName?: string | null }) =>
+    !input.employees || holderIsActive(rec, holderIdx);
+
   // Credentials
   for (const c of input.credentials) {
+    if (!activeHolder(c)) continue;
     if (!c.expirationDate) continue;
     const d = daysUntil(c.expirationDate);
     if (d === null || d > horizonDays) continue;
@@ -83,6 +93,7 @@ export function buildAgenda(input: AgendaInput): WorkItem[] {
   }
   // Training
   for (const t of input.training) {
+    if (!activeHolder({ employeeUserId: t.assignedToUserId, employeeName: t.assignedToName })) continue;
     if (t.status === "completed" || !t.dueDate) continue;
     const d = daysUntil(t.dueDate);
     if (d === null || d > horizonDays) continue;
