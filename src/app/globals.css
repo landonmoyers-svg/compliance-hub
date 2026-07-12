@@ -116,6 +116,14 @@
   backdrop-filter: saturate(180%) blur(20px);
 }
 
+/* HIG icons: the app uses one consistent icon family (Lucide, a single outline
+   set on a uniform grid — the SF Symbols equivalent for the web). Enforce a
+   single stroke weight everywhere, tuned to match the weight of adjacent UI
+   text so icons and labels read as one. */
+svg.lucide {
+  stroke-width: 1.75px;
+}
+
 /* Accessibility (HIG): honor the reduce-motion preference app-wide. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
