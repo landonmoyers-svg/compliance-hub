@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -349,6 +350,14 @@ export default function SDSLibraryPage() {
     });
   }, [records, search, filterStatus]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    product: (r) => r.productName,
+    manufacturer: (r) => r.manufacturer,
+    upc: (r) => r.upc,
+    signal: (r) => r.signalWord,
+    status: (r) => r.status,
+  });
+
   const stats = useMemo(() => ({
     active: records.filter((r) => r.status === "active").length,
     missing: records.filter((r) => r.status === "missing").length,
@@ -507,16 +516,16 @@ export default function SDSLibraryPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Product</th>
-                    <th className="pb-2 pr-4 font-medium">Manufacturer</th>
-                    <th className="pb-2 pr-4 font-medium">UPC / ID</th>
-                    <th className="pb-2 pr-4 font-medium">Signal</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Product" sortKey="product" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Manufacturer" sortKey="manufacturer" sort={sort} onToggle={toggle} />
+                    <SortHeader label="UPC / ID" sortKey="upc" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Signal" sortKey="signal" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
+                  {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Product" className="py-3 pr-4 font-medium">{r.productName}</td>
                       <td data-label="Manufacturer" className="py-3 pr-4 text-muted-foreground">{r.manufacturer ?? "—"}</td>

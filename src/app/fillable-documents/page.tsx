@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   FillableFormTemplate,
@@ -457,6 +459,20 @@ export default function FillableDocumentsPage() {
 
   const templateById = useMemo(() => new Map(templates.map((t) => [t.id, t])), [templates]);
 
+  const { sorted: sortedAssignments, sort: aSort, toggle: aToggle } = useSort(assignments, {
+    form: (a) => a.templateTitle,
+    assignedTo: (a) => a.assignedToName,
+    due: (a) => a.dueDate,
+    status: (a) => a.status,
+  });
+
+  const { sorted: sortedCompleted, sort: cSort, toggle: cToggle } = useSort(completed, {
+    form: (c) => c.templateTitle,
+    employee: (c) => c.employeeName,
+    signedBy: (c) => c.signedByName,
+    completed: (c) => c.completedAt,
+  });
+
   const visibleTemplates = useMemo(
     () => (categoryFilter === "all" ? templates : templates.filter((t) => t.category === categoryFilter)),
     [templates, categoryFilter],
@@ -768,18 +784,18 @@ export default function FillableDocumentsPage() {
                 <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="pb-2 pr-4 font-medium">Form</th>
-                      <th className="pb-2 pr-4 font-medium">Assigned to</th>
-                      <th className="pb-2 pr-4 font-medium">Due</th>
-                      <th className="pb-2 pr-4 font-medium">Status</th>
+                      <SortHeader label="Form" sortKey="form" sort={aSort} onToggle={aToggle} />
+                      <SortHeader label="Assigned to" sortKey="assignedTo" sort={aSort} onToggle={aToggle} />
+                      <SortHeader label="Due" sortKey="due" sort={aSort} onToggle={aToggle} />
+                      <SortHeader label="Status" sortKey="status" sort={aSort} onToggle={aToggle} />
                       <th className="pb-2 font-medium text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {assignments.map((a) => (
+                    {sortedAssignments.map((a) => (
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Form" className="py-3 pr-4 font-medium">{a.templateTitle}</td>
-                        <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground">{a.assignedToName}</td>
+                        <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} /></td>
                         <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ?? "—"}</td>
                         <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
                         <td data-label="" className="py-3 text-right">
@@ -814,18 +830,18 @@ export default function FillableDocumentsPage() {
                 <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="pb-2 pr-4 font-medium">Form</th>
-                      <th className="pb-2 pr-4 font-medium">Employee</th>
-                      <th className="pb-2 pr-4 font-medium">Signed by</th>
-                      <th className="pb-2 pr-4 font-medium">Completed</th>
+                      <SortHeader label="Form" sortKey="form" sort={cSort} onToggle={cToggle} />
+                      <SortHeader label="Employee" sortKey="employee" sort={cSort} onToggle={cToggle} />
+                      <SortHeader label="Signed by" sortKey="signedBy" sort={cSort} onToggle={cToggle} />
+                      <SortHeader label="Completed" sortKey="completed" sort={cSort} onToggle={cToggle} />
                       <th className="pb-2 font-medium">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {completed.map((c: CompletedForm) => (
+                    {sortedCompleted.map((c: CompletedForm) => (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Form" className="py-3 pr-4 font-medium">{c.templateTitle}</td>
-                        <td data-label="Employee" className="py-3 pr-4 text-muted-foreground">{c.employeeName}</td>
+                        <td data-label="Employee" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={c.employeeId ?? null} name={c.employeeName} /></td>
                         <td data-label="Signed by" className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
                         <td data-label="Completed" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}

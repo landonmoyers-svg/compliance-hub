@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { uploadFile } from "@/lib/storage";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import type { EmployeeDocument, EmployeeDocType, Employee } from "@/lib/data/schema";
@@ -336,6 +338,16 @@ export default function EmployeeVaultPage() {
     });
   }, [documents, search, filterEmployee, filterType]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    title: (d) => d.title,
+    employee: (d) => d.employeeName,
+    type: (d) => DOC_TYPE_LABEL[d.documentType],
+    flag: (d) => (d.sensitive ? "Restricted" : ""),
+    uploaded: (d) => d.createdDate,
+    by: (d) => d.uploadedByName ?? "",
+    file: (d) => d.fileUrl ?? "",
+  });
+
   const stats = useMemo(() => {
     const now = new Date();
     const month = now.getMonth();
@@ -473,21 +485,21 @@ export default function EmployeeVaultPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Employee</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Flag</th>
-                    <th className="pb-2 pr-4 font-medium">Uploaded</th>
-                    <th className="pb-2 pr-4 font-medium">By</th>
-                    <th className="pb-2 pr-4 font-medium">File</th>
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Flag" sortKey="flag" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Uploaded" sortKey="uploaded" sort={sort} onToggle={toggle} />
+                    <SortHeader label="By" sortKey="by" sort={sort} onToggle={toggle} />
+                    <SortHeader label="File" sortKey="file" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((d) => (
+                  {sorted.map((d) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Title" className="py-3 pr-4 font-medium">{d.title}</td>
-                      <td data-label="Employee" className="py-3 pr-4">{d.employeeName}</td>
+                      <td data-label="Employee" className="py-3 pr-4"><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></td>
                       <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
                       <td data-label="Flag" className="py-3 pr-4">
                         {d.sensitive ? (

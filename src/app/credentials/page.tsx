@@ -6,6 +6,8 @@ import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { getSignedUrl } from "@/lib/storage";
 import { cn } from "@/lib/cn";
 import { DuplicateFinder } from "@/components/shared/duplicate-finder";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { PageHeader } from "@/components/shared/page-header";
@@ -365,10 +367,19 @@ export default function CredentialsPage() {
   }, [credentials, search, filterStatus]);
 
   // Group the filtered rows by credential type or by the person who holds them.
+  const { sorted, sort, toggle } = useSort(filtered, {
+    employee: (c) => c.employeeName,
+    credential: (c) => c.credentialName,
+    type: (c) => credTypeLabel(c.credentialType),
+    issuer: (c) => c.issuingBody,
+    expiration: (c) => c.expirationDate,
+    status: (c) => credentialStatus(c),
+  });
+
   const groups = useMemo(() => {
     if (groupBy === "none") return [] as { key: string; label: string; items: CredentialRecord[] }[];
     const map = new Map<string, CredentialRecord[]>();
-    for (const c of filtered) {
+    for (const c of sorted) {
       const key = groupBy === "type" ? (c.credentialType || "other") : (c.employeeName.trim() || "Unassigned");
       const arr = map.get(key) ?? [];
       arr.push(c);
@@ -377,7 +388,7 @@ export default function CredentialsPage() {
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, items]) => ({ key, label: groupBy === "type" ? credTypeLabel(key) : key, items }));
-  }, [filtered, groupBy]);
+  }, [sorted, groupBy]);
 
   // Re-read every credential that has an attached document and update its type /
   // fill missing fields from the ACTUAL document contents. Never overwrites a
@@ -651,17 +662,17 @@ export default function CredentialsPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Employee</th>
-                    <th className="pb-2 pr-4 font-medium">Credential</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Issuing body</th>
-                    <th className="pb-2 pr-4 font-medium">Expiration</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Credential" sortKey="credential" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Issuing body" sortKey="issuer" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Expiration" sortKey="expiration" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(groupBy === "none" ? [{ key: "__all__", label: "", items: filtered }] : groups).map((g) => (
+                  {(groupBy === "none" ? [{ key: "__all__", label: "", items: sorted }] : groups).map((g) => (
                     <Fragment key={g.key}>
                       {groupBy !== "none" && (
                         <tr className="bg-secondary/40">
@@ -675,7 +686,7 @@ export default function CredentialsPage() {
                     const days = daysUntil(c.expirationDate);
                     return (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Employee" className="py-3 pr-4 font-medium">{c.employeeName}</td>
+                        <td data-label="Employee" className="py-3 pr-4 font-medium"><PersonLink userId={c.employeeUserId ?? null} name={c.employeeName} /></td>
                         <td data-label="Credential" className="py-3 pr-4">
                           <div>{c.credentialName}</div>
                           {c.credentialNumber && (

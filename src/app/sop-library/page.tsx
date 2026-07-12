@@ -4,6 +4,7 @@ import { useState, useMemo, useRef } from "react";
 import { FileText, Plus, Search, Upload, X } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile } from "@/lib/storage";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
@@ -248,6 +249,15 @@ export default function SOPLibraryPage() {
     });
   }, [docs, search, filterStatus]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    title: (d) => d.title,
+    type: (d) => d.documentType,
+    version: (d) => d.version,
+    access: (d) => ACCESS_LABEL[d.accessLevel],
+    review: (d) => d.reviewDate,
+    status: (d) => d.status,
+  });
+
   const needsReview = useMemo(() => docs.filter(documentNeedsReview).length, [docs]);
 
   async function handleSave(form: DocForm) {
@@ -373,17 +383,17 @@ export default function SOPLibraryPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Type / Area</th>
-                    <th className="pb-2 pr-4 font-medium">Version</th>
-                    <th className="pb-2 pr-4 font-medium">Access</th>
-                    <th className="pb-2 pr-4 font-medium">Review date</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type / Area" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Version" sortKey="version" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Access" sortKey="access" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Review date" sortKey="review" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((d) => {
+                  {sorted.map((d) => {
                     const pastReview = documentNeedsReview(d);
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
@@ -417,7 +427,7 @@ export default function SOPLibraryPage() {
                         <td data-label="" className="py-3">
                           <div className="flex items-center gap-1 md:justify-end">
                             {d.fileUrl && (
-                              <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" />
+                              <FileLink path={d.fileUrl} label="Document" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-secondary/40" />
                             )}
                             <VersionHistoryButton entityType="documents" entityId={d.id} title={d.title} />
                             <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>

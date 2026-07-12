@@ -12,6 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
+import { PersonLink } from "@/components/shared/person-link";
+import { FileLink } from "@/components/shared/file-link";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import type { InsurancePolicyRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -168,6 +171,17 @@ export default function InsuranceVaultPage() {
     );
   }, [policies, search]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    policyName: (p) => p.policyName,
+    type: (p) => p.policyType,
+    carrier: (p) => p.carrierName,
+    policyNumber: (p) => p.policyNumber,
+    coverage: (p) => p.coverageAmountCents,
+    premium: (p) => p.annualPremiumCents,
+    renewal: (p) => p.renewalDate,
+    holder: (p) => p.holderName,
+  });
+
   const stats = useMemo(() => {
     const expired = policies.filter((p) => isExpired(p.renewalDate));
     const expiringSoon = policies.filter((p) => {
@@ -286,33 +300,30 @@ export default function InsuranceVaultPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Policy name</th>
-                    <th className="pb-2 pr-4 font-medium">Type / Carrier</th>
-                    <th className="pb-2 pr-4 font-medium">Policy #</th>
-                    <th className="pb-2 pr-4 font-medium">Coverage</th>
-                    <th className="pb-2 pr-4 font-medium">Premium / yr</th>
-                    <th className="pb-2 pr-4 font-medium">Renewal</th>
+                    <SortHeader label="Policy name" sortKey="policyName" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Carrier" sortKey="carrier" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Policy #" sortKey="policyNumber" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Coverage" sortKey="coverage" sort={sort} onToggle={toggle} align="right" />
+                    <SortHeader label="Premium / yr" sortKey="premium" sort={sort} onToggle={toggle} align="right" />
+                    <SortHeader label="Renewal" sortKey="renewal" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Holder" sortKey="holder" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p) => {
+                  {sorted.map((p) => {
                     const expired = isExpired(p.renewalDate);
                     const days = daysUntil(p.renewalDate);
                     const expiringSoon = days !== null && days >= 0 && days <= 60;
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Policy name" className="py-3 pr-4 font-medium">
-                          <div>{p.policyName}</div>
-                          {p.holderName && <div className="text-xs font-normal text-muted-foreground">Holder: {p.holderName}</div>}
-                        </td>
-                        <td data-label="Type / Carrier" className="py-3 pr-4">
-                          <div className="capitalize">{p.policyType}</div>
-                          {p.carrierName && <div className="text-xs text-muted-foreground">{p.carrierName}</div>}
-                        </td>
+                        <td data-label="Policy name" className="py-3 pr-4 font-medium">{p.policyName}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{p.policyType}</td>
+                        <td data-label="Carrier" className="py-3 pr-4">{p.carrierName ?? "—"}</td>
                         <td data-label="Policy #" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
-                        <td data-label="Coverage" className="py-3 pr-4">{formatCents(p.coverageAmountCents)}</td>
-                        <td data-label="Premium / yr" className="py-3 pr-4">{formatCents(p.annualPremiumCents)}</td>
+                        <td data-label="Coverage" className="py-3 pr-4 text-right">{formatCents(p.coverageAmountCents)}</td>
+                        <td data-label="Premium / yr" className="py-3 pr-4 text-right">{formatCents(p.annualPremiumCents)}</td>
                         <td data-label="Renewal" className="py-3 pr-4">
                           {p.renewalDate ? (
                             <div>
@@ -327,8 +338,16 @@ export default function InsuranceVaultPage() {
                             </div>
                           ) : "—"}
                         </td>
+                        <td data-label="Holder" className="py-3 pr-4">
+                          {p.holderName ? <PersonLink userId={p.holderUserId ?? null} name={p.holderName} /> : <span className="text-muted-foreground">Org-wide</span>}
+                        </td>
                         <td data-label="" className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+                          <div className="flex gap-2 md:justify-end">
+                            <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+                            {p.documentUrl && (
+                              <FileLink path={p.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

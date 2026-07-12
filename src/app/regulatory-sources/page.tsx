@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { RegulatorySource } from "@/lib/data/schema";
@@ -171,6 +172,15 @@ export default function RegulatorySourcesPage() {
     });
   }, [sources, search, filterReview]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    title: (s) => s.title,
+    citation: (s) => s.citationLabel,
+    type: (s) => TYPE_LABELS[s.sourceType],
+    issuer: (s) => s.issuingBody,
+    lastChecked: (s) => s.lastCheckedAt,
+    status: (s) => s.reviewStatus,
+  });
+
   const stats = useMemo(() => ({
     current: sources.filter((s) => s.reviewStatus === "current").length,
     needsReview: sources.filter((s) => s.reviewStatus === "needs_review").length,
@@ -294,17 +304,17 @@ export default function RegulatorySourcesPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Citation</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Issuing body</th>
-                    <th className="pb-2 pr-4 font-medium">Last checked</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Citation" sortKey="citation" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Issuing body" sortKey="issuer" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Last checked" sortKey="lastChecked" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((s) => (
+                  {sorted.map((s) => (
                     <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Title" className="py-3 pr-4">
                         <div className="font-medium">{s.title}</div>
