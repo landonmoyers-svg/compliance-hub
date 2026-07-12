@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { allPages, allowedRolesFor, SELECTABLE_ROLES } from "@/lib/nav";
@@ -126,6 +127,15 @@ export default function SettingsPage() {
   }
 
   const loading = settingsQ.isLoading;
+
+  if (settingsQ.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Settings" />
+        <ErrorState message="We couldn't load this page's data." onRetry={() => void settingsQ.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

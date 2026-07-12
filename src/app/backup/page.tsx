@@ -12,6 +12,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/shared/states";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { toast } from "sonner";
 
@@ -86,6 +87,18 @@ export default function BackupPage() {
       setRunning(false);
       setProgress("");
     }
+  }
+
+  const anyError = backupsQ.isError || orgSettingsQ.isError;
+  const refetchAll = () => { void backupsQ.refetch(); void orgSettingsQ.refetch(); };
+
+  if (anyError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Data Backup" />
+        <ErrorState message="We couldn't load this page's data." onRetry={() => void refetchAll()} />
+      </div>
+    );
   }
 
   return (

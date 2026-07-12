@@ -15,7 +15,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ErrorState } from "@/components/shared/states";
+import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   FillableFormTemplate,
@@ -359,11 +359,19 @@ export default function FormGapMatrixPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No required forms match this filter.
-          </CardContent>
-        </Card>
+        filter === "missing" ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="No missing forms"
+            description="Your library covers every required form."
+          />
+        ) : (
+          <EmptyState
+            icon={Grid3x3}
+            title="Nothing here"
+            description="No required forms match this filter."
+          />
+        )
       ) : (
         <div className="space-y-6">
           {categories.map((category) => {

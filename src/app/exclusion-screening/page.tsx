@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { formatDate, dateInputToISO, daysUntil } from "@/lib/dates";
 import type { ExclusionScreening } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -132,6 +134,28 @@ export default function ExclusionScreeningPage() {
     return { sub, last, daysAgo, due };
   }), [subjects, screenings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Default order: subjects that are due for screening first.
+  const dueFirst = useMemo(() => [...rows].sort((a, b) => Number(b.due) - Number(a.due)), [rows]);
+  const subjectsSort = useSort(dueFirst, {
+    subject: (r) => r.sub.name,
+    type: (r) => r.sub.type,
+    lastScreened: (r) => r.last?.screenedDate ?? null,
+    result: (r) => r.last?.result ?? null,
+    status: (r) => (r.due ? "Due" : "Current"),
+  });
+
+  const history = useMemo(
+    () => [...screenings].sort((a, b) => (b.screenedDate ?? b.createdDate).localeCompare(a.screenedDate ?? a.createdDate)).slice(0, 50),
+    [screenings],
+  );
+  const historySort = useSort(history, {
+    subject: (s) => s.subjectName,
+    date: (s) => s.screenedDate,
+    lists: (s) => s.sources,
+    result: (s) => s.result,
+    by: (s) => s.screenedByName,
+  });
+
   const stats = useMemo(() => {
     const dueNow = rows.filter((r) => r.due).length;
     const hits = screenings.filter((s) => s.result === "hit").length;
@@ -192,15 +216,15 @@ export default function ExclusionScreeningPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Subject</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Last screened</th>
-                    <th className="pb-2 pr-4 font-medium">Result</th>
-                    <th className="pb-2 font-medium">Status</th>
+                    <SortHeader label="Subject" sortKey="subject" sort={subjectsSort.sort} onToggle={subjectsSort.toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={subjectsSort.sort} onToggle={subjectsSort.toggle} />
+                    <SortHeader label="Last screened" sortKey="lastScreened" sort={subjectsSort.sort} onToggle={subjectsSort.toggle} />
+                    <SortHeader label="Result" sortKey="result" sort={subjectsSort.sort} onToggle={subjectsSort.toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={subjectsSort.sort} onToggle={subjectsSort.toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.sort((a, b) => Number(b.due) - Number(a.due)).map(({ sub, last, daysAgo, due }) => (
+                  {subjectsSort.sorted.map(({ sub, last, daysAgo, due }) => (
                     <tr key={sub.key} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setLogging(sub)}>
                       <td data-label="Subject" className="py-3 pr-4 font-medium">{sub.name}</td>
                       <td data-label="Type" className="py-3 pr-4 capitalize text-muted-foreground">{sub.type}</td>
@@ -224,17 +248,17 @@ export default function ExclusionScreeningPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Subject</th>
-                    <th className="pb-2 pr-4 font-medium">Date</th>
-                    <th className="pb-2 pr-4 font-medium">Lists</th>
-                    <th className="pb-2 pr-4 font-medium">Result</th>
-                    <th className="pb-2 font-medium">By</th>
+                    <SortHeader label="Subject" sortKey="subject" sort={historySort.sort} onToggle={historySort.toggle} />
+                    <SortHeader label="Date" sortKey="date" sort={historySort.sort} onToggle={historySort.toggle} />
+                    <SortHeader label="Lists" sortKey="lists" sort={historySort.sort} onToggle={historySort.toggle} />
+                    <SortHeader label="Result" sortKey="result" sort={historySort.sort} onToggle={historySort.toggle} />
+                    <SortHeader label="By" sortKey="by" sort={historySort.sort} onToggle={historySort.toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {[...screenings].sort((a, b) => (b.screenedDate ?? b.createdDate).localeCompare(a.screenedDate ?? a.createdDate)).slice(0, 50).map((s) => (
+                  {historySort.sorted.map((s) => (
                     <tr key={s.id} className="border-b border-border/50">
-                      <td data-label="Subject" className="py-2.5 pr-4">{s.subjectName}</td>
+                      <td data-label="Subject" className="py-2.5 pr-4"><PersonLink userId={s.subjectUserId ?? null} name={s.subjectName} /></td>
                       <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">{formatDate(s.screenedDate)}</td>
                       <td data-label="Lists" className="py-2.5 pr-4 text-muted-foreground">{s.sources ?? "—"}</td>
                       <td data-label="Result" className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{s.result}</Badge></td>

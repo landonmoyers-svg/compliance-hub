@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/shared/states";
+import { EmptyState, ErrorState } from "@/components/shared/states";
 import type { Employee, RoleRequirement } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -172,7 +172,7 @@ export default function OrgChartPage() {
             {loading ? (
               <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
             ) : employees.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Add employees in the Employee Directory first.</p>
+              <EmptyState icon={Network} title="No employees yet" description="Add your team under HR → Employees." />
             ) : (
               <div className="overflow-x-auto">
                 <div className="min-w-max space-y-1.5">

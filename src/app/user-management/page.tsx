@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Users, Plus, Search, X, FolderOpen } from "lucide-react";
 import { useCollection, useUpdate } from "@/lib/data/hooks";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +142,13 @@ export default function UserManagementPage() {
     );
   }, [profiles, search]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    name: (p) => p.fullName,
+    email: (p) => p.email,
+    role: (p) => roleLabel(p.accountRole),
+    status: (p) => (p.active ? "Active" : "Inactive"),
+  });
+
   async function handleSave(form: ProfileForm) {
     setSaving(true);
     try {
@@ -264,16 +272,16 @@ export default function UserManagementPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Name</th>
-                    <th className="pb-2 pr-4 font-medium">Email</th>
-                    <th className="pb-2 pr-4 font-medium">Role</th>
+                    <SortHeader label="Name" sortKey="name" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Email" sortKey="email" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Role" sortKey="role" sort={sort} onToggle={toggle} />
                     <th className="pb-2 pr-4 font-medium">Permissions</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p) => {
+                  {sorted.map((p) => {
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Name" className="py-3 pr-4">

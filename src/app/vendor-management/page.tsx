@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Building2, Plus, Search, AlertTriangle, ShieldCheck, X, Check } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
@@ -330,6 +331,15 @@ export default function VendorManagementPage() {
     });
   }, [vendors, search, filterStatus, filterType]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    vendor: (v) => v.vendorName,
+    type: (v) => TYPE_LABEL[v.vendorType],
+    baa: (v) => BAA_LABEL[v.baaStatus],
+    phi: (v) => (v.hasAccessToPHI ? "Yes" : "No"),
+    insurance: (v) => v.insuranceExpirationDate,
+    status: (v) => STATUS_LABEL[v.status],
+  });
+
   const stats = useMemo(() => ({
     total: vendors.length,
     active: vendors.filter((v) => v.status === "active").length,
@@ -464,17 +474,17 @@ export default function VendorManagementPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Vendor</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">BAA</th>
-                    <th className="pb-2 pr-4 font-medium">PHI</th>
-                    <th className="pb-2 pr-4 font-medium">Insurance exp.</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Vendor" sortKey="vendor" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="BAA" sortKey="baa" sort={sort} onToggle={toggle} />
+                    <SortHeader label="PHI" sortKey="phi" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Insurance exp." sortKey="insurance" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((v) => {
+                  {sorted.map((v) => {
                     const gap = isBaaGap(v);
                     const ins = insuranceState(v.insuranceExpirationDate);
                     return (

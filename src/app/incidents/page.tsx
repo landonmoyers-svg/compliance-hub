@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
 import type { Incident, CorrectiveAction } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -273,6 +274,16 @@ export default function IncidentsPage() {
   const openIncident = incidents.find((i) => i.id === openId) ?? null;
   const capasFor = (incidentId: string) => capas.filter((c) => c.incidentId === incidentId);
 
+  const SEVERITY_RANK: Record<Incident["severity"], number> = { low: 0, medium: 1, high: 2, critical: 3 };
+  const { sorted, sort, toggle } = useSort(filtered, {
+    incident: (i) => i.title,
+    category: (i) => CATEGORY_LABEL[i.category],
+    severity: (i) => SEVERITY_RANK[i.severity],
+    reported: (i) => i.createdDate,
+    capas: (i) => capasFor(i.id).length,
+    status: (i) => i.status,
+  });
+
   const stats = useMemo(() => {
     const open = incidents.filter((i) => i.status !== "closed").length;
     const investigating = incidents.filter((i) => i.status === "investigating").length;
@@ -372,16 +383,16 @@ export default function IncidentsPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Incident</th>
-                    <th className="pb-2 pr-4 font-medium">Category</th>
-                    <th className="pb-2 pr-4 font-medium">Severity</th>
-                    <th className="pb-2 pr-4 font-medium">Reported</th>
-                    <th className="pb-2 pr-4 font-medium">Corrective actions</th>
-                    <th className="pb-2 font-medium">Status</th>
+                    <SortHeader label="Incident" sortKey="incident" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Category" sortKey="category" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Severity" sortKey="severity" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Reported" sortKey="reported" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Corrective actions" sortKey="capas" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((i) => (
+                  {sorted.map((i) => (
                     <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
                       <td data-label="Incident" className="py-3 pr-4 font-medium">{i.title}{i.anonymous && <span className="ml-2 text-xs text-muted-foreground">(anonymous)</span>}</td>
                       <td data-label="Category" className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>

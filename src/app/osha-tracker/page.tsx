@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { ClipboardCheck, Plus, Search } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -168,6 +169,14 @@ export default function OSHATrackerPage() {
     });
   }, [records, search, filterType, filterStatus]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    title: (r) => r.recordTitle,
+    type: (r) => RECORD_TYPE_LABEL[r.recordType],
+    eventDate: (r) => r.eventDate,
+    status: (r) => r.status,
+    recordability: (r) => r.recordabilityStatus,
+  });
+
   const stats = useMemo(() => ({
     open: records.filter((r) => r.status === "open").length,
     recordable: records.filter((r) => r.recordabilityStatus === "recordable").length,
@@ -289,16 +298,16 @@ export default function OSHATrackerPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Event date</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
-                    <th className="pb-2 pr-4 font-medium">Recordability</th>
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Event date" sortKey="eventDate" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Recordability" sortKey="recordability" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
+                  {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Title" className="py-3 pr-4 font-medium">{r.recordTitle}</td>
                       <td data-label="Type" className="py-3 pr-4">{RECORD_TYPE_LABEL[r.recordType]}</td>

@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { CheckCircle2, Search, Plus } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -52,6 +54,13 @@ export default function PolicyAttestationPage() {
         .map((a) => a.documentId),
     );
   }, [acks, profile]);
+
+  const { sorted: sortedAcks, sort, toggle } = useSort(acks, {
+    staff: (a) => a.userName,
+    document: (a) => a.documentTitle,
+    acknowledged: (a) => a.acknowledgedAt,
+    expires: (a) => a.expiresAt,
+  });
 
   const pending = requiresAck.filter((d) => !ackedDocIds.has(d.id)).length;
   const acknowledged = requiresAck.filter((d) => ackedDocIds.has(d.id)).length;
@@ -222,16 +231,18 @@ export default function PolicyAttestationPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Staff member</th>
-                    <th className="pb-2 pr-4 font-medium">Document</th>
-                    <th className="pb-2 pr-4 font-medium">Acknowledged</th>
-                    <th className="pb-2 font-medium">Expires</th>
+                    <SortHeader label="Staff member" sortKey="staff" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Document" sortKey="document" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Acknowledged" sortKey="acknowledged" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Expires" sortKey="expires" sort={sort} onToggle={toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {acks.map((a) => (
+                  {sortedAcks.map((a) => (
                     <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Staff member" className="py-2.5 pr-4 font-medium">{a.userName}</td>
+                      <td data-label="Staff member" className="py-2.5 pr-4 font-medium">
+                        <PersonLink userId={a.userId ?? null} name={a.userName} />
+                      </td>
                       <td data-label="Document" className="py-2.5 pr-4">{a.documentTitle}</td>
                       <td data-label="Acknowledged" className="py-2.5 pr-4">{a.acknowledgedAt ? formatDate(a.acknowledgedAt) : "—"}</td>
                       <td data-label="Expires" className="py-2.5">

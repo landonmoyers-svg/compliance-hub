@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TimeOffRequest, TimeOffType, PTOBalance } from "@/lib/data/schema";
 import { timeOffTypes } from "@/lib/data/schema";
@@ -86,6 +87,25 @@ export default function TimeOffPage() {
     [requests, isAdmin, myUserId],
   );
   const pendingRequests = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
+
+  const requestsSort = useSort(visibleRequests, {
+    employee: (r) => r.userName,
+    type: (r) => TYPE_LABEL[r.requestType],
+    dates: (r) => r.startDate,
+    hours: (r) => r.hours,
+    status: (r) => r.status,
+    reviewedBy: (r) => r.reviewerName,
+  });
+
+  const yearBalances = useMemo(() => balances.filter((b) => b.year === year), [balances, year]);
+  const balancesSort = useSort(yearBalances, {
+    employee: (b) => b.userName,
+    accrued: (b) => b.ptoAccruedHours,
+    carryover: (b) => b.carryOverHours,
+    used: (b) => b.ptoUsedHours,
+    remaining: (b) => ptoAvailable(b),
+    sickRemaining: (b) => sickAvailable(b),
+  });
 
   const days = useMemo(
     () => (form.startDate && form.endDate ? inclusiveDays(form.startDate, form.endDate) : 0),
@@ -269,16 +289,16 @@ export default function TimeOffPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    {isAdmin && <th className="pb-2 pr-4 font-medium">Employee</th>}
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Dates</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Hours</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
-                    <th className="pb-2 font-medium">Reviewed by</th>
+                    {isAdmin && <SortHeader label="Employee" sortKey="employee" sort={requestsSort.sort} onToggle={requestsSort.toggle} />}
+                    <SortHeader label="Type" sortKey="type" sort={requestsSort.sort} onToggle={requestsSort.toggle} />
+                    <SortHeader label="Dates" sortKey="dates" sort={requestsSort.sort} onToggle={requestsSort.toggle} />
+                    <SortHeader label="Hours" sortKey="hours" sort={requestsSort.sort} onToggle={requestsSort.toggle} align="right" className="text-right" />
+                    <SortHeader label="Status" sortKey="status" sort={requestsSort.sort} onToggle={requestsSort.toggle} />
+                    <SortHeader label="Reviewed by" sortKey="reviewedBy" sort={requestsSort.sort} onToggle={requestsSort.toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRequests.map((r) => (
+                  {requestsSort.sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
                       {isAdmin && <td data-label="Employee" className="py-3 pr-4 font-medium">{r.userName}</td>}
                       <td data-label="Type" className="py-3 pr-4">{TYPE_LABEL[r.requestType]}</td>
@@ -306,16 +326,16 @@ export default function TimeOffPage() {
                 <table className="w-full text-sm rtable">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="pb-2 pr-4 font-medium">Employee</th>
-                      <th className="pb-2 pr-4 text-right font-medium">PTO accrued</th>
-                      <th className="pb-2 pr-4 text-right font-medium">Carryover</th>
-                      <th className="pb-2 pr-4 text-right font-medium">PTO used</th>
-                      <th className="pb-2 pr-4 text-right font-medium">PTO remaining</th>
-                      <th className="pb-2 text-right font-medium">Sick remaining</th>
+                      <SortHeader label="Employee" sortKey="employee" sort={balancesSort.sort} onToggle={balancesSort.toggle} />
+                      <SortHeader label="PTO accrued" sortKey="accrued" sort={balancesSort.sort} onToggle={balancesSort.toggle} align="right" className="text-right" />
+                      <SortHeader label="Carryover" sortKey="carryover" sort={balancesSort.sort} onToggle={balancesSort.toggle} align="right" className="text-right" />
+                      <SortHeader label="PTO used" sortKey="used" sort={balancesSort.sort} onToggle={balancesSort.toggle} align="right" className="text-right" />
+                      <SortHeader label="PTO remaining" sortKey="remaining" sort={balancesSort.sort} onToggle={balancesSort.toggle} align="right" className="text-right" />
+                      <SortHeader label="Sick remaining" sortKey="sickRemaining" sort={balancesSort.sort} onToggle={balancesSort.toggle} align="right" className="pr-0 text-right" />
                     </tr>
                   </thead>
                   <tbody>
-                    {balances.filter((b) => b.year === year).map((b) => (
+                    {balancesSort.sorted.map((b) => (
                       <tr key={b.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Employee" className="py-3 pr-4 font-medium">{b.userName}</td>
                         <td data-label="PTO accrued" className="py-3 pr-4 text-right tabular-nums">{b.ptoAccruedHours}h</td>

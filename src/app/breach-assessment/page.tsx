@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, dateInputToISO, parseDate, daysUntil } from "@/lib/dates";
 import type { BreachAssessment } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -177,6 +178,14 @@ export default function BreachAssessmentPage() {
   const [saving, setSaving] = useState(false);
 
   const items = useMemo(() => q.data ?? [], [q.data]);
+
+  const { sorted, sort, toggle } = useSort(items, {
+    incident: (a) => a.title,
+    discovered: (a) => a.discoveredDate,
+    determination: (a) => DET_LABEL[a.determination],
+    notifyBy: (a) => (a.determination === "reportable_breach" ? deadlineFor(a.discoveredDate)?.toISOString() : null),
+    status: (a) => a.status,
+  });
   const stats = useMemo(() => ({
     reportable: items.filter((a) => a.determination === "reportable_breach").length,
     open: items.filter((a) => a.status === "draft").length,
@@ -234,15 +243,15 @@ export default function BreachAssessmentPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Incident</th>
-                    <th className="pb-2 pr-4 font-medium">Discovered</th>
-                    <th className="pb-2 pr-4 font-medium">Determination</th>
-                    <th className="pb-2 pr-4 font-medium">Notify by</th>
-                    <th className="pb-2 font-medium">Status</th>
+                    <SortHeader label="Incident" sortKey="incident" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Discovered" sortKey="discovered" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Determination" sortKey="determination" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Notify by" sortKey="notifyBy" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((a) => {
+                  {sorted.map((a) => {
                     const dl = deadlineFor(a.discoveredDate);
                     const du = dl ? daysUntil(dl.toISOString()) : null;
                     const urgent = a.determination === "reportable_breach" && du !== null && du <= 60;

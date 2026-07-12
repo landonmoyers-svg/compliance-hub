@@ -12,6 +12,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { SignedImage } from "@/components/shared/signed-image";
 import { CameraCapture, type CaptureMeta } from "@/components/shared/camera-capture";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -630,6 +631,15 @@ export default function InventoryPage() {
     });
   }, [items, search, filterLoc]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    item: (i) => i.itemName,
+    location: (i) => (i.locationId ? locName.get(i.locationId) ?? "" : ""),
+    qty: (i) => i.quantity ?? 1,
+    value: (i) => i.estimatedValueCents,
+    condition: (i) => i.condition,
+    status: (i) => i.status,
+  });
+
   const stats = useMemo(() => {
     const active = items.filter((i) => i.status !== "removed");
     const totalValue = active.reduce((s, i) => s + (i.estimatedValueCents ?? 0) * (i.quantity ?? 1), 0);
@@ -758,17 +768,17 @@ export default function InventoryPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Item</th>
-                    <th className="pb-2 pr-4 font-medium">Location</th>
-                    <th className="pb-2 pr-4 font-medium">Qty</th>
-                    {isAdmin && <th className="pb-2 pr-4 font-medium">Est. value</th>}
-                    <th className="pb-2 pr-4 font-medium">Condition</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Item" sortKey="item" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Location" sortKey="location" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Qty" sortKey="qty" sort={sort} onToggle={toggle} align="right" />
+                    {isAdmin && <SortHeader label="Est. value" sortKey="value" sort={sort} onToggle={toggle} align="right" />}
+                    <SortHeader label="Condition" sortKey="condition" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((i) => (
+                  {sorted.map((i) => (
                     <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Item" className="py-3 pr-4">
                         <div className="flex items-center gap-3">

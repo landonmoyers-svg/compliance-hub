@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState } from "@/components/shared/states";
+import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { TimeClockEntry } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -64,6 +65,15 @@ export default function TimeClockPage() {
     }
     return rows;
   }, [entries, isAdmin, myUserId, filterScope]);
+
+  const { sorted, sort, toggle } = useSort(visible, {
+    employee: (e) => e.userName,
+    date: (e) => e.clockInAt,
+    clockIn: (e) => e.clockInAt,
+    clockOut: (e) => e.clockOutAt,
+    total: (e) => e.totalMinutes,
+    status: (e) => e.status,
+  });
 
   const stats = useMemo(() => {
     const scope = isAdmin ? entries : entries.filter((e) => e.userId === myUserId);
@@ -182,22 +192,22 @@ export default function TimeClockPage() {
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : visible.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No time entries for this period.</p>
+            <EmptyState icon={Clock} title="No time entries" description="Clock in to start your first timesheet." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    {isAdmin && <th className="pb-2 pr-4 font-medium">Employee</th>}
-                    <th className="pb-2 pr-4 font-medium">Date</th>
-                    <th className="pb-2 pr-4 font-medium">Clock in</th>
-                    <th className="pb-2 pr-4 font-medium">Clock out</th>
-                    <th className="pb-2 pr-4 font-medium">Total</th>
-                    <th className="pb-2 font-medium">Status</th>
+                    {isAdmin && <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />}
+                    <SortHeader label="Date" sortKey="date" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Clock in" sortKey="clockIn" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Clock out" sortKey="clockOut" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Total" sortKey="total" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((e: TimeClockEntry) => (
+                  {sorted.map((e: TimeClockEntry) => (
                     <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
                       {isAdmin && <td data-label="Employee" className="py-3 pr-4 font-medium">{e.userName}</td>}
                       <td data-label="Date" className="py-3 pr-4 text-muted-foreground">{new Date(e.clockInAt).toLocaleDateString()}</td>

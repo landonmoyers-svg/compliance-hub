@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { ControlledSubstanceLog } from "@/lib/data/schema";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
@@ -153,6 +154,25 @@ export default function ControlledSubstancesPage() {
     dispenses: logs.filter((l) => l.transactionType === "dispense").length,
     atOrBelowZero: inventory.filter((i) => i.currentBalance <= 0).length,
   }), [substances, logs, inventory]);
+
+  const { sorted: invSorted, sort: invSort, toggle: invToggle } = useSort(inventory, {
+    substance: (i) => i.substanceName,
+    schedule: (i) => i.scheduleClass,
+    balance: (i) => i.currentBalance,
+    lastCounted: (i) => i.lastCounted,
+  });
+
+  const { sorted: logSorted, sort: logSort, toggle: logToggle } = useSort(filteredLog, {
+    date: (e) => effectiveDate(e),
+    substance: (e) => e.substanceName,
+    schedule: (e) => e.scheduleClass,
+    type: (e) => TX_LABEL[e.transactionType],
+    quantity: (e) => (SUBTRACTS.includes(e.transactionType) ? -e.quantity : e.quantity),
+    balance: (e) => e.balanceAfter,
+    prescriber: (e) => e.prescriberName,
+    witness: (e) => e.witnessName,
+    patientRef: (e) => e.patientRef,
+  });
 
   /** Most recent prior balance for a substance (newest tx's balanceAfter, else 0). */
   function priorBalance(substanceName: string): number {
@@ -346,14 +366,14 @@ export default function ControlledSubstancesPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Substance</th>
-                    <th className="pb-2 pr-4 font-medium">Schedule</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Current balance</th>
-                    <th className="pb-2 font-medium">Last counted</th>
+                    <SortHeader label="Substance" sortKey="substance" sort={invSort} onToggle={invToggle} />
+                    <SortHeader label="Schedule" sortKey="schedule" sort={invSort} onToggle={invToggle} />
+                    <SortHeader label="Current balance" sortKey="balance" sort={invSort} onToggle={invToggle} className="text-right" align="right" />
+                    <SortHeader label="Last counted" sortKey="lastCounted" sort={invSort} onToggle={invToggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {inventory.map((i) => (
+                  {invSorted.map((i) => (
                     <tr key={i.substanceName} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Substance" className="py-3 pr-4 font-medium">{i.substanceName}</td>
                       <td data-label="Schedule" className="py-3 pr-4"><Badge variant={SCHED_VARIANT[i.scheduleClass]}>Schedule {i.scheduleClass}</Badge></td>
@@ -402,19 +422,19 @@ export default function ControlledSubstancesPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Date</th>
-                    <th className="pb-2 pr-4 font-medium">Substance</th>
-                    <th className="pb-2 pr-4 font-medium">Schedule</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Quantity</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Balance</th>
-                    <th className="pb-2 pr-4 font-medium">Prescriber</th>
-                    <th className="pb-2 pr-4 font-medium">Witness</th>
-                    <th className="pb-2 font-medium">Patient ref</th>
+                    <SortHeader label="Date" sortKey="date" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Substance" sortKey="substance" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Schedule" sortKey="schedule" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Type" sortKey="type" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Quantity" sortKey="quantity" sort={logSort} onToggle={logToggle} className="text-right" align="right" />
+                    <SortHeader label="Balance" sortKey="balance" sort={logSort} onToggle={logToggle} className="text-right" align="right" />
+                    <SortHeader label="Prescriber" sortKey="prescriber" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Witness" sortKey="witness" sort={logSort} onToggle={logToggle} />
+                    <SortHeader label="Patient ref" sortKey="patientRef" sort={logSort} onToggle={logToggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLog.map((e) => (
+                  {logSorted.map((e) => (
                     <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Date" className="whitespace-nowrap py-2.5 pr-4 text-muted-foreground">{formatDate(effectiveDate(e))}</td>
                       <td data-label="Substance" className="py-2.5 pr-4 font-medium">{e.substanceName}</td>

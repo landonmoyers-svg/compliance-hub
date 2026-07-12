@@ -10,6 +10,8 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
 import { daysUntil } from "@/lib/dates";
 
 type Status = "strong" | "partial" | "gap";
@@ -57,6 +59,11 @@ export default function ProgramEffectivenessPage() {
 
   const overall = Math.round(elements.reduce((s, e) => s + STATUS_SCORE[e.status], 0) / elements.length);
 
+  const allQueries = [documents, training, incidents, capas, audits, sra, screenings, disciplinary, employees];
+  const anyError = allQueries.some((q) => q.isError);
+  const anyLoading = allQueries.some((q) => q.isLoading);
+  const refetchAll = () => { for (const q of allQueries) void q.refetch(); };
+
   async function generateReport() {
     setLoadingReport(true);
     try {
@@ -68,6 +75,30 @@ export default function ProgramEffectivenessPage() {
       setReport(data.text ?? data.error ?? "Couldn't generate the report.");
     } catch { setReport("Network error generating the report."); }
     finally { setLoadingReport(false); }
+  }
+
+  if (anyError) {
+    return (
+      <div className="space-y-6">
+        <PageTabs tabs={OVERVIEW_TABS} />
+        <PageHeader title="Compliance Scorecard" />
+        <ErrorState message="We couldn't load this page's data." onRetry={() => void refetchAll()} />
+      </div>
+    );
+  }
+
+  if (anyLoading) {
+    return (
+      <div className="space-y-6">
+        <PageTabs tabs={OVERVIEW_TABS} />
+        <PageHeader title="Compliance Scorecard" />
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (

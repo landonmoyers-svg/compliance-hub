@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { PayrollRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -107,6 +108,14 @@ export default function PayrollPage() {
       return true;
     });
   }, [records, filterEmployee, filterStatus]);
+
+  const { sorted, sort, toggle } = useSort(filtered, {
+    employee: (r) => r.employeeName,
+    period: (r) => r.periodStart,
+    gross: (r) => r.grossPayCents,
+    net: (r) => r.netPayCents,
+    status: (r) => r.status,
+  });
 
   const stats = useMemo(() => {
     const paid = records.filter((r) => r.status === "paid");
@@ -320,16 +329,16 @@ export default function PayrollPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Employee</th>
-                    <th className="pb-2 pr-4 font-medium">Pay period</th>
-                    <th className="pb-2 pr-4 text-right font-medium">Gross</th>
-                    <th className="pb-2 pr-4 text-right font-medium">Net pay</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Pay period" sortKey="period" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Gross" sortKey="gross" sort={sort} onToggle={toggle} align="right" className="text-right" />
+                    <SortHeader label="Net pay" sortKey="net" sort={sort} onToggle={toggle} align="right" className="text-right" />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
+                  {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Employee" className="py-3 pr-4 font-medium">{r.employeeName}</td>
                       <td data-label="Pay period" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
@@ -228,6 +229,15 @@ export default function EmployeesPage() {
     });
   }, [employees, search, filterStatus]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    name: (e) => `${e.firstName} ${e.lastName}`,
+    email: (e) => e.email,
+    title: (e) => e.title,
+    department: (e) => e.department,
+    hireDate: (e) => e.hireDate,
+    status: (e) => e.employmentStatus,
+  });
+
   const stats = useMemo(() => ({
     active: employees.filter((e) => e.employmentStatus === "active").length,
     onLeave: employees.filter((e) => e.employmentStatus === "on_leave").length,
@@ -386,17 +396,17 @@ export default function EmployeesPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Name</th>
-                    <th className="pb-2 pr-4 font-medium">Email</th>
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Department</th>
-                    <th className="pb-2 pr-4 font-medium">Hire date</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Name" sortKey="name" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Email" sortKey="email" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Department" sortKey="department" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Hire date" sortKey="hireDate" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((e) => (
+                  {sorted.map((e) => (
                     <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Name" className="py-3 pr-4">
                         <div className="flex items-center gap-2">

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
 import { toast } from "sonner";
 
@@ -86,6 +87,17 @@ export default function ActivityLogPage() {
   }
 
   const loading = activityQ.isLoading || auditQ.isLoading;
+  const anyError = activityQ.isError || auditQ.isError;
+  const refetchAll = () => { void activityQ.refetch(); void auditQ.refetch(); };
+
+  if (anyError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Daily Activity Log" />
+        <ErrorState message="We couldn't load this page's data." onRetry={() => void refetchAll()} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

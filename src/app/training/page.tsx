@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { GraduationCap, Plus, Search, ListChecks, X, Check, Users, Download } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
@@ -303,6 +305,14 @@ export default function TrainingPage() {
     });
   }, [assignments, search, tab]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    employee: (a) => a.assignedToName,
+    module: (a) => a.moduleTitle,
+    due: (a) => a.dueDate,
+    status: (a) =>
+      a.status === "completed" ? "Completed" : assignmentIsOverdue(a) ? "Overdue" : a.status === "in_progress" ? "In progress" : "Assigned",
+  });
+
   // Context: overdue only counts people who still work here.
   const holderIdx = useMemo(() => buildHolderIndex(employeesCtxQ.data ?? []), [employeesCtxQ.data]);
   const stats = useMemo(() => ({
@@ -544,20 +554,22 @@ export default function TrainingPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Employee</th>
-                    <th className="pb-2 pr-4 font-medium">Module</th>
-                    <th className="pb-2 pr-4 font-medium">Due date</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Module" sortKey="module" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Due date" sortKey="due" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((a) => {
+                  {sorted.map((a) => {
                     const overdue = assignmentIsOverdue(a);
                     const days = daysUntil(a.dueDate);
                     return (
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Employee" className="py-3 pr-4 font-medium">{a.assignedToName}</td>
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">
+                          <PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} />
+                        </td>
                         <td data-label="Module" className="py-3 pr-4">{a.moduleTitle}</td>
                         <td data-label="Due date" className="py-3 pr-4">
                           {a.dueDate ? (

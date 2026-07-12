@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
+import { PersonLink } from "@/components/shared/person-link";
+import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate } from "@/lib/dates";
 import { buildHolderIndex, holderIsActive } from "@/lib/compliance";
 import type { CompetencyRecord, Employee } from "@/lib/data/schema";
@@ -402,6 +405,17 @@ export default function CompetencyTrackerPage() {
     });
   }, [records, search, filterStatus, filterType]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    employee: (r) => r.employeeName,
+    competency: (r) => r.competencyName,
+    type: (r) => r.competencyType,
+    evaluator: (r) => r.evaluatorName,
+    assessment: (r) => r.assessmentDate,
+    validUntil: (r) => r.validUntil,
+    score: (r) => r.score,
+    status: (r) => STATUS_LABEL[displayStatus(r)],
+  });
+
   // Context: expired/pending warnings only count current staff. CompetencyRecord
   // links via employeeId (employees.id) — resolve through the directory.
   const activeEmployeeIds = useMemo(() => {
@@ -538,9 +552,21 @@ export default function CompetencyTrackerPage() {
         title="Competency Tracker"
         description="Track staff competency assessments and validations. Expired status is derived live from validity dates — stored status is never mutated on read."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add competency
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <DuplicateFinder
+              items={records}
+              collection="competencyRecords"
+              keyOf={(r) => {
+                const k = dupNorm(r.competencyName);
+                return k ? `${dupNorm(r.employeeName)}::${k}` : null;
+              }}
+              describe={(r) => ({ title: r.competencyName, subtitle: r.employeeName })}
+              score={(r) => (r.score != null ? 1 : 0) + (r.validUntil ? 1 : 0)}
+            />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add competency
+            </Button>
+          </div>
         }
       />
 
@@ -623,19 +649,19 @@ export default function CompetencyTrackerPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Employee</th>
-                    <th className="pb-2 pr-4 font-medium">Competency</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Evaluator</th>
-                    <th className="pb-2 pr-4 font-medium">Assessment</th>
-                    <th className="pb-2 pr-4 font-medium">Valid until</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Score</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Employee" sortKey="employee" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Competency" sortKey="competency" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Evaluator" sortKey="evaluator" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Assessment" sortKey="assessment" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Valid until" sortKey="validUntil" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Score" sortKey="score" sort={sort} onToggle={toggle} className="text-right" align="right" />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => {
+                  {sorted.map((r) => {
                     const st = displayStatus(r);
                     const isExpiredRow = st === "expired";
                     return (
@@ -643,7 +669,9 @@ export default function CompetencyTrackerPage() {
                         key={r.id}
                         className="border-b border-border/50 hover:bg-secondary/20"
                       >
-                        <td data-label="Employee" className="py-3 pr-4 font-medium">{r.employeeName}</td>
+                        <td data-label="Employee" className="py-3 pr-4 font-medium">
+                          <PersonLink userId={null} name={r.employeeName} />
+                        </td>
                         <td data-label="Competency" className="py-3 pr-4">{r.competencyName}</td>
                         <td data-label="Type" className="py-3 pr-4 capitalize">{r.competencyType}</td>
                         <td data-label="Evaluator" className="py-3 pr-4 text-muted-foreground">

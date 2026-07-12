@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { formatDate } from "@/lib/dates";
 import type { DisciplinaryAction, Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -45,13 +46,6 @@ const STATUS_VARIANT: Record<Status, "warning" | "success" | "destructive" | "se
 };
 
 const ACTION_TYPES = Object.keys(TYPE_LABEL) as ActionType[];
-
-/** Format a date-only "YYYY-MM-DD" string TZ-safely; "—" for null/empty. */
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  const t = new Date(d + "T00:00:00Z");
-  return Number.isNaN(t.getTime()) ? "—" : t.toLocaleDateString();
-}
 
 function employeeName(e: Employee): string {
   return `${e.firstName} ${e.lastName}`.trim();
@@ -419,8 +413,8 @@ export default function DisciplinaryPage() {
                         </button>
                       </div>
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        Issued {fmtDate(r.issuedDate)}{r.issuedByName ? ` by ${r.issuedByName}` : ""}
-                        {r.followUpDate && ` · Follow-up: ${fmtDate(r.followUpDate)}`}
+                        Issued {formatDate(r.issuedDate)}{r.issuedByName ? ` by ${r.issuedByName}` : ""}
+                        {r.followUpDate && ` · Follow-up: ${formatDate(r.followUpDate)}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { AuditLog } from "@/lib/data/schema";
 
 type ActionType = AuditLog["action"];
@@ -42,6 +43,9 @@ const RISK_BADGE: Record<RiskLevel, "secondary" | "warning" | "destructive"> = {
   high: "warning",
   critical: "destructive",
 };
+
+/** Severity order for sorting (alphabetical would put "critical" before "high"). */
+const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2, critical: 3 };
 
 const RANGE_OPTIONS = [
   { value: 1, label: "Last 24 hours" },
@@ -308,22 +312,31 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 }
 
 function TimelineTable({ rows }: { rows: AuditLog[] }) {
+  const { sorted, sort, toggle } = useSort(rows, {
+    timestamp: (e) => e.createdDate,
+    actor: (e) => e.actorName,
+    action: (e) => ACTION_LABEL[e.action],
+    entity: (e) => e.entityLabel,
+    details: (e) => e.details,
+    risk: (e) => RISK_RANK[e.riskLevel],
+    flag: (e) => (e.flagged ? 1 : 0),
+  });
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm rtable">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Timestamp</th>
-            <th className="pb-2 pr-4 font-medium">Actor</th>
-            <th className="pb-2 pr-4 font-medium">Action</th>
-            <th className="pb-2 pr-4 font-medium">Entity</th>
-            <th className="pb-2 pr-4 font-medium">Details</th>
-            <th className="pb-2 pr-4 font-medium">Risk</th>
-            <th className="pb-2 font-medium">Flag</th>
+            <SortHeader label="Timestamp" sortKey="timestamp" sort={sort} onToggle={toggle} />
+            <SortHeader label="Actor" sortKey="actor" sort={sort} onToggle={toggle} />
+            <SortHeader label="Action" sortKey="action" sort={sort} onToggle={toggle} />
+            <SortHeader label="Entity" sortKey="entity" sort={sort} onToggle={toggle} />
+            <SortHeader label="Details" sortKey="details" sort={sort} onToggle={toggle} />
+            <SortHeader label="Risk" sortKey="risk" sort={sort} onToggle={toggle} />
+            <SortHeader label="Flag" sortKey="flag" sort={sort} onToggle={toggle} className="pr-0" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((e) => (
+          {sorted.map((e) => (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
               <td data-label="Timestamp" className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
               <td data-label="Actor" className="py-2.5 pr-4">
@@ -355,21 +368,29 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
 }
 
 function FlaggedTable({ rows }: { rows: AuditLog[] }) {
+  const { sorted, sort, toggle } = useSort(rows, {
+    timestamp: (e) => e.createdDate,
+    actor: (e) => e.actorName,
+    action: (e) => ACTION_LABEL[e.action],
+    entity: (e) => e.entityLabel,
+    risk: (e) => RISK_RANK[e.riskLevel],
+    reason: (e) => e.flagReason,
+  });
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm rtable">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Timestamp</th>
-            <th className="pb-2 pr-4 font-medium">Actor</th>
-            <th className="pb-2 pr-4 font-medium">Action</th>
-            <th className="pb-2 pr-4 font-medium">Entity</th>
-            <th className="pb-2 pr-4 font-medium">Risk</th>
-            <th className="pb-2 font-medium">Flag reason</th>
+            <SortHeader label="Timestamp" sortKey="timestamp" sort={sort} onToggle={toggle} />
+            <SortHeader label="Actor" sortKey="actor" sort={sort} onToggle={toggle} />
+            <SortHeader label="Action" sortKey="action" sort={sort} onToggle={toggle} />
+            <SortHeader label="Entity" sortKey="entity" sort={sort} onToggle={toggle} />
+            <SortHeader label="Risk" sortKey="risk" sort={sort} onToggle={toggle} />
+            <SortHeader label="Flag reason" sortKey="reason" sort={sort} onToggle={toggle} className="pr-0" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((e) => (
+          {sorted.map((e) => (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
               <td data-label="Timestamp" className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
               <td data-label="Actor" className="py-2.5 pr-4">

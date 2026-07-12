@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, isExpired, daysUntil, dateInputToISO } from "@/lib/dates";
 import type { EmergencyDrill } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -147,6 +148,14 @@ export default function EmergencyPreparednessPage() {
     });
   }, [drills, search, filterStatus]);
 
+  const { sorted, sort, toggle } = useSort(filtered, {
+    title: (d) => d.drillTitle,
+    type: (d) => d.drillType,
+    date: (d) => d.scheduledDate,
+    participants: (d) => d.participantCount,
+    status: (d) => d.status,
+  });
+
   const stats = useMemo(() => {
     const upcoming = drills.filter((d) => {
       const days = daysUntil(d.scheduledDate);
@@ -274,16 +283,16 @@ export default function EmergencyPreparednessPage() {
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">Title</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Date</th>
-                    <th className="pb-2 pr-4 font-medium">Participants</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Title" sortKey="title" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Date" sortKey="date" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Participants" sortKey="participants" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((d) => {
+                  {sorted.map((d) => {
                     const days = daysUntil(d.scheduledDate);
                     const overdue = d.status === "scheduled" && isExpired(d.scheduledDate);
                     return (

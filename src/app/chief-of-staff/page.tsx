@@ -10,6 +10,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/states";
 import { buildAgenda, groupByBucket, type WorkItem, type Bucket } from "@/lib/agenda";
 import { daysUntil } from "@/lib/dates";
 import { toast } from "sonner";
@@ -150,6 +151,19 @@ export default function ChiefOfStaffPage() {
 
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const firstName = (profile?.fullName ?? "").split(" ")[0];
+
+  const allQueries = [credentials, training, documents, capas, sra, incidents, breaches, insurance, vendors, tasks, screenings, employees, backupsQ, prefsQ, snoozesQ];
+  const anyError = allQueries.some((q) => q.isError);
+  const refetchAll = () => { for (const q of allQueries) void q.refetch(); };
+
+  if (anyError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Daily Priorities" />
+        <ErrorState message="We couldn't load this page's data." onRetry={() => void refetchAll()} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
