@@ -22,11 +22,8 @@ import {
   Network,
   Package,
   Shield,
-  ShieldAlert,
-  ShieldCheck,
   Sparkles,
   Star,
-  TrendingUp,
   Umbrella,
   UserCircle,
   Users,
@@ -75,10 +72,7 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         highlight: true,
       },
-      { label: "Executive Dashboard", href: "/executive-dashboard", icon: TrendingUp, adminOnly: true },
-      { label: "Compliance Scorecard", href: "/program-effectiveness", icon: ShieldCheck, adminOnly: true },
       { label: "Compliance Calendar", href: "/compliance-calendar", icon: CalendarDays, adminOnly: true },
-      { label: "Reports", href: "/reports", icon: TrendingUp, adminOnly: true },
     ],
   },
   {
@@ -94,7 +88,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Training & Credentials",
     items: [
-      { label: "Training Modules", href: "/training-academy", icon: BookOpen, adminOnly: true },
       { label: "Training", href: "/training", icon: GraduationCap },
       { label: "Credentials", href: "/credentials", icon: BadgeCheck },
       { label: "Competency Tracker", href: "/competency-tracker", icon: Award, adminOnly: true },
@@ -106,8 +99,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
       { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
       { label: "Inventory", href: "/inventory", icon: Package },
-      { label: "Risk Cases", href: "/risk-management", icon: ShieldAlert, adminOnly: true },
-      { label: "Breach Assessment", href: "/breach-assessment", icon: ShieldAlert, adminOnly: true },
       { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
       { label: "Audits & Mock Surveys", href: "/audits", icon: ClipboardCheck, adminOnly: true },
       { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
@@ -120,7 +111,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Admin & Resources",
     items: [
-      { label: "Official Sources", href: "/official-sources", icon: BookOpen, adminOnly: true },
       { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
       { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
@@ -134,7 +124,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "HR & Payroll",
     items: [
-      { label: "HR Hub", href: "/hr-hub", icon: Users, adminOnly: true },
       { label: "Employees", href: "/hr/employees", icon: Users, adminOnly: true },
       { label: "Org Chart & Roles", href: "/org-chart", icon: Network, adminOnly: true },
       { label: "Payroll", href: "/hr/payroll", icon: DollarSign, adminOnly: true },
@@ -196,7 +185,19 @@ export interface VisibilityCtx {
 
 /** Sensitive full-page modules that aren't in the sidebar nav but must still be
  *  gated to privileged roles by the route guard. */
-export const EXTRA_PRIVILEGED_PATHS = ["/employee-vault", "/document-migration"];
+export const EXTRA_PRIVILEGED_PATHS = [
+  "/employee-vault",
+  "/document-migration",
+  // Consolidated into tabbed hubs (no sidebar entry, still admin-only routes):
+  "/executive-dashboard",
+  "/program-effectiveness",
+  "/reports",
+  "/risk-management",
+  "/breach-assessment",
+  "/training-academy",
+  "/official-sources",
+  "/hr-hub",
+];
 
 /** Enforcement: can this role open this path? (Command Center is always allowed.) */
 export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[]): boolean {

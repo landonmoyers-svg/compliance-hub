@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { BookOpen, ExternalLink, Search } from "lucide-react";
 import { useCollection, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, SOURCES_TABS } from "@/components/shared/page-tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,9 +72,11 @@ export default function OfficialSourceLibraryPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={SOURCES_TABS} />
+
       <PageHeader
         title="Official Source Library"
-        description="Curated library of federal and state regulations, guidance documents, and statutes that govern your compliance program."
+        description="Reference library of the federal and state source documents — regulations, guidance, and statutes — behind your compliance program."
         actions={
           <Button asChild variant="outline">
             <Link href="/regulatory-sources">Manage sources</Link>

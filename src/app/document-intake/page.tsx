@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { useAuth } from "@/lib/auth/context";
-import { useCreate } from "@/lib/data/hooks";
+import { useCreate, useRemove } from "@/lib/data/hooks";
+import type { CollectionName } from "@/lib/data/client";
 import { uploadFile } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
 import { PageHeader } from "@/components/shared/page-header";
@@ -126,10 +127,22 @@ const DESTINATIONS: Record<DestinationKey, { label: string; icon: LucideIcon; ro
   osha: { label: "OSHA Tracker", icon: ClipboardCheck, route: "/osha-tracker", storesFile: false },
   insurance: { label: "Insurance Vault", icon: Shield, route: "/insurance-vault", storesFile: false },
   regulatory_sources: { label: "Regulatory Sources", icon: BookOpen, route: "/regulatory-sources", storesFile: true },
-  training: { label: "Training Academy", icon: GraduationCap, route: "/training-academy", storesFile: false },
+  training: { label: "Training Modules", icon: GraduationCap, route: "/training-academy", storesFile: false },
 };
 
 const DESTINATION_KEYS = Object.keys(DESTINATIONS) as DestinationKey[];
+
+/** The data collection each destination files into (used for un-filing). */
+const DEST_COLLECTION: Record<DestinationKey, CollectionName> = {
+  sop_library: "documents",
+  credentialing: "credentials",
+  employee_vault: "employeeDocuments",
+  sds_library: "sdsRecords",
+  osha: "oshaRecords",
+  insurance: "insurancePolicies",
+  regulatory_sources: "regulatorySources",
+  training: "trainingModules",
+};
 
 interface IntakeResult {
   id: string;
@@ -144,6 +157,9 @@ interface IntakeResult {
   confidence: "high" | "medium" | "low";
   notes: string;
   status: "pending" | "filing" | "filed" | "rejected";
+  /** Id of the record created when this item was filed — lets the user un-file it. */
+  filedRecordId?: string;
+  filedCollection?: CollectionName;
 }
 
 const CONFIDENCE_VARIANT: Record<IntakeResult["confidence"], "success" | "warning" | "destructive"> = {
@@ -178,6 +194,16 @@ export default function DocumentIntakePage() {
   const createInsurance = useCreate("insurancePolicies");
   const createRegulatory = useCreate("regulatorySources");
   const createTraining = useCreate("trainingModules");
+
+  // Matching remove hooks so a mis-filed record can be un-filed (deleted) again.
+  const removeDocument = useRemove("documents");
+  const removeCredential = useRemove("credentials");
+  const removeEmployeeDoc = useRemove("employeeDocuments");
+  const removeSds = useRemove("sdsRecords");
+  const removeOsha = useRemove("oshaRecords");
+  const removeInsurance = useRemove("insurancePolicies");
+  const removeRegulatory = useRemove("regulatorySources");
+  const removeTraining = useRemove("trainingModules");
 
   async function processFile(file: File): Promise<IntakeResult> {
     let fileUrl: string | null = null;
@@ -283,9 +309,10 @@ export default function DocumentIntakePage() {
     setField(r.id, "status", "filing");
     const title = r.suggestedTitle.trim() || r.fileName;
     try {
+      let created: { id: string } | undefined;
       switch (r.destination) {
         case "sop_library":
-          await createDocument.mutateAsync({
+          created = await createDocument.mutateAsync({
             title, documentType: r.suggestedType === "sop" ? "sop" : "policy",
             complianceArea: r.complianceArea ?? undefined, summary: r.summary || undefined,
             status: "active", accessLevel: "all_staff", version: "1.0",
@@ -293,7 +320,7 @@ export default function DocumentIntakePage() {
           });
           break;
         case "credentialing":
-          await createCredential.mutateAsync({
+          created = await createCredential.mutateAsync({
             employeeName: "Unassigned — set employee",
             credentialName: title,
             credentialType: r.complianceArea === "dea" ? "dea" : "license",
@@ -301,39 +328,43 @@ export default function DocumentIntakePage() {
           });
           break;
         case "employee_vault":
-          await createEmployeeDoc.mutateAsync({
+          created = await createEmployeeDoc.mutateAsync({
             employeeName: "Unassigned — set employee", documentType: "other",
             title, fileUrl: r.fileUrl, sensitive: true,
             uploadedByName: actorName, notes: r.summary || undefined,
           });
           break;
         case "sds_library":
-          await createSds.mutateAsync({ productName: title, signalWord: "NONE", status: "needs_review" });
+          created = await createSds.mutateAsync({ productName: title, signalWord: "NONE", status: "needs_review" });
           break;
         case "osha":
-          await createOsha.mutateAsync({
+          created = await createOsha.mutateAsync({
             recordTitle: title, recordType: "inspection",
             description: r.summary || undefined, status: "open",
             recordabilityStatus: "not_reviewed",
           });
           break;
         case "insurance":
-          await createInsurance.mutateAsync({ policyName: title, policyType: "malpractice" });
+          created = await createInsurance.mutateAsync({ policyName: title, policyType: "malpractice" });
           break;
         case "regulatory_sources":
-          await createRegulatory.mutateAsync({
+          created = await createRegulatory.mutateAsync({
             title, issuingBody: r.complianceArea ? r.complianceArea.toUpperCase() : undefined,
             sourceType: "regulation", reviewStatus: "needs_review", officialUrl: r.fileUrl,
           });
           break;
         case "training":
-          await createTraining.mutateAsync({
+          created = await createTraining.mutateAsync({
             title, description: r.summary || undefined, trainingType: "compliance",
             passingScore: 80, active: true,
           });
           break;
       }
-      setField(r.id, "status", "filed");
+      const filedRecordId = created?.id;
+      const filedCollection = DEST_COLLECTION[r.destination];
+      setResults((prev) => prev.map((x) => (
+        x.id === r.id ? { ...x, status: "filed" as const, filedRecordId, filedCollection } : x
+      )));
       if (!silent) toast.success(`Filed to ${DESTINATIONS[r.destination].label}`);
       return true;
     } catch {
@@ -341,6 +372,38 @@ export default function DocumentIntakePage() {
       if (!silent) toast.error("Filing failed — try again.");
       return false;
     }
+  }
+
+  /** Undo a filing: delete the created record and return the item to review. */
+  async function unfileRecord(r: IntakeResult) {
+    if (!r.filedRecordId || !r.filedCollection) return;
+    if (!window.confirm(
+      "Un-file this document? The record created in " + DESTINATIONS[r.destination].label +
+      " will be deleted; the uploaded file is kept and the item returns to Needs review.",
+    )) return;
+    try {
+      switch (r.filedCollection) {
+        case "documents": await removeDocument.mutateAsync(r.filedRecordId); break;
+        case "credentials": await removeCredential.mutateAsync(r.filedRecordId); break;
+        case "employeeDocuments": await removeEmployeeDoc.mutateAsync(r.filedRecordId); break;
+        case "sdsRecords": await removeSds.mutateAsync(r.filedRecordId); break;
+        case "oshaRecords": await removeOsha.mutateAsync(r.filedRecordId); break;
+        case "insurancePolicies": await removeInsurance.mutateAsync(r.filedRecordId); break;
+        case "regulatorySources": await removeRegulatory.mutateAsync(r.filedRecordId); break;
+        case "trainingModules": await removeTraining.mutateAsync(r.filedRecordId); break;
+        default: throw new Error("Unknown collection");
+      }
+    } catch {
+      toast.error("Un-file failed — the record was not deleted. Try again.");
+      return;
+    }
+    // Back to review: keep destination + suggested fields so the user can re-route and re-file.
+    setResults((prev) => prev.map((x) => (
+      x.id === r.id
+        ? { ...x, status: "pending" as const, filedRecordId: undefined, filedCollection: undefined }
+        : x
+    )));
+    toast.success(`Un-filed — removed from ${DESTINATIONS[r.destination].label}. The item is back under review.`);
   }
 
   const [filingAll, setFilingAll] = useState(false);
@@ -503,9 +566,16 @@ export default function DocumentIntakePage() {
                 {r.status === "filing" && <p className="text-sm text-primary">Filing…</p>}
 
                 {r.status === "filed" && (
-                  <a href={Dest.route} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                    Open {Dest.label} <ArrowRight className="size-3" />
-                  </a>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a href={Dest.route} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                      Open {Dest.label} <ArrowRight className="size-3" />
+                    </a>
+                    {r.filedRecordId && (
+                      <Button size="sm" variant="outline" onClick={() => void unfileRecord(r)}>
+                        <X className="size-3" /> Un-file
+                      </Button>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

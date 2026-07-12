@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, OVERVIEW_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -312,6 +313,7 @@ export default function CommandCenterPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={OVERVIEW_TABS} />
       <PageHeader
         title="Compliance Command Center"
         description="Real-time monitoring and action queues across your entire compliance program."

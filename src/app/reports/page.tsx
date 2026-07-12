@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TrendingUp, Download, FileText } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, OVERVIEW_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -378,6 +379,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={OVERVIEW_TABS} />
       <PageHeader
         title="Reports"
         description="Analytics and exportable reports across all compliance areas."

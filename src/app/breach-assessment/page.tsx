@@ -5,6 +5,7 @@ import { ShieldAlert, Plus, X, Sparkles, Clock } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, INCIDENT_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -206,11 +207,12 @@ export default function BreachAssessmentPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={INCIDENT_TABS} />
       {editing && <AssessmentDialog initial={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} onSave={save} saving={saving} />}
 
       <PageHeader
         title="Breach Risk Assessment"
-        description="Run the HIPAA four-factor analysis (45 CFR 164.402) to determine whether an incident is a reportable breach, and track the 60-day notification clock."
+        description="The formal HIPAA four-factor determination (45 CFR 164.402) to run when an incident may involve PHI — decides if it's a reportable breach and tracks the 60-day notification clock."
         actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>}
       />
 
@@ -226,7 +228,7 @@ export default function BreachAssessmentPage() {
           {q.isLoading ? (
             <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
           ) : items.length === 0 ? (
-            <EmptyState icon={ShieldAlert} title="No assessments yet" description="Start a four-factor assessment when a potential breach is discovered." action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>} />
+            <EmptyState icon={ShieldAlert} title="No assessments yet" description="Start a four-factor assessment when a potential breach is discovered. Report new events under the Incidents tab." action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">

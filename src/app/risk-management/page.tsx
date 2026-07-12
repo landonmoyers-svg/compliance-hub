@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { ShieldAlert, Plus, Search } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, INCIDENT_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -224,6 +225,7 @@ export default function RiskManagementPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={INCIDENT_TABS} />
       {editing && (
         <CaseDialog
           initial={editing === "new" ? undefined : editing}
@@ -235,7 +237,7 @@ export default function RiskManagementPage() {
 
       <PageHeader
         title="Risk Cases"
-        description="Track and investigate compliance incidents, HIPAA breaches, and risk cases."
+        description="Ongoing risk cases being investigated or monitored over time — not the intake point. Report new events under the Incidents tab."
         actions={
           <Button onClick={() => setEditing("new")}>
             <Plus className="size-4" /> New case
@@ -293,7 +295,7 @@ export default function RiskManagementPage() {
             <EmptyState
               icon={ShieldAlert}
               title="No cases found"
-              description={search || filterStatus !== "all" ? "Try adjusting your filter." : "No risk cases recorded yet."}
+              description={search || filterStatus !== "all" ? "Try adjusting your filter." : "No risk cases recorded yet. Report new events under the Incidents tab."}
               action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New case</Button>}
             />
           ) : (

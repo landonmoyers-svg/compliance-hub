@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, OVERVIEW_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +151,8 @@ export default function ExecutiveDashboardPage() {
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
   const insurance = useMemo(() => insQ.data ?? [], [insQ.data]);
 
+  // Canonical score: same inputs as Home (including employees, so former
+  // employees' expired items don't drag the executive number below Home's).
   const score = useMemo(
     () =>
       computeComplianceScore({
@@ -158,8 +161,9 @@ export default function ExecutiveDashboardPage() {
         trainingAssignments: training,
         documents,
         riskCases: risk,
+        employees,
       }),
-    [tasks, credentials, training, documents, risk],
+    [tasks, credentials, training, documents, risk, employees],
   );
   const band = scoreBand(score.score);
 
@@ -269,6 +273,7 @@ export default function ExecutiveDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={OVERVIEW_TABS} />
       <PageHeader
         title="Executive Dashboard"
         description="Organization-wide compliance health, credential posture, and upcoming obligations."

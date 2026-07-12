@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { GraduationCap, Plus, Search, ListChecks, Trash2, X, Check } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -327,6 +328,8 @@ export default function TrainingAcademyPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={TRAINING_TABS} />
+
       {editing && (
         <ModuleDialog
           initial={editing === "new" ? undefined : editing}

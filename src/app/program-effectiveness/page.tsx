@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ShieldCheck, Sparkles, ArrowUpRight } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, OVERVIEW_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,14 +72,18 @@ export default function ProgramEffectivenessPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={OVERVIEW_TABS} />
       <PageHeader title="Compliance Scorecard" description="Your compliance program mapped to the OIG's seven elements of an effective compliance program — with a board-ready summary."
         actions={<Button onClick={generateReport} disabled={loadingReport}><Sparkles className="size-4" /> {loadingReport ? "Writing…" : "Generate board report"}</Button>} />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Overall program score" value={`${overall}%`} icon={ShieldCheck} tone={overall >= 85 ? "success" : overall >= 60 ? "warning" : "destructive"} />
+        <StatCard label="Program maturity" value={`${overall}%`} icon={ShieldCheck} tone={overall >= 85 ? "success" : overall >= 60 ? "warning" : "destructive"} />
         <StatCard label="Elements strong" value={elements.filter((e) => e.status === "strong").length} icon={ShieldCheck} tone="success" />
         <StatCard label="Elements with gaps" value={elements.filter((e) => e.status === "gap").length} icon={ShieldCheck} tone={elements.some((e) => e.status === "gap") ? "destructive" : "default"} />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Measures how completely the seven OIG elements are set up — different from the Home compliance score, which tracks live issues.
+      </p>
 
       {report && (
         <Card className="border-primary/30 bg-primary/5">

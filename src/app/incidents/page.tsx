@@ -5,6 +5,7 @@ import { ShieldAlert, Plus, Search, Check, X, AlertTriangle, Sparkles } from "lu
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, INCIDENT_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -326,6 +327,7 @@ export default function IncidentsPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={INCIDENT_TABS} />
       {reporting && <ReportDialog onClose={() => setReporting(false)} onSubmit={submitReport} saving={saving} />}
       {openIncident && (
         <IncidentDetail
@@ -343,7 +345,7 @@ export default function IncidentsPage() {
 
       <PageHeader
         title="Incidents & Corrective Actions"
-        description="Report compliance incidents and concerns, then drive each to closure with tracked corrective actions."
+        description="The starting point when anything happens: staff report incidents and concerns here, and corrective actions are tracked to closure."
         actions={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
       />
 

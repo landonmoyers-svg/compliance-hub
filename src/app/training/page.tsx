@@ -5,6 +5,7 @@ import { GraduationCap, Plus, Search, ListChecks, X, Check, Users, Download } fr
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -439,6 +440,8 @@ export default function TrainingPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={TRAINING_TABS} />
+
       {showAssign && (
         <AssignDialog
           modules={modules.filter((m) => m.active)}

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { BookOpen, Plus, Search, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageTabs, SOURCES_TABS } from "@/components/shared/page-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -226,6 +227,8 @@ export default function RegulatorySourcesPage() {
 
   return (
     <div className="space-y-6">
+      <PageTabs tabs={SOURCES_TABS} />
+
       {editing && (
         <SourceDialog
           initial={editing === "new" ? undefined : editing}
@@ -237,7 +240,7 @@ export default function RegulatorySourcesPage() {
 
       <PageHeader
         title="Regulatory Sources"
-        description="Track applicable regulations, guidance documents, and internal policies that govern your compliance program."
+        description="The rules that apply to your practice — regulations, guidance, and internal policies, each tracked with a review status."
         actions={
           <div className="flex flex-wrap gap-2">
             <DuplicateFinder
