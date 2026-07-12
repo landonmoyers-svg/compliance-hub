@@ -8,7 +8,7 @@ import { downloadCompletedFormPdf } from "@/lib/pdf";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
@@ -477,6 +477,12 @@ export default function FillableDocumentsPage() {
     () => (categoryFilter === "all" ? templates : templates.filter((t) => t.category === categoryFilter)),
     [templates, categoryFilter],
   );
+  const { sorted: sortedTemplates, sort: tSort, toggle: tToggle } = useSort(visibleTemplates, {
+    title: (t) => t.title,
+    category: (t) => CATEGORY_LABEL[t.category],
+    fields: (t) => t.fields.length,
+    status: (t) => t.status,
+  });
 
   const stats = useMemo(() => ({
     total: templates.length,
@@ -717,9 +723,7 @@ export default function FillableDocumentsPage() {
           </div>
 
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}
-            </div>
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           ) : visibleTemplates.length === 0 ? (
             <EmptyState
               icon={FileText}
@@ -728,35 +732,46 @@ export default function FillableDocumentsPage() {
               action={<Button onClick={() => setEditingTemplate("new")}><Plus className="size-4" /> New template</Button>}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {visibleTemplates.map((t) => (
-                <Card key={t.id} className={t.status === "archived" ? "opacity-60" : ""}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm leading-snug">{t.title}</CardTitle>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                        <Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{t.status}</Badge>
-                        {t.isDraft && <Badge variant="warning">DRAFT — needs review</Badge>}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline">{CATEGORY_LABEL[t.category]}</Badge>
-                      <span>{t.fields.length} field{t.fields.length === 1 ? "" : "s"}</span>
-                      {t.requiresSignature && <Badge variant="secondary"><PenLine className="size-3" /> Signature</Badge>}
-                      {t.sensitive && <Badge variant="destructive">Sensitive</Badge>}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
-                      <Button size="sm" variant="outline" onClick={() => archiveTemplate(t)}>
-                        <Archive className="size-3" /> {t.status === "archived" ? "Restore" : "Archive"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm rtable">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <SortHeader label="Template" sortKey="title" sort={tSort} onToggle={tToggle} />
+                    <SortHeader label="Category" sortKey="category" sort={tSort} onToggle={tToggle} />
+                    <SortHeader label="Fields" sortKey="fields" sort={tSort} onToggle={tToggle} align="right" className="text-right" />
+                    <th className="pb-2 pr-4 font-medium">Flags</th>
+                    <SortHeader label="Status" sortKey="status" sort={tSort} onToggle={tToggle} />
+                    <th className="pb-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTemplates.map((t) => (
+                    <tr key={t.id} className={`border-b border-border/50 hover:bg-secondary/20 ${t.status === "archived" ? "opacity-60" : ""}`}>
+                      <td data-label="Template" className="py-3 pr-4">
+                        <div className="font-medium">{t.title}</div>
+                        {t.description && <div className="max-w-md truncate text-xs text-muted-foreground">{t.description}</div>}
+                      </td>
+                      <td data-label="Category" className="py-3 pr-4"><Badge variant="outline">{CATEGORY_LABEL[t.category]}</Badge></td>
+                      <td data-label="Fields" className="py-3 pr-4 text-right tabular-nums">{t.fields.length}</td>
+                      <td data-label="Flags" className="py-3 pr-4">
+                        <div className="flex flex-wrap gap-1">
+                          {t.requiresSignature && <Badge variant="secondary"><PenLine className="size-3" /> Signature</Badge>}
+                          {t.sensitive && <Badge variant="destructive">Sensitive</Badge>}
+                          {t.isDraft && <Badge variant="warning">Draft</Badge>}
+                          {!t.requiresSignature && !t.sensitive && !t.isDraft && <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{t.status}</Badge></td>
+                      <td data-label="" className="py-3">
+                        <div className="flex gap-2 md:justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
+                          <Button size="sm" variant="outline" onClick={() => archiveTemplate(t)}><Archive className="size-3" /> {t.status === "archived" ? "Restore" : "Archive"}</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
