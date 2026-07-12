@@ -4,6 +4,12 @@ import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/context";
+import { ThemeProvider, useTheme } from "@/components/theme-provider";
+
+function ThemedToaster() {
+  const { resolved } = useTheme();
+  return <Toaster theme={resolved} position="top-right" richColors closeButton />;
+}
 
 /**
  * Client-side provider stack: React Query (data fetching/cache),
@@ -31,8 +37,10 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
-      <Toaster theme="dark" position="top-right" richColors closeButton />
+      <ThemeProvider>
+        <AuthProvider>{children}</AuthProvider>
+        <ThemedToaster />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

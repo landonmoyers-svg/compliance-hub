@@ -3,8 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ExternalLink, LogOut, ShieldCheck, SlidersHorizontal, ChevronRight, ChevronDown, GripVertical, Eye, EyeOff, X } from "lucide-react";
+import { ExternalLink, LogOut, ShieldCheck, SlidersHorizontal, ChevronRight, ChevronDown, GripVertical, Eye, EyeOff, X, Monitor, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
+import { useTheme, type Theme } from "@/components/theme-provider";
 import { roleLabel } from "@/lib/auth/roles";
 import { resolveNav, type NavItem } from "@/lib/nav";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
@@ -92,6 +93,7 @@ function useReorder(navRef: React.RefObject<HTMLElement | null>, commit: (src: D
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { profile, user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const myUserId = profile?.userId ?? user?.id ?? "";
   const orgSettingsQ = useCollection("organizationSettings");
   const navPrefsQ = useCollection("navPreferences");
@@ -189,7 +191,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const gripClass = "flex shrink-0 cursor-grab touch-none items-center text-muted-foreground/40 active:cursor-grabbing";
 
   return (
-    <div className="flex h-full flex-col bg-sidebar/85 backdrop-blur-xl">
+    <div className="flex h-full flex-col bg-sidebar/70 backdrop-blur-2xl backdrop-saturate-150">
       {customizing && (
         <NavCustomizer
           accessible={accessible}
@@ -300,8 +302,26 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </nav>
 
-      {/* Footer: user + logout */}
+      {/* Footer: appearance + user + logout */}
       <div className="border-t border-sidebar-border p-3">
+        {/* Appearance: System / Light / Dark */}
+        <div className="mb-1 flex items-center gap-0.5 rounded-lg bg-secondary/60 p-0.5">
+          {([["system", Monitor, "System"], ["light", Sun, "Light"], ["dark", Moon, "Dark"]] as const).map(([val, Icon, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setTheme(val as Theme)}
+              aria-label={`${label} appearance`}
+              aria-pressed={theme === val}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                theme === val ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5 shrink-0" aria-hidden /> {label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2.5 rounded-md px-2 py-2">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{initials(user?.fullName)}</div>
           <div className="min-w-0 flex-1">

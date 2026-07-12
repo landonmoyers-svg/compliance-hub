@@ -37,7 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/80 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/70 px-4 py-3 backdrop-blur-xl backdrop-saturate-150 lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
@@ -88,8 +88,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main content */}
       <main className="lg:pl-72">
-        {/* Desktop top bar with notifications */}
-        <div className="hidden items-center justify-end border-b border-border px-8 py-2 lg:flex">
+        {/* Desktop top bar with notifications — Liquid Glass functional layer */}
+        <div className="sticky top-0 z-20 hidden items-center justify-end border-b border-border bg-card/70 px-8 py-2 backdrop-blur-xl backdrop-saturate-150 lg:flex">
           <NotificationBell />
         </div>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

@@ -1,11 +1,56 @@
 @import "tailwindcss";
 
 /*
-  Compliance Hub design tokens — dark-only theme, ported from the Base44 source.
-  HSL triplets live on :root; @theme inline maps them to Tailwind color utilities
-  (bg-background, text-muted-foreground, border-border, bg-primary, etc.).
+  Compliance Hub design tokens. HSL triplets are semantic and adapt between
+  light (default :root) and dark ([data-theme="dark"]) appearances; a small
+  ThemeProvider resolves the System/Light/Dark preference and sets data-theme
+  on <html>. @theme inline maps the vars to Tailwind color utilities.
 */
 :root {
+  /* Light appearance — Apple-style grouped light surfaces (base is a soft gray,
+     cards/popovers are white and rise above it with a subtle shadow). */
+  --background: 240 20% 97%;
+  --foreground: 240 10% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 12%;
+  --primary: 211 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 20% 93%;
+  --secondary-foreground: 240 10% 15%;
+  --muted: 240 20% 93%;
+  --muted-foreground: 240 6% 42%;
+  --accent: 240 20% 93%;
+  --accent-foreground: 240 10% 15%;
+  --destructive: 4 78% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 142 55% 38%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 48%;
+  --warning-foreground: 0 0% 0%;
+  --border: 240 12% 87%;
+  --input: 240 12% 84%;
+  --ring: 211 100% 50%;
+  --chart-1: 211 100% 50%;
+  --chart-2: 142 55% 38%;
+  --chart-3: 38 92% 48%;
+  --chart-4: 4 78% 50%;
+  --chart-5: 270 50% 55%;
+  --radius: 0.75rem;
+  --sidebar: 240 20% 98%;
+  --sidebar-foreground: 240 8% 30%;
+  --sidebar-primary: 211 100% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 211 100% 50%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 240 12% 87%;
+  --sidebar-ring: 211 100% 50%;
+}
+
+:root[data-theme="dark"] {
+  /* Dark appearance — base is a dark gray (not pure black); elevated surfaces
+     (card / popover / sidebar) are LIGHTER than the base to convey elevation. */
   --background: 0 0% 7.1%;
   --foreground: 0 0% 100%;
   --card: 0 0% 10.2%;
@@ -17,7 +62,7 @@
   --secondary: 0 0% 14.1%;
   --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 14.1%;
-  /* HIG clarity: raised secondary-text lightness for WCAG-AA contrast on dark. */
+  /* Clarity: raised secondary-text lightness for WCAG-AA contrast on dark. */
   --muted-foreground: 215 15% 66%;
   --accent: 0 0% 14.1%;
   --accent-foreground: 0 0% 100%;
@@ -35,7 +80,6 @@
   --chart-3: 45 100% 51%;
   --chart-4: 4 90% 58%;
   --chart-5: 270 50% 60%;
-  --radius: 0.75rem;
   --sidebar: 0 0% 10.2%;
   --sidebar-foreground: 215 20% 75%;
   --sidebar-primary: 210 100% 56%;
@@ -108,12 +152,34 @@
   }
 }
 
-/* HIG materials: a translucent, blurred surface for overlays / sidebars so
+/* HIG materials: a translucent, blurred surface for overlays / panels so
    content shows through and establishes depth. */
 .material {
   background-color: hsl(var(--card) / 0.72);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Liquid Glass — the FUNCTIONAL layer (sidebar, nav/top bars, popovers) that
+   floats above content, letting it peek through. The tint tracks the theme, so
+   it reads darker over dark content and lighter over light content. Reserve for
+   controls/navigation; keep the content layer (cards, page bg) on solid tokens. */
+.glass {
+  background-color: hsl(var(--card) / 0.62);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  border-color: hsl(var(--foreground) / 0.08);
+}
+/* Fallbacks: no backdrop-filter support, or the user reduces transparency. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass, .material { background-color: hsl(var(--card) / 0.96); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .material {
+    background-color: hsl(var(--card));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* HIG icons: the app uses one consistent icon family (Lucide, a single outline
