@@ -323,7 +323,7 @@ export default function CommandCenterPage() {
             <Button asChild>
               <Link href="/compliance-concierge">
                 <Sparkles className="size-4" />
-                Get compliant
+                Open setup guide
               </Link>
             </Button>
           </>

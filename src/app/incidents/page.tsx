@@ -64,7 +64,7 @@ function ReportDialog({ onClose, onSubmit, saving }: {
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Severity</label>
               <select className="input w-full" value={severity} onChange={(e) => setSeverity(e.target.value as Incident["severity"])}>
-                {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{s}</option>)}
+                {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
               </select>
             </div>
           </div>
@@ -374,7 +374,7 @@ export default function IncidentsPage() {
                     <th className="pb-2 pr-4 font-medium">Category</th>
                     <th className="pb-2 pr-4 font-medium">Severity</th>
                     <th className="pb-2 pr-4 font-medium">Reported</th>
-                    <th className="pb-2 pr-4 font-medium">CAPAs</th>
+                    <th className="pb-2 pr-4 font-medium">Corrective actions</th>
                     <th className="pb-2 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -385,7 +385,7 @@ export default function IncidentsPage() {
                       <td data-label="Category" className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>
                       <td data-label="Severity" className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
                       <td data-label="Reported" className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
-                      <td data-label="CAPAs" className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
+                      <td data-label="Corrective actions" className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
                       <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize cursor-pointer">{i.status.replace("_", " ")}</Badge></td>
                     </tr>
                   ))}

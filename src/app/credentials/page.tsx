@@ -399,6 +399,7 @@ export default function CredentialsPage() {
       toast.info("No credential documents are attached to analyze. Attach a license/certificate file first.");
       return;
     }
+    if (!window.confirm(`Analyze ${withDocs.length} attached document${withDocs.length === 1 ? "" : "s"} with AI? This can update each credential's type and fill in missing details (issuer, number, dates, holder). Existing values are never overwritten.`)) return;
     const roster = (profilesQ.data ?? []).map((p) => ({ userId: p.userId, name: p.fullName }));
     const profileName = new Map(roster.map((p) => [p.userId, p.name]));
     const isUnassigned = (c: CredentialRecord) => !c.employeeUserId && (!c.employeeName?.trim() || c.employeeName === "Unassigned — set employee");
@@ -588,7 +589,7 @@ export default function CredentialsPage() {
               score={completeness}
             />
             <Button variant="outline" onClick={reanalyze} disabled={reanalyzing}>
-              <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Reanalyze documents"}
+              <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Auto-fill from files"}
             </Button>
             <Button onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add credential
@@ -723,7 +724,7 @@ export default function CredentialsPage() {
                           )}
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer">
+                          <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                             <Badge variant={isFormerHolder(c) ? "secondary" : STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
                           </button>
                         </td>

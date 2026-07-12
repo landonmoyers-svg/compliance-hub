@@ -166,6 +166,7 @@ function QuizBuilderDialog({ module, onClose }: { module: TrainingModule; onClos
   }
 
   async function deleteQuestion(id: string) {
+    if (!window.confirm("Delete this quiz question? This can't be undone.")) return;
     try {
       await removeQ.mutateAsync(id);
       toast.success("Question removed");
@@ -318,7 +319,7 @@ export default function TrainingAcademyPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Training Academy" />
+        <PageHeader title="Training Modules" />
         <ErrorState message="We couldn't load training modules." onRetry={() => void refetch()} />
       </div>
     );
@@ -338,7 +339,7 @@ export default function TrainingAcademyPage() {
       {quizModule && <QuizBuilderDialog module={quizModule} onClose={() => setQuizModule(null)} />}
 
       <PageHeader
-        title="Training Academy"
+        title="Training Modules"
         description="Build and manage training modules. Assign them to staff from the Training Center."
         actions={
           <Button onClick={() => setEditing("new")}>

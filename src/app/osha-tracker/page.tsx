@@ -304,14 +304,14 @@ export default function OSHATrackerPage() {
                       <td data-label="Type" className="py-3 pr-4">{RECORD_TYPE_LABEL[r.recordType]}</td>
                       <td data-label="Event date" className="py-3 pr-4">{r.eventDate ? formatDate(r.eventDate) : "—"}</td>
                       <td data-label="Status" className="py-3 pr-4">
-                        <button type="button" onClick={() => setEditing(r)} title="Open to manage" className="cursor-pointer">
+                        <button type="button" onClick={() => setEditing(r)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={STATUS_VARIANT[r.status]}>
                             {r.status === "in_progress" ? "In progress" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                           </Badge>
                         </button>
                       </td>
                       <td data-label="Recordability" className="py-3 pr-4">
-                        <button type="button" onClick={() => setEditing(r)} title="Open to manage" className="cursor-pointer">
+                        <button type="button" onClick={() => setEditing(r)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={RECORDABILITY_VARIANT[r.recordabilityStatus]}>
                             {r.recordabilityStatus === "not_reviewed" ? "Not reviewed" : r.recordabilityStatus === "recordable" ? "Recordable" : "Non-recordable"}
                           </Badge>

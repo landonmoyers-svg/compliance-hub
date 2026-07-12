@@ -170,7 +170,7 @@ export default function ExclusionScreeningPage() {
 
       <PageHeader
         title="Exclusion Screening"
-        description="Screen staff and vendors against the OIG-LEIE and SAM exclusion lists (recommended monthly) and keep dated proof of every check."
+        description="OIG-LEIE is the federal list of people excluded from Medicare/Medicaid; SAM.gov is the government-wide exclusion database. Screening both monthly is a federal expectation — log each check here and keep dated proof."
         actions={<Button onClick={() => setLogging(true)}><Plus className="size-4" /> Log screening</Button>}
       />
 

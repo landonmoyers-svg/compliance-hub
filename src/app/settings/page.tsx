@@ -396,7 +396,7 @@ function LocationsTab() {
                 </div>
                 <div className="flex gap-1">
                   <Button size="sm" variant="ghost" onClick={() => open(loc)}>Edit</Button>
-                  <button onClick={() => remove(loc)} className="rounded-md p-1.5 text-muted-foreground hover:text-destructive" aria-label="Remove location"><Trash2 className="size-4" /></button>
+                  <button onClick={() => { if (!window.confirm(`Delete location "${loc.name}"? Records that reference it keep their data but lose the link.`)) return; remove(loc); }} className="rounded-md p-1.5 text-muted-foreground hover:text-destructive" aria-label="Remove location"><Trash2 className="size-4" /></button>
                 </div>
               </li>
             ))}

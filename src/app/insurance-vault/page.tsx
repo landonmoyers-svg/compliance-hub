@@ -329,7 +329,7 @@ export default function InsuranceVaultPage() {
                             <div>
                               <div className={expired ? "text-destructive" : expiringSoon ? "text-warning" : ""}>{formatDate(p.renewalDate)}</div>
                               {expired ? (
-                                <button type="button" onClick={() => setEditing(p)} title="Open to manage" className="cursor-pointer">
+                                <button type="button" onClick={() => setEditing(p)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                                   <Badge variant="destructive" className="mt-1">Expired</Badge>
                                 </button>
                               ) : expiringSoon ? (

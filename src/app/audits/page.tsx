@@ -39,7 +39,7 @@ const TEMPLATES: Record<Audit["auditType"], { category: string; question: string
   ],
   mock_osha: [
     { category: "HazCom", question: "SDS library is complete and accessible for all hazardous products." },
-    { category: "Bloodborne", question: "Exposure Control Plan is current and BBP training is up to date." },
+    { category: "Bloodborne", question: "Exposure Control Plan is current and Bloodborne Pathogens (BBP) training is up to date." },
     { category: "Recordkeeping", question: "OSHA 300A is posted Feb 1–Apr 30 and injury logs are maintained." },
     { category: "PPE", question: "Appropriate PPE is available and staff are trained on its use." },
     { category: "Emergency", question: "Emergency Action Plan is documented and drills are conducted." },
@@ -54,9 +54,9 @@ const TEMPLATES: Record<Audit["auditType"], { category: string; question: string
   internal: [
     { category: "Policies", question: "Key policies exist, are current (reviewed in the last year), and acknowledged." },
     { category: "Credentialing", question: "All provider licenses, DEA, and certifications are current." },
-    { category: "Controlled Substances", question: "CS inventory/reconciliation and CSDB checks are performed and logged." },
+    { category: "Controlled Substances", question: "Controlled-substance (CS) inventory/reconciliation and controlled-substance database (CSDB) checks are performed and logged." },
     { category: "Incidents", question: "Incidents are reported, investigated, and closed with corrective action." },
-    { category: "Exclusion", question: "Staff and vendors are screened against OIG-LEIE/SAM at hire and monthly." },
+    { category: "Exclusion", question: "Staff and vendors are screened against federal exclusion lists (OIG-LEIE/SAM) at hire and monthly." },
     { category: "Training", question: "Required role-based training is assigned and completed on time." },
   ],
   other: [{ category: "General", question: "Define the items for this audit." }],

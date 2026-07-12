@@ -539,7 +539,7 @@ export default function ReportsPage() {
                           <td data-label="Module" className="py-2 pr-4">{a.moduleTitle}</td>
                           <td data-label="Due date" className="py-2 pr-4">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
                           <td data-label="Status" className="py-2">
-                            {assignmentIsOverdue(a) ? "Overdue" : a.status}
+                            {assignmentIsOverdue(a) ? "Overdue" : a.status.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())}
                           </td>
                         </tr>
                       ))}

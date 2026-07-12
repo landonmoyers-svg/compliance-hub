@@ -492,7 +492,7 @@ export default function VendorManagementPage() {
                         </td>
                         <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{TYPE_LABEL[v.vendorType]}</td>
                         <td data-label="BAA" className="py-3 pr-4">
-                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer">
+                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                             <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
                           </button>
                         </td>
@@ -517,7 +517,7 @@ export default function VendorManagementPage() {
                           )}
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
-                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer">
+                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                             <Badge variant={STATUS_VARIANT[v.status]}>{STATUS_LABEL[v.status]}</Badge>
                           </button>
                         </td>

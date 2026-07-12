@@ -6,6 +6,7 @@ import { Download, DatabaseBackup, ShieldCheck, Clock, CheckCircle2 } from "luci
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { db } from "@/lib/data";
 import { useAuth } from "@/lib/auth/context";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,8 @@ function toCsv(rows: Record<string, unknown>[]): string {
 export default function BackupPage() {
   const { profile } = useAuth();
   const backupsQ = useCollection("backups");
+  const orgSettingsQ = useCollection("organizationSettings");
+  const orgSettings = orgSettingsQ.data?.[0];
   const createBackup = useCreate("backups");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
@@ -63,7 +66,7 @@ export default function BackupPage() {
       }
       const stamp = new Date().toISOString().slice(0, 10);
       zip.file("backup.json", JSON.stringify(all, null, 2));
-      zip.file("README.txt", readme(stamp, total, counts, profile?.fullName ?? "an administrator"));
+      zip.file("README.txt", readme(stamp, total, counts, profile?.fullName ?? "an administrator", (orgSettings?.orgName ?? DEFAULT_ORG_NAME).toUpperCase()));
       zip.file("index.html", indexHtml(stamp, total, counts));
 
       setProgress("Packaging…");
@@ -132,9 +135,9 @@ export default function BackupPage() {
   );
 }
 
-function readme(stamp: string, total: number, counts: Record<string, number>, by: string): string {
+function readme(stamp: string, total: number, counts: Record<string, number>, by: string, orgName: string): string {
   const lines = Object.entries(counts).map(([k, v]) => `  - ${k}: ${v < 0 ? "not accessible" : v}`).join("\n");
-  return `LONE PEAK PSYCHIATRY — COMPLIANCE HUB DATA BACKUP
+  return `${orgName} — COMPLIANCE HUB DATA BACKUP
 Generated: ${stamp} by ${by}
 Total records: ${total}
 

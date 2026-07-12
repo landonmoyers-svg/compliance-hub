@@ -325,7 +325,7 @@ export default function RegulatorySourcesPage() {
                       <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{s.issuingBody ?? "—"}</td>
                       <td data-label="Last checked" className="py-3 pr-4">{s.lastCheckedAt ? formatDate(s.lastCheckedAt) : "—"}</td>
                       <td data-label="Status" className="py-3 pr-4">
-                        <button type="button" onClick={() => setEditing(s)} title="Open to manage" className="cursor-pointer">
+                        <button type="button" onClick={() => setEditing(s)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={REVIEW_VARIANT[s.reviewStatus]}>
                             {s.reviewStatus === "needs_review" ? "Needs review" : s.reviewStatus === "under_review" ? "Under review" : s.reviewStatus.charAt(0).toUpperCase() + s.reviewStatus.slice(1)}
                           </Badge>

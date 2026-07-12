@@ -154,7 +154,7 @@ export default function ChiefOfStaffPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Chief of Staff"
+        title="Daily Priorities"
         description={`${greeting}${firstName ? `, ${firstName}` : ""}. Here's your prioritized plan — I keep it a step ahead so nothing slips.`}
         actions={
           <div className="flex gap-2">

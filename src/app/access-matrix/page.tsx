@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, Info } from "lucide-react";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -54,14 +54,14 @@ const CELL: Record<Access, { label: string; cls: string }> = {
 export default function AccessMatrixPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Role Access Matrix" description="Who can see and do what, by role — mapped to the HIPAA minimum-necessary principle and compliance best practice." />
+      <PageHeader title="Role Permissions" description="Who can see and do what, by role — mapped to the HIPAA minimum-necessary principle and compliance best practice." />
 
-      <Card className="border-primary/30 bg-primary/5">
+      <Card className="border-warning/40 bg-warning/5">
         <CardContent className="flex gap-3 py-4">
-          <Info className="mt-0.5 size-5 shrink-0 text-primary" />
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
           <div className="space-y-1 text-sm">
-            <p className="font-medium">How access is enforced</p>
-            <p className="text-muted-foreground">Sensitive data (payroll, HR files, disciplinary, performance, risk, controlled substances, audit log, screenings) is protected server-side by database row-level security. Those tables are currently gated to the <span className="font-medium text-foreground">privileged roles — Owner, Admin, HR, and Clinical Leadership</span> — so the enforced boundary matches the “Manage/View” rows below for those roles. This matrix is the documented policy; a few rows below (e.g. Payroll = Owner/HR only) are intentionally <span className="font-medium text-foreground">stricter than the current technical enforcement</span> and are the recommended next tightening.</p>
+            <p className="font-medium">Some rows are policy, not yet enforcement</p>
+            <p className="text-muted-foreground">Sensitive tables are enforced server-side by row-level security for the privileged roles (Owner, Admin, HR, Clinical Leadership), but rows stricter than that boundary — for example Payroll = Owner/HR only — are documented policy awaiting technical enforcement.</p>
           </div>
         </CardContent>
       </Card>

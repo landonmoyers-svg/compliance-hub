@@ -54,9 +54,40 @@ export default function ComplianceConcierge() {
   const [steps, setSteps] = useState<Step[]>(
     SETUP_STEPS.map((s) => ({ ...s, done: false })),
   );
+  // Checklist progress is persisted per user in localStorage (per-browser).
+  // Cross-device persistence would need a table like chatMessages; localStorage
+  // is acceptable here since the checklist is a lightweight onboarding aid.
+  const [stepsHydrated, setStepsHydrated] = useState(false);
 
   const { profile, user } = useAuth();
   const myUserId = profile?.userId ?? user?.id ?? "";
+
+  // Hydrate saved step completion once the user id is known.
+  useEffect(() => {
+    if (stepsHydrated || !myUserId) return;
+    try {
+      const raw = localStorage.getItem(`concierge-steps:${myUserId}`);
+      if (raw) {
+        const doneIds: unknown = JSON.parse(raw);
+        if (Array.isArray(doneIds)) {
+          setSteps(SETUP_STEPS.map((s) => ({ ...s, done: doneIds.includes(s.id) })));
+        }
+      }
+    } catch { /* corrupt/unavailable storage — keep defaults */ }
+    setStepsHydrated(true);
+  }, [stepsHydrated, myUserId]);
+
+  // Save step completion whenever it changes (after hydration, so we never
+  // clobber saved progress with the initial all-false state).
+  useEffect(() => {
+    if (!stepsHydrated || !myUserId) return;
+    try {
+      localStorage.setItem(
+        `concierge-steps:${myUserId}`,
+        JSON.stringify(steps.filter((s) => s.done).map((s) => s.id)),
+      );
+    } catch { /* storage unavailable — non-blocking */ }
+  }, [steps, stepsHydrated, myUserId]);
 
   const [chat, setChat] = useState<ChatMessage[]>([{ role: "assistant", text: CONCIERGE_WELCOME }]);
   const [input, setInput] = useState("");
@@ -102,6 +133,7 @@ export default function ComplianceConcierge() {
   const pct = Math.round((completed / steps.length) * 100);
 
   function toggleStep(id: string) {
+    if (!stepsHydrated) return; // don't allow toggles before saved progress loads
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, done: !s.done } : s)));
   }
 
@@ -311,7 +343,7 @@ export default function ComplianceConcierge() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Setup Concierge"
+        title="Setup Guide"
         description="Your guided compliance setup checklist. Complete each step to build a fully operational compliance program."
       />
 

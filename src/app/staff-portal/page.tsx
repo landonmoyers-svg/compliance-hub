@@ -304,7 +304,7 @@ export default function StaffPortalPage() {
                   <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div>
                       <p className="text-sm font-medium capitalize">{r.requestType.replace("_", " ")}</p>
-                      <p className="text-xs text-muted-foreground">{r.startDate} – {r.endDate} · {r.hours}h</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(r.startDate)} – {formatDate(r.endDate)} · {r.hours}h</p>
                     </div>
                     <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
                   </li>

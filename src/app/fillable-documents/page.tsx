@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { downloadCompletedFormPdf } from "@/lib/pdf";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
+import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent } from "@/components/ui/card";
@@ -584,7 +585,7 @@ export default function FillableDocumentsPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Fillable Documents" />
+        <PageHeader title="Forms" />
         <ErrorState
           message="We couldn't load form data."
           onRetry={() => {
@@ -653,7 +654,7 @@ export default function FillableDocumentsPage() {
       )}
 
       <PageHeader
-        title="Fillable Documents"
+        title="Forms"
         description="Build form templates, assign them to employees, and track completed submissions."
         actions={
           tab === "templates" ? (
@@ -811,7 +812,7 @@ export default function FillableDocumentsPage() {
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Form" className="py-3 pr-4 font-medium">{a.templateTitle}</td>
                         <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} /></td>
-                        <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ?? "—"}</td>
+                        <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
                         <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
                         <td data-label="" className="py-3 text-right">
                           {a.status !== "completed" ? (

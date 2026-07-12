@@ -100,7 +100,11 @@ function CaseDialog({
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Case type</label>
-            <input className="input w-full" value={form.caseType} onChange={set("caseType")} placeholder="clinical, administrative…" />
+            <select className="input w-full" value={form.caseType} onChange={set("caseType")}>
+              {(["clinical", "administrative", "security", "billing", "other"] as const).map((t) => (
+                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Reported by</label>
@@ -132,6 +136,7 @@ function CaseDialog({
               <option value="standard">Standard</option>
               <option value="restricted">Restricted</option>
             </select>
+            <p className="text-xs text-muted-foreground">Restricted cases are visible to owners, admins, HR, and clinical leadership only.</p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Description</label>
@@ -211,7 +216,7 @@ export default function RiskManagementPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="HIPAA & Risk Management" />
+        <PageHeader title="Risk Cases" />
         <ErrorState message="We couldn't load risk cases." onRetry={() => void refetch()} />
       </div>
     );
@@ -229,7 +234,7 @@ export default function RiskManagementPage() {
       )}
 
       <PageHeader
-        title="HIPAA & Risk Management"
+        title="Risk Cases"
         description="Track and investigate compliance incidents, HIPAA breaches, and risk cases."
         actions={
           <Button onClick={() => setEditing("new")}>
@@ -303,7 +308,7 @@ export default function RiskManagementPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">{c.caseTitle}</p>
                         <Badge variant={SEVERITY_VARIANT[c.severity]}>{c.severity}</Badge>
-                        <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer">
+                        <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge>
                         </button>
                         {c.accessLevel === "restricted" && (

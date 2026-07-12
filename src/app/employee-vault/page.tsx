@@ -509,7 +509,7 @@ export default function EmployeeVaultPage() {
                             title="Open to manage"
                             className="cursor-pointer"
                           >
-                            <Badge variant="destructive">Restricted</Badge>
+                            <Badge variant="warning">Marked sensitive</Badge>
                           </button>
                         ) : (
                           <span className="text-muted-foreground">—</span>

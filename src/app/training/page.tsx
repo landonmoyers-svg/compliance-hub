@@ -428,7 +428,7 @@ export default function TrainingPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Training Center" />
+        <PageHeader title="Training" />
         <ErrorState
           message="We couldn't load training data."
           onRetry={() => { void modulesQ.refetch(); void assignQ.refetch(); }}
@@ -469,7 +469,7 @@ export default function TrainingPage() {
       )}
 
       <PageHeader
-        title="Training Center"
+        title="Training"
         description="Assign and track completion of compliance training modules."
         actions={
           <div className="flex flex-wrap gap-2">
@@ -574,7 +574,14 @@ export default function TrainingPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => (questionsFor(a).length > 0 ? setTakingQuiz(a) : markComplete(a))}
+                              onClick={() => {
+                                if (questionsFor(a).length > 0) {
+                                  setTakingQuiz(a);
+                                  return;
+                                }
+                                if (!window.confirm(`Mark "${a.moduleTitle}" complete for ${a.assignedToName}? This records a training completion.`)) return;
+                                markComplete(a);
+                              }}
                               title="Open to manage"
                               className="cursor-pointer"
                             >
@@ -596,7 +603,14 @@ export default function TrainingPage() {
                                   <ListChecks className="size-4" /> Take quiz
                                 </Button>
                               ) : (
-                                <Button size="sm" variant="outline" onClick={() => markComplete(a)}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (!window.confirm(`Mark "${a.moduleTitle}" complete for ${a.assignedToName}? This records a training completion.`)) return;
+                                    markComplete(a);
+                                  }}
+                                >
                                   Mark complete
                                 </Button>
                               )}

@@ -28,7 +28,10 @@ export function Providers({ children }: { children: ReactNode }) {
             // so a page self-heals instead of getting stuck on "Try again".
             retry: 3,
             retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-            refetchOnWindowFocus: false,
+            // Freshness: refetch when the user returns to the tab so edits made
+            // elsewhere (another page, another device, the AI) show up without
+            // a manual reload. Server triggers keep denormalized names in sync.
+            refetchOnWindowFocus: true,
             refetchOnReconnect: true,
           },
         },

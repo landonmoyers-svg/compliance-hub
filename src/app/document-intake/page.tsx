@@ -349,6 +349,12 @@ export default function DocumentIntakePage() {
   async function fileAllPending() {
     const toFile = results.filter((r) => r.status === "pending");
     if (toFile.length === 0) return;
+    const counts: Partial<Record<DestinationKey, number>> = {};
+    for (const r of toFile) counts[r.destination] = (counts[r.destination] ?? 0) + 1;
+    const summary = (Object.entries(counts) as [DestinationKey, number][])
+      .map(([d, n]) => `${n} → ${DESTINATIONS[d].label}`)
+      .join(", ");
+    if (!window.confirm(`File ${toFile.length} document${toFile.length === 1 ? "" : "s"}? ${summary}. You can review each destination afterward.`)) return;
     setFilingAll(true);
     try {
       const outcomes = await mapLimit(toFile, 4, (r) => fileRecord(r, true));
