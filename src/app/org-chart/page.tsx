@@ -184,7 +184,7 @@ export default function OrgChartPage() {
         </Card>
 
         {/* Role requirements editor */}
-        <RoleRequirementsEditor roles={roles} reqs={reqs} onAdd={(d) => createReq.mutateAsync(d)} onRemove={(id) => removeReq.mutateAsync(id)} />
+        <RoleRequirementsEditor roles={roles} reqs={reqs} onAdd={(d) => createReq.mutateAsync(d)} onRemove={async (id) => { if (!window.confirm("Remove this role requirement? People will no longer be flagged as missing it.")) return; await removeReq.mutateAsync(id); }} />
       </div>
     </div>
   );

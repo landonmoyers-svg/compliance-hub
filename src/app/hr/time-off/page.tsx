@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Umbrella, Plus, Check, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
+import { formatDate } from "@/lib/dates";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -242,7 +243,7 @@ export default function TimeOffPage() {
                 <div key={r.id} className="flex items-center justify-between gap-4 rounded-lg border border-border bg-secondary/20 p-4">
                   <div>
                     <p className="font-medium">{r.userName} — {TYPE_LABEL[r.requestType]}</p>
-                    <p className="text-sm text-muted-foreground">{r.startDate} to {r.endDate} ({r.hours}h)</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(r.startDate)} – {formatDate(r.endDate)} ({r.hours}h)</p>
                     {r.reason && <p className="mt-0.5 text-xs text-muted-foreground">{r.reason}</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">
