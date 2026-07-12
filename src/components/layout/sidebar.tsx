@@ -189,7 +189,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const gripClass = "flex shrink-0 cursor-grab touch-none items-center text-muted-foreground/40 active:cursor-grabbing";
 
   return (
-    <div className="flex h-full flex-col bg-sidebar">
+    <div className="flex h-full flex-col bg-sidebar/85 backdrop-blur-xl">
       {customizing && (
         <NavCustomizer
           accessible={accessible}
@@ -363,7 +363,7 @@ function NavCustomizer({ accessible, initialHidden, pref, userId, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-border bg-card text-foreground shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>

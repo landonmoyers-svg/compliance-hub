@@ -176,7 +176,7 @@ function ItemDialog({
   const qtyValid = !isNaN(qtyNum) && qtyNum >= 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-semibold">{initial ? "Edit item" : "Add inventory item"}</h2>
@@ -328,7 +328,7 @@ function InventoryChat({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="flex h-[600px] max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="flex items-center gap-2 font-semibold"><MessageSquare className="size-4 text-primary" /> Inventory Assistant</h2>
@@ -508,7 +508,7 @@ function BatchDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-semibold">Batch add inventory</h2>

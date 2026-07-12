@@ -17,7 +17,8 @@
   --secondary: 0 0% 14.1%;
   --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 14.1%;
-  --muted-foreground: 215 16% 57%;
+  /* HIG clarity: raised secondary-text lightness for WCAG-AA contrast on dark. */
+  --muted-foreground: 215 15% 66%;
   --accent: 0 0% 14.1%;
   --accent-foreground: 0 0% 100%;
   --destructive: 4 90% 58%;
@@ -85,7 +86,9 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  --font-sans: var(--font-inter);
+  /* HIG typography: San Francisco on Apple platforms via the system stack,
+     graceful native fallbacks elsewhere (Inter kept as a final web fallback). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, var(--font-inter), sans-serif;
 }
 
 @layer base {
@@ -95,25 +98,52 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    /* SF / system typeface, smoothed, with the subtle negative tracking Apple
+       uses at UI sizes. */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, var(--font-inter), sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* HIG materials: a translucent, blurred surface for overlays / sidebars so
+   content shows through and establishes depth. */
+.material {
+  background-color: hsl(var(--card) / 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Accessibility (HIG): honor the reduce-motion preference app-wide. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* Shared input style used across form dialogs */
 .input {
   width: 100%;
+  min-height: 2.5rem; /* comfortable hit target */
   border-radius: calc(var(--radius) - 2px);
   border: 1px solid hsl(var(--border));
   background: hsl(var(--secondary));
   color: hsl(var(--foreground));
-  padding: 0.4rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.5;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .input:focus {
   border-color: hsl(var(--primary));
+  /* HIG: clear, accessible focus ring */
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
 }
 .input::placeholder {
   color: hsl(var(--muted-foreground));

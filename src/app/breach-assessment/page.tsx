@@ -90,7 +90,7 @@ function AssessmentDialog({ initial, onClose, onSave, saving }: {
   const deadline = deadlineFor(form.discoveredDate ? dateInputToISO(form.discoveredDate) : null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-semibold">{initial ? "Breach risk assessment" : "New breach risk assessment"}</h2>

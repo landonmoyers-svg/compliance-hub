@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div
           className={cn(
-            "absolute inset-0 bg-black/60 transition-opacity",
+            "absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity",
             mobileOpen ? "opacity-100" : "opacity-0",
           )}
           onClick={() => setMobileOpen(false)}

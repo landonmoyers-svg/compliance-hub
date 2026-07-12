@@ -114,7 +114,7 @@ export function DuplicateFinder<T extends DupItem>({
     <>
       <Button variant={variant} onClick={scan}><CopyCheck className="size-4" /> {label}</Button>
       {groups && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setGroups(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && setGroups(null)}>
           <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card text-foreground shadow-xl">
             <div className="flex items-start justify-between border-b border-border px-5 py-4">
               <div>

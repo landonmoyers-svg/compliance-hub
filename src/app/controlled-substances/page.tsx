@@ -243,7 +243,7 @@ export default function ControlledSubstancesPage() {
     <div className="space-y-6">
       {showForm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={(e) => e.target === e.currentTarget && setShowForm(false)}
         >
           <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl overflow-y-auto max-h-[90vh]">

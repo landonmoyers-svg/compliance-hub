@@ -175,7 +175,7 @@ export default function TimeOffPage() {
   return (
     <div className="space-y-6">
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <h2 className="font-semibold">Request time off</h2>
