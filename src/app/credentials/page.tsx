@@ -10,6 +10,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
+import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -737,6 +738,7 @@ export default function CredentialsPage() {
                               <FileLink path={c.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
                             )}
                             <VersionHistoryButton entityType="credentials" entityId={c.id} title={`${c.credentialName} — ${c.employeeName}`} />
+                            <AdminDeleteButton collection="credentials" id={c.id} label={c.credentialName} noun="credential" onDeleted={() => void refetch()} />
                           </div>
                         </td>
                       </tr>

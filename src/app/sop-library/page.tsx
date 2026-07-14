@@ -8,6 +8,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
+import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -431,6 +432,7 @@ export default function SOPLibraryPage() {
                             )}
                             <VersionHistoryButton entityType="documents" entityId={d.id} title={d.title} />
                             <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
+                            <AdminDeleteButton collection="documents" id={d.id} label={d.title} noun="document" onDeleted={() => void refetch()} />
                           </div>
                         </td>
                       </tr>

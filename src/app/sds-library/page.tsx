@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { useSort, SortHeader } from "@/components/shared/sortable";
+import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -545,7 +546,10 @@ export default function SDSLibraryPage() {
                         </button>
                       </td>
                       <td data-label="" className="py-3">
-                        <Button size="sm" variant="ghost" onClick={() => { setAiPrefill(null); setEditing(r); }}>Edit</Button>
+                        <div className="flex items-center gap-1 md:justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => { setAiPrefill(null); setEditing(r); }}>Edit</Button>
+                          <AdminDeleteButton collection="sdsRecords" id={r.id} label={r.productName} noun="SDS record" onDeleted={() => void refetch()} />
+                        </div>
                       </td>
                     </tr>
                   ))}

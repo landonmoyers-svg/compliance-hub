@@ -16,6 +16,7 @@ import { EmptyState, ErrorState } from "@/components/shared/states";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
+import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   FillableFormTemplate,
@@ -767,6 +768,7 @@ export default function FillableDocumentsPage() {
                         <div className="flex gap-2 md:justify-end">
                           <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => archiveTemplate(t)}><Archive className="size-3" /> {t.status === "archived" ? "Restore" : "Archive"}</Button>
+                          <AdminDeleteButton collection="formTemplates" id={t.id} label={t.title} noun="form template" onDeleted={() => void templatesQ.refetch()} />
                         </div>
                       </td>
                     </tr>
@@ -863,9 +865,12 @@ export default function FillableDocumentsPage() {
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         </td>
                         <td data-label="PDF" className="py-3">
-                          <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
-                            <Download className="size-4" /> PDF
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
+                              <Download className="size-4" /> PDF
+                            </Button>
+                            <AdminDeleteButton collection="completedForms" id={c.id} label={`${c.templateTitle}${c.employeeName ? ` — ${c.employeeName}` : ""}`} noun="completed form" onDeleted={() => void completedQ.refetch()} />
+                          </div>
                         </td>
                       </tr>
                     ))}

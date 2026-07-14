@@ -14,6 +14,7 @@ import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
+import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import type { InsurancePolicyRecord } from "@/lib/data/schema";
@@ -347,6 +348,7 @@ export default function InsuranceVaultPage() {
                             {p.documentUrl && (
                               <FileLink path={p.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
                             )}
+                            <AdminDeleteButton collection="insurancePolicies" id={p.id} label={p.policyName} noun="policy" onDeleted={() => void refetch()} />
                           </div>
                         </td>
                       </tr>
