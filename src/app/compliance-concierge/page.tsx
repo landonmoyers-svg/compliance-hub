@@ -235,8 +235,14 @@ export default function ComplianceConcierge() {
           break;
         case "create_employee": {
           const email = str(d.email).toLowerCase();
-          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            toast.error("I need a valid email to create this employee. Add one and try again.");
+          const emailOk = email === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+          const wantInvite = d.invite !== false && email !== "";
+          if (!emailOk) {
+            toast.error("That email isn't valid. Fix it, or leave it blank to add the person without a login.");
+            return;
+          }
+          if (d.invite === true && email === "") {
+            toast.error("I need an email to invite this employee to the app. Add one, or add them without an invite.");
             return;
           }
           const firstName = str(d.firstName, "New");
@@ -249,7 +255,6 @@ export default function ComplianceConcierge() {
             department: dept,
             employmentStatus: "active",
           });
-          const wantInvite = d.invite !== false;
           if (wantInvite) {
             const validRoles = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
             const role = validRoles.includes(str(d.accountRole)) ? str(d.accountRole) : "staff";

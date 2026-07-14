@@ -103,8 +103,9 @@ function EmployeeDialog({
   const canSave =
     form.firstName.trim() &&
     form.lastName.trim() &&
-    form.email.trim() &&
-    emailValid;
+    emailValid &&
+    // Email is only required when we're creating a login to invite them.
+    (!form.inviteToApp || form.email.trim());
 
   return (
     <div
@@ -126,9 +127,10 @@ function EmployeeDialog({
             <input className="input w-full" value={form.lastName} onChange={set("lastName")} placeholder="Last name" />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-sm font-medium">Email *</label>
-            <input type="email" className="input w-full" value={form.email} onChange={set("email")} placeholder="work@example.com" />
+            <label className="text-sm font-medium">Email</label>
+            <input type="email" className="input w-full" value={form.email} onChange={set("email")} placeholder="work@example.com (optional)" />
             {!emailValid && <p className="text-xs text-destructive">Enter a valid email address.</p>}
+            <p className="text-xs text-muted-foreground">Optional — leave blank for a former or contract worker with no login. Required only to invite them to the app.</p>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Title / role</label>
@@ -316,7 +318,7 @@ export default function EmployeesPage() {
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="font-semibold">{viewingRecords.firstName} {viewingRecords.lastName}</h2>
-                <p className="text-xs text-muted-foreground">{viewingRecords.email} · all linked compliance records</p>
+                <p className="text-xs text-muted-foreground">{viewingRecords.email ? `${viewingRecords.email} · ` : ""}all linked compliance records</p>
               </div>
               <button onClick={() => setViewingRecords(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
             </div>
@@ -417,7 +419,7 @@ export default function EmployeesPage() {
                           {e.workerType === "contractor" && <Badge variant="outline" className="border-primary/40 text-primary">Contractor</Badge>}
                         </div>
                       </td>
-                      <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email}</td>
+                      <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email || "—"}</td>
                       <td data-label="Title" className="py-3 pr-4">{e.title ?? "—"}</td>
                       <td data-label="Department" className="py-3 pr-4 capitalize">{e.department ?? "—"}</td>
                       <td data-label="Hire date" className="py-3 pr-4">{e.hireDate ? formatDate(e.hireDate) : "—"}</td>

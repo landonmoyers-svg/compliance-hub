@@ -138,12 +138,12 @@ export function AssistantWidget() {
           break;
         case "create_employee": {
           const email = str(d.email).toLowerCase();
-          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("I need a valid email to add this employee."); return; }
+          if (email !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("That email isn't valid. Fix it, or leave it blank to add the person without a login."); return; }
           const firstName = str(d.firstName, "New");
           const lastName = str(d.lastName, "Employee");
           const dept = pick(d.department, ["ownership", "administration", "clinical", "hr", "billing", "front_desk", "operations", "contractor", "other"] as const, "other");
           const emp = await createEmployee.mutateAsync({ firstName, lastName, email, title: str(d.title) || undefined, department: dept, employmentStatus: "active" });
-          if (d.invite !== false) {
+          if (d.invite !== false && email !== "") {
             const role = pick(d.accountRole, ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"] as const, "staff");
             const result = await provisionLogin({ email, fullName: `${firstName} ${lastName}`, accountRole: role, staffRole: str(d.title) || undefined, department: dept });
             if (result.ok && result.userId) await updateEmployee.mutateAsync({ id: emp.id, patch: { userId: result.userId } });

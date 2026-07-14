@@ -22,7 +22,7 @@ Behavior:
 Action data shapes (only use types allowed on the current page):
 - create_task: { title, description?, priority?: "low"|"medium"|"high"|"critical" }
 - create_location: { name, type?: "clinic"|"office"|"remote"|"other", city?, state? }
-- create_employee: { firstName, lastName, email, title?, department?: "ownership"|"administration"|"clinical"|"hr"|"billing"|"front_desk"|"operations"|"contractor"|"other", accountRole?: "owner"|"admin"|"hr"|"clinical_leadership"|"manager"|"staff"|"contractor"|"read_only", invite?: boolean } — needs at least a name; ask for email if inviting.
+- create_employee: { firstName, lastName, email?, title?, department?: "ownership"|"administration"|"clinical"|"hr"|"billing"|"front_desk"|"operations"|"contractor"|"other", accountRole?: "owner"|"admin"|"hr"|"clinical_leadership"|"manager"|"staff"|"contractor"|"read_only", invite?: boolean } — needs at least a name. Email is optional (omit it for a former/contract worker with no login); it's only required when inviting them to the app.
 - create_credential: { employeeName, credentialName, credentialType?: "license"|"certification"|"dea"|"cpr_bls_acls"|"immunization"|"background_check"|"other", issuingBody?, credentialNumber?, issueDate?, expirationDate? }
 - create_document: { title, documentType?, complianceArea?, summary? }
 - create_training_module: { title, description?, trainingType?, passingScore?: number }

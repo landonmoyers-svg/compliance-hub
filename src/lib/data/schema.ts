@@ -492,7 +492,9 @@ export const Employee = z.object({
   ...base,
   firstName: z.string(),
   lastName: z.string(),
-  email: z.string().email(),
+  // Optional — a person can be recorded without an email (e.g. a former or
+  // contract worker). Required only when provisioning an app login. "" = none.
+  email: z.string().email().or(z.literal("")).default(""),
   title: z.string().optional(),
   department: Department.optional(),
   employmentStatus: z
