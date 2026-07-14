@@ -199,10 +199,17 @@ export const EXTRA_PRIVILEGED_PATHS = [
   "/hr-hub",
 ];
 
+/** Pages the Owner uses to manage access itself. These can never be disabled or
+ *  role-restricted in the UI, so there is always a way back in. */
+export const RECOVERY_PATHS = ["/settings", "/access-matrix", "/user-management"];
+
 /** Enforcement: can this role open this path? (Command Center is always allowed.) */
 export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[]): boolean {
   if (pathname === "/") return true;
   if (!role || role === "inactive") return false;
+  // The Owner can never be locked out — blocking the top role only creates
+  // lock-out risk, so org-level page toggles never apply to the owner.
+  if (role === "owner") return true;
   const item = findNavItem(pathname);
   if (!item) {
     // Pages absent from the nav map are open by default, except explicitly-gated modules.
@@ -225,10 +232,15 @@ export function canAccessPath(pathname: string, role: AccountRole | null | undef
  */
 export function resolveNav(ctx: VisibilityCtx): NavGroup[] {
   const { role } = ctx;
+  const isOwner = role === "owner";
   const accessible = (item: NavItem) =>
     !!role && role !== "inactive" &&
-    !ctx.disabledPages.includes(item.href) &&
-    allowedRolesFor(item.href, !!item.adminOnly, ctx.pageRoles).includes(role) &&
+    // The Owner sees every page (minus their own personal hides) so a bad org
+    // toggle can never empty their sidebar or hide the pages that fix it.
+    (isOwner || (
+      !ctx.disabledPages.includes(item.href) &&
+      allowedRolesFor(item.href, !!item.adminOnly, ctx.pageRoles).includes(role)
+    )) &&
     !ctx.hiddenPages.includes(item.href);
 
   let groups = NAV_GROUPS

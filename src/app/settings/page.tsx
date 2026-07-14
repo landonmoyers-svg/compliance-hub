@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
-import { allPages, allowedRolesFor, SELECTABLE_ROLES } from "@/lib/nav";
+import { allPages, allowedRolesFor, SELECTABLE_ROLES, RECOVERY_PATHS } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 
@@ -434,21 +434,38 @@ function PageAccessTab({ current, onSave, saving }: {
 
   const rolesFor = (href: string, adminOnly: boolean) => allowedRolesFor(href, adminOnly, pageRoles);
   function toggleRole(href: string, adminOnly: boolean, role: string) {
+    // The Owner always keeps access to every page — it can't be locked out.
+    if (role === "owner") return;
     setPageRoles((pr) => {
       const cur = pr[href] ?? allowedRolesFor(href, adminOnly, pr);
       const next = cur.includes(role) ? cur.filter((r) => r !== role) : [...cur, role];
-      return { ...pr, [href]: next };
+      // Owner is implicit-always; never persist it out of the list.
+      return { ...pr, [href]: next.includes("owner") ? next : ["owner", ...next] };
     });
   }
   function toggleEnabled(href: string) {
-    setDisabled((d) => { const n = new Set(d); n.has(href) ? n.delete(href) : n.add(href); return n; });
+    // Recovery pages (Settings, Role Permissions, User Management) can never be
+    // turned off — that's the door back in if access is misconfigured.
+    if (RECOVERY_PATHS.includes(href)) return;
+    setDisabled((d) => {
+      const n = new Set(d);
+      if (n.has(href)) {
+        n.delete(href);
+      } else {
+        if (!confirm(`Turn off “${allPages().find((p) => p.href === href)?.label ?? href}” for the whole organization?\n\nThis hides the page for every role except the Owner. Owners always keep access so you can turn it back on here.`)) {
+          return d;
+        }
+        n.add(href);
+      }
+      return n;
+    });
   }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Modules & Access</CardTitle>
-        <p className="text-sm text-muted-foreground">Turn whole modules on/off for your organization, and set exactly which roles can open each page. Enforced app-wide; this doesn’t replace the data-level protections.</p>
+        <p className="text-sm text-muted-foreground">The <span className="font-medium text-foreground">Enabled</span> column turns a whole module on or off for your <span className="font-medium text-foreground">entire organization</span>. The role columns set which roles can open a page. The <span className="font-medium text-foreground">Owner always keeps access</span> to every page, so you can never lock yourself out. Enforced app-wide; this doesn’t replace the data-level protections.</p>
       </CardHeader>
       <CardContent>
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 px-4 py-3">
@@ -478,15 +495,29 @@ function PageAccessTab({ current, onSave, saving }: {
                   {pages.filter((p) => p.group === grp).map((p) => {
                     const enabled = !disabled.has(p.href);
                     const allowed = rolesFor(p.href, p.adminOnly);
+                    const isRecovery = RECOVERY_PATHS.includes(p.href);
                     return (
                       <tr key={p.href} className={cn("border-b border-border/50", !enabled && "opacity-50")}>
-                        <td className="py-2 pr-3">{p.label}</td>
-                        <td className="px-2 py-2 text-center"><input type="checkbox" className="size-4" checked={enabled} onChange={() => toggleEnabled(p.href)} /></td>
-                        {SELECTABLE_ROLES.map((r) => (
-                          <td key={r} className="px-1.5 py-2 text-center">
-                            <input type="checkbox" className="size-4" disabled={!enabled} checked={allowed.includes(r)} onChange={() => toggleRole(p.href, p.adminOnly, r)} />
-                          </td>
-                        ))}
+                        <td className="py-2 pr-3">
+                          {p.label}
+                          {isRecovery && <span className="ml-1.5 align-middle text-[10px] font-medium text-muted-foreground" title="Always available to the Owner to prevent lock-out">🔒</span>}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" className="size-4" checked={enabled} disabled={isRecovery} onChange={() => toggleEnabled(p.href)}
+                            title={isRecovery ? "This page can't be turned off — it's how you manage access." : undefined} />
+                        </td>
+                        {SELECTABLE_ROLES.map((r) => {
+                          const isOwner = r === "owner";
+                          return (
+                            <td key={r} className="px-1.5 py-2 text-center">
+                              <input type="checkbox" className="size-4"
+                                disabled={(!enabled && !isOwner) || isOwner}
+                                checked={isOwner ? true : allowed.includes(r)}
+                                onChange={() => toggleRole(p.href, p.adminOnly, r)}
+                                title={isOwner ? "The Owner always has access" : undefined} />
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
