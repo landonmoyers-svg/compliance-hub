@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Users, Plus, Search, X, FolderOpen } from "lucide-react";
+import { Users, Plus, Search, X, FolderOpen, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -172,8 +173,14 @@ function EmployeeDialog({
           {/* Provision a real login — only when adding a new employee */}
           {!initial && (
             <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-4 sm:col-span-2">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={form.inviteToApp} onChange={(e) => setForm((p) => ({ ...p, inviteToApp: e.target.checked }))} className="size-4" />
+              {!form.email.trim() && (
+                <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  <span>No email entered — this person won’t be invited to the app and can’t sign in. That’s fine for a former or contract worker; add an email later to invite them.</span>
+                </div>
+              )}
+              <label className={cn("flex items-center gap-2 text-sm font-medium", !form.email.trim() && "opacity-60")}>
+                <input type="checkbox" checked={form.inviteToApp} disabled={!form.email.trim()} onChange={(e) => setForm((p) => ({ ...p, inviteToApp: e.target.checked }))} className="size-4" />
                 Create a login and invite this employee to the app
               </label>
               {form.inviteToApp && (

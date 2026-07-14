@@ -428,6 +428,91 @@ function FormFiller({
   );
 }
 
+/* ─── read-only preview (blank template or a filled submission) ─── */
+
+function FormPreview({ template, values, meta, onClose }: {
+  template?: FillableFormTemplate;
+  /** Field key → value. Absent for a blank-template preview. */
+  values?: Record<string, string>;
+  meta?: { title: string; category?: FormCategory; subtitle?: string; signedByName?: string; completedAt?: string | null };
+  onClose: () => void;
+}) {
+  const filled = !!values;
+  const fields = template?.fields ?? [];
+  const title = meta?.title ?? template?.title ?? "Form";
+  // If the template was deleted, fall back to the raw stored values.
+  const orphanKeys = filled && fields.length === 0 ? Object.keys(values as Record<string, string>) : [];
+
+  const renderValue = (f: FormField) => {
+    const v = values?.[f.key] ?? "";
+    if (f.type === "checkbox") {
+      const on = v === "true";
+      return <span className="inline-flex items-center gap-2"><span className={`flex size-4 items-center justify-center rounded border ${on ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>{on ? "✓" : ""}</span><span className="text-sm">{on ? "Yes" : filled ? "No" : ""}</span></span>;
+    }
+    if (!filled) {
+      return <div className={`rounded-md border border-dashed border-border bg-secondary/10 px-3 ${f.type === "textarea" ? "py-6" : "py-2"} text-sm text-muted-foreground`}>{f.type === "select" && f.options.length ? f.options.join(" / ") : ` `}</div>;
+    }
+    return <div className={`whitespace-pre-wrap rounded-md border border-border bg-card px-3 ${f.type === "textarea" ? "py-2" : "py-2"} text-sm ${v ? "" : "text-muted-foreground"}`}>{v || "—"}</div>;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between border-b border-border px-6 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">{title}</h2>
+              <Badge variant={filled ? "success" : "secondary"}>{filled ? "Filled" : "Blank"}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {[meta?.category ? CATEGORY_LABEL[meta.category] : template ? CATEGORY_LABEL[template.category] : null, meta?.subtitle].filter(Boolean).join(" · ") || (filled ? "Submitted form" : "Blank template preview")}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          {template?.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
+
+          {fields.length === 0 && orphanKeys.length === 0 && (
+            <p className="text-sm text-muted-foreground">This form has no fields.</p>
+          )}
+
+          {fields.map((f) => (
+            <div key={f.key} className="space-y-1.5">
+              <label className="text-sm font-medium">{f.label}{f.required && <span className="text-destructive"> *</span>}</label>
+              {renderValue(f)}
+            </div>
+          ))}
+
+          {/* Template was deleted — show whatever was captured. */}
+          {orphanKeys.map((k) => (
+            <div key={k} className="space-y-1.5">
+              <label className="text-sm font-medium capitalize">{k.replace(/_/g, " ")}</label>
+              <div className="whitespace-pre-wrap rounded-md border border-border bg-card px-3 py-2 text-sm">{(values as Record<string, string>)[k] || "—"}</div>
+            </div>
+          ))}
+
+          {(template?.requiresSignature || meta?.signedByName) && (
+            <div className="mt-2 border-t border-border pt-4">
+              <label className="text-xs font-medium text-muted-foreground">Signature</label>
+              {meta?.signedByName ? (
+                <p className="mt-1 text-sm"><span className="font-medium italic">{meta.signedByName}</span>{meta.completedAt ? <span className="text-muted-foreground"> · {new Date(meta.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span> : null}</p>
+              ) : (
+                <div className="mt-1 h-8 max-w-xs border-b border-border" />
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-border px-6 py-3">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── page ──────────────────────────────────────────────────── */
 
 export default function FillableDocumentsPage() {
@@ -452,6 +537,7 @@ export default function FillableDocumentsPage() {
   const [editingTemplate, setEditingTemplate] = useState<FillableFormTemplate | null | "new">(null);
   const [showAssign, setShowAssign] = useState(false);
   const [filling, setFilling] = useState<FormAssignment | null>(null);
+  const [preview, setPreview] = useState<{ template?: FillableFormTemplate; values?: Record<string, string>; meta?: { title: string; category?: FormCategory; subtitle?: string; signedByName?: string; completedAt?: string | null } } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
@@ -653,6 +739,9 @@ export default function FillableDocumentsPage() {
           saving={saving}
         />
       )}
+      {preview && (
+        <FormPreview template={preview.template} values={preview.values} meta={preview.meta} onClose={() => setPreview(null)} />
+      )}
 
       <PageHeader
         title="Forms"
@@ -750,7 +839,7 @@ export default function FillableDocumentsPage() {
                   {sortedTemplates.map((t) => (
                     <tr key={t.id} className={`border-b border-border/50 hover:bg-secondary/20 ${t.status === "archived" ? "opacity-60" : ""}`}>
                       <td data-label="Template" className="py-3 pr-4">
-                        <div className="font-medium">{t.title}</div>
+                        <button className="text-left font-medium text-primary hover:underline" onClick={() => setPreview({ template: t })}>{t.title}</button>
                         {t.description && <div className="max-w-md truncate text-xs text-muted-foreground">{t.description}</div>}
                       </td>
                       <td data-label="Category" className="py-3 pr-4"><Badge variant="outline">{CATEGORY_LABEL[t.category]}</Badge></td>
@@ -812,7 +901,9 @@ export default function FillableDocumentsPage() {
                   <tbody>
                     {sortedAssignments.map((a) => (
                       <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Form" className="py-3 pr-4 font-medium">{a.templateTitle}</td>
+                        <td data-label="Form" className="py-3 pr-4">
+                          <button className="text-left font-medium text-primary hover:underline disabled:text-foreground disabled:no-underline" disabled={!templateById.has(a.templateId)} onClick={() => setPreview({ template: templateById.get(a.templateId), meta: { title: a.templateTitle } })}>{a.templateTitle}</button>
+                        </td>
                         <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} /></td>
                         <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
                         <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
@@ -858,7 +949,9 @@ export default function FillableDocumentsPage() {
                   <tbody>
                     {sortedCompleted.map((c: CompletedForm) => (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Form" className="py-3 pr-4 font-medium">{c.templateTitle}</td>
+                        <td data-label="Form" className="py-3 pr-4">
+                          <button className="text-left font-medium text-primary hover:underline" onClick={() => setPreview({ template: templateById.get(c.templateId), values: c.fieldValues, meta: { title: c.templateTitle, subtitle: c.employeeName, signedByName: c.signedByName, completedAt: c.completedAt } })}>{c.templateTitle}</button>
+                        </td>
                         <td data-label="Employee" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={c.employeeId ?? null} name={c.employeeName} /></td>
                         <td data-label="Signed by" className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
                         <td data-label="Completed" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">

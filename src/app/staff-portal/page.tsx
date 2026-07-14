@@ -16,6 +16,7 @@ import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { roleLabel } from "@/lib/auth/roles";
 import { FileLink } from "@/components/shared/file-link";
+import { AddCredentialButton, AddInsuranceButton } from "@/components/portal/self-service-records";
 
 const TIMEOFF_STATUS_VARIANT = {
   pending: "warning",
@@ -216,7 +217,10 @@ export default function StaffPortalPage() {
         {/* My credentials */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BadgeCheck className="size-4 text-muted-foreground" /> My credentials</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2"><BadgeCheck className="size-4 text-muted-foreground" /> My licenses &amp; credentials</CardTitle>
+              <AddCredentialButton myUserId={myUserId} myName={myName} onAdded={() => void credsQ.refetch()} />
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -233,9 +237,12 @@ export default function StaffPortalPage() {
                         <p className="text-sm font-medium">{c.credentialName}</p>
                         {c.expirationDate && <p className="text-xs text-muted-foreground">Expires {formatDate(c.expirationDate)}</p>}
                       </div>
-                      <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
-                        {st === "no_expiry" ? "No expiry" : st.replace("_", " ")}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {c.documentUrl && <FileLink path={c.documentUrl} label="View" />}
+                        <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
+                          {st === "no_expiry" ? "No expiry" : st.replace("_", " ")}
+                        </Badge>
+                      </div>
                     </li>
                   );
                 })}
@@ -245,12 +252,17 @@ export default function StaffPortalPage() {
         </Card>
 
         {/* My insurance */}
-        {myInsurance.length > 0 && (
-          <Card>
+        <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Shield className="size-4 text-muted-foreground" /> My insurance</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2"><Shield className="size-4 text-muted-foreground" /> My insurance</CardTitle>
+                <AddInsuranceButton myUserId={myUserId} myName={myName} onAdded={() => void insuranceQ.refetch()} />
+              </div>
             </CardHeader>
             <CardContent>
+              {myInsurance.length === 0 ? (
+                <EmptyState icon={Shield} title="No insurance on file" description="Add a malpractice or liability policy — only you and admins can see it." />
+              ) : (
               <ul className="divide-y divide-border">
                 {myInsurance.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
@@ -265,9 +277,9 @@ export default function StaffPortalPage() {
                   </li>
                 ))}
               </ul>
+              )}
             </CardContent>
           </Card>
-        )}
 
         {/* My time off */}
         <Card>
