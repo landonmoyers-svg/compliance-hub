@@ -588,6 +588,9 @@ export const InventoryItem = z.object({
   status: z.enum(["active", "broken", "removed"]).default("active"),
   condition: z.enum(["new", "good", "fair", "poor"]).default("good"),
   locationId: z.string().nullable().optional(),
+  // Physical asset tag / label — name and/or number printed on the item, so a
+  // physical label can be matched to the record and a specific unit tracked.
+  assetTag: z.string().nullable().optional(),
   removedFromInventory: z.boolean().default(false),
   // AI / image-assisted fields
   quantity: z.number().default(1),

@@ -51,13 +51,14 @@ interface ItemForm {
   condition: InventoryItem["condition"];
   locationId: string;
   sublocation: string;
+  assetTag: string;
   quantity: string;
   estimatedValue: string; // dollars
   description: string;
 }
 
 function emptyForm(): ItemForm {
-  return { itemName: "", itemType: "equipment", status: "active", condition: "good", locationId: "", sublocation: "", quantity: "1", estimatedValue: "", description: "" };
+  return { itemName: "", itemType: "equipment", status: "active", condition: "good", locationId: "", sublocation: "", assetTag: "", quantity: "1", estimatedValue: "", description: "" };
 }
 
 function ItemDialog({
@@ -84,6 +85,7 @@ function ItemDialog({
           condition: initial.condition,
           locationId: initial.locationId ?? "",
           sublocation: initial.sublocation ?? "",
+          assetTag: initial.assetTag ?? "",
           quantity: String(initial.quantity ?? 1),
           estimatedValue: initial.estimatedValueCents != null ? String(initial.estimatedValueCents / 100) : "",
           description: initial.description ?? "",
@@ -253,6 +255,11 @@ function ItemDialog({
               <label className="text-sm font-medium">Sub-location</label>
               <input className="input w-full" value={form.sublocation} onChange={set("sublocation")} placeholder="Closet A, Shelf 2" />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Asset tag / label</label>
+            <input className="input w-full" value={form.assetTag} onChange={set("assetTag")} placeholder="Printed asset tag or serial, e.g. LP-00123" />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -627,7 +634,7 @@ export default function InventoryPage() {
       if (filterLoc !== "all") {
         if (filterLoc === "none" ? i.locationId : i.locationId !== filterLoc) return false;
       }
-      if (q && !i.itemName.toLowerCase().includes(q) && !i.itemType.toLowerCase().includes(q) && !(i.description ?? "").toLowerCase().includes(q)) return false;
+      if (q && !i.itemName.toLowerCase().includes(q) && !i.itemType.toLowerCase().includes(q) && !(i.description ?? "").toLowerCase().includes(q) && !(i.assetTag ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
   }, [items, search, filterLoc]);
@@ -667,6 +674,7 @@ export default function InventoryPage() {
         condition: form.condition,
         locationId: form.locationId || null,
         sublocation: form.sublocation.trim() || null,
+        assetTag: form.assetTag.trim() || null,
         quantity: Math.max(1, parseInt(form.quantity, 10) || 1),
         estimatedValueCents: cents,
         description: form.description.trim() || null,
@@ -789,6 +797,7 @@ export default function InventoryPage() {
                             <div className="text-xs capitalize text-muted-foreground">
                               {humanizeLabel(i.itemType)}{i.aiIdentified && <span className="ml-1 inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI</span>}
                             </div>
+                            {i.assetTag && <div className="font-mono text-[11px] normal-case text-muted-foreground">#{i.assetTag}</div>}
                           </div>
                         </div>
                       </td>
