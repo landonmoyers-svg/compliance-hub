@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { UserCheck, Plus, X, AlertTriangle, ShieldCheck } from "lucide-react";
+import { UserCheck, Plus, X, AlertTriangle, ShieldCheck, ExternalLink, Upload } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO, daysUntil } from "@/lib/dates";
 import type { ExclusionScreening } from "@/lib/data/schema";
 import { humanizeLabel } from "@/lib/format";
@@ -22,13 +24,23 @@ const DUE_DAYS = 30; // OIG recommends monthly exclusion screening
 const RESULT_VARIANT: Record<string, "success" | "destructive" | "warning"> = { clear: "success", hit: "destructive", pending: "warning" };
 const SOURCE_OPTIONS = ["OIG-LEIE", "SAM.gov", "State Medicaid"];
 
+// Official exclusion databases. OIG-LEIE's search posts a form (no GET prefill),
+// so we open the search page; SAM.gov accepts a keyword query we prefill.
+function oigLeieUrl() {
+  return "https://exclusions.oig.hhs.gov/";
+}
+function samGovUrl(name: string) {
+  const base = "https://sam.gov/search/?index=_exclusions";
+  return name.trim() ? `${base}&keywords=${encodeURIComponent(name.trim())}` : base;
+}
+
 interface Subject { key: string; name: string; type: "staff" | "vendor"; userId?: string; vendorId?: string; }
 
 function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
   subjects: Subject[];
   initialSubject?: Subject;
   onClose: () => void;
-  onSave: (d: { subject: Subject | null; freeName: string; sources: string[]; screenedDate: string; result: ExclusionScreening["result"]; notes: string }) => void;
+  onSave: (d: { subject: Subject | null; freeName: string; sources: string[]; screenedDate: string; result: ExclusionScreening["result"]; notes: string; file: File | null }) => void;
   saving: boolean;
 }) {
   const [subjectKey, setSubjectKey] = useState(initialSubject?.key ?? (subjects[0]?.key ?? "__other__"));
@@ -37,8 +49,10 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
   const [screenedDate, setScreenedDate] = useState(new Date().toISOString().slice(0, 10));
   const [result, setResult] = useState<ExclusionScreening["result"]>("clear");
   const [notes, setNotes] = useState("");
+  const [file, setFile] = useState<File | null>(null);
 
   const subject = subjects.find((s) => s.key === subjectKey) ?? null;
+  const subjectName = subject ? subject.name : freeName;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -56,6 +70,20 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
             </select>
             {subjectKey === "__other__" && <input className="input mt-2 w-full" placeholder="Name" value={freeName} onChange={(e) => setFreeName(e.target.value)} />}
           </div>
+
+          <div className="space-y-2 rounded-lg border border-border bg-secondary/20 p-3">
+            <p className="text-xs font-medium">Run the check{subjectName.trim() ? ` for ${subjectName.trim()}` : ""}</p>
+            <div className="flex flex-wrap gap-2">
+              <a href={oigLeieUrl()} target="_blank" rel="noopener noreferrer">
+                <Button type="button" size="sm" variant="outline"><ExternalLink className="size-3.5" /> OIG-LEIE</Button>
+              </a>
+              <a href={samGovUrl(subjectName)} target="_blank" rel="noopener noreferrer">
+                <Button type="button" size="sm" variant="outline"><ExternalLink className="size-3.5" /> SAM.gov</Button>
+              </a>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Open each list, search the name, then record the result and upload the dated proof below. (SAM.gov opens pre-searched; OIG-LEIE opens its search page.)</p>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Lists checked</label>
             <div className="flex flex-wrap gap-3">
@@ -83,10 +111,19 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
             <label className="text-sm font-medium">Notes</label>
             <input className="input w-full" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reference #, reviewer, resolution…" />
           </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Proof of screening {result === "hit" ? <span className="text-destructive">*</span> : <span className="text-muted-foreground">(recommended)</span>}</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              <Upload className="size-4" />
+              {file ? file.name : "Upload the OIG/SAM result PDF or screenshot"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+            <p className="text-[11px] text-muted-foreground">Attach the dated result page — this is the audit evidence that the check was actually performed.</p>
+          </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave({ subject, freeName, sources, screenedDate, result, notes })} disabled={saving || (subjectKey === "__other__" && !freeName.trim())}>
+          <Button onClick={() => onSave({ subject, freeName, sources, screenedDate, result, notes, file })} disabled={saving || (subjectKey === "__other__" && !freeName.trim())}>
             {saving ? "Saving…" : "Log screening"}
           </Button>
         </div>
@@ -159,15 +196,24 @@ export default function ExclusionScreeningPage() {
 
   const stats = useMemo(() => {
     const dueNow = rows.filter((r) => r.due).length;
+    const current = rows.length - dueNow;
+    const coveragePct = rows.length ? Math.round((current / rows.length) * 100) : 0;
     const hits = screenings.filter((s) => s.result === "hit").length;
-    const thisMonth = screenings.filter((s) => { const d = daysUntil(s.screenedDate); return d !== null && -d <= 30; }).length;
-    return { dueNow, hits, thisMonth };
+    return { dueNow, current, total: rows.length, coveragePct, hits };
   }, [rows, screenings]);
 
-  async function save(d: { subject: Subject | null; freeName: string; sources: string[]; screenedDate: string; result: ExclusionScreening["result"]; notes: string }) {
+  async function save(d: { subject: Subject | null; freeName: string; sources: string[]; screenedDate: string; result: ExclusionScreening["result"]; notes: string; file: File | null }) {
     setSaving(true);
     try {
       const name = d.subject ? d.subject.name : d.freeName.trim();
+      let documentUrl: string | null = null;
+      if (d.file) {
+        try {
+          documentUrl = await uploadFile(d.file, "exclusion-screenings");
+        } catch {
+          toast.error("Couldn't upload the proof file. Logged without it — you can re-log with the document.");
+        }
+      }
       await createMut.mutateAsync({
         subjectType: d.subject?.type ?? "other",
         subjectName: name,
@@ -178,6 +224,7 @@ export default function ExclusionScreeningPage() {
         result: d.result,
         notes: d.notes.trim() || undefined,
         screenedByName: profile?.fullName || undefined,
+        documentUrl,
       });
       toast.success("Screening logged");
       setLogging(null);
@@ -199,10 +246,11 @@ export default function ExclusionScreeningPage() {
         actions={<Button onClick={() => setLogging(true)}><Plus className="size-4" /> Log screening</Button>}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Screening coverage" value={`${stats.current}/${stats.total}`} hint={`${stats.coveragePct}% of active subjects current`} icon={ShieldCheck} tone={stats.coveragePct === 100 ? "success" : stats.coveragePct >= 80 ? "default" : "warning"} loading={loading} />
         <StatCard label="Due for screening" value={stats.dueNow} icon={AlertTriangle} tone={stats.dueNow ? "warning" : "success"} loading={loading} />
         <StatCard label="Possible matches (hits)" value={stats.hits} icon={AlertTriangle} tone={stats.hits ? "destructive" : "default"} loading={loading} />
-        <StatCard label="Screened in last 30 days" value={stats.thisMonth} icon={ShieldCheck} loading={loading} />
+        <StatCard label="Active subjects" value={stats.total} icon={UserCheck} loading={loading} />
       </div>
 
       <Card>
@@ -253,7 +301,8 @@ export default function ExclusionScreeningPage() {
                     <SortHeader label="Date" sortKey="date" sort={historySort.sort} onToggle={historySort.toggle} />
                     <SortHeader label="Lists" sortKey="lists" sort={historySort.sort} onToggle={historySort.toggle} />
                     <SortHeader label="Result" sortKey="result" sort={historySort.sort} onToggle={historySort.toggle} />
-                    <SortHeader label="By" sortKey="by" sort={historySort.sort} onToggle={historySort.toggle} className="pr-0" />
+                    <SortHeader label="By" sortKey="by" sort={historySort.sort} onToggle={historySort.toggle} />
+                    <th className="pb-2 pr-0 font-medium">Proof</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -263,7 +312,8 @@ export default function ExclusionScreeningPage() {
                       <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">{formatDate(s.screenedDate)}</td>
                       <td data-label="Lists" className="py-2.5 pr-4 text-muted-foreground">{s.sources ?? "—"}</td>
                       <td data-label="Result" className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{humanizeLabel(s.result)}</Badge></td>
-                      <td data-label="By" className="py-2.5 text-muted-foreground">{s.screenedByName ?? "—"}</td>
+                      <td data-label="By" className="py-2.5 pr-4 text-muted-foreground">{s.screenedByName ?? "—"}</td>
+                      <td data-label="Proof" className="py-2.5">{s.documentUrl ? <FileLink path={s.documentUrl} label="View" className="text-primary hover:underline" /> : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>

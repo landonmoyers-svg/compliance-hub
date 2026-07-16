@@ -355,6 +355,8 @@ export const ExclusionScreening = z.object({
   result: z.enum(["clear", "hit", "pending"]).default("clear"),
   notes: z.string().optional(),
   screenedByName: z.string().optional(),
+  // Storage path to the uploaded OIG/SAM result PDF/screenshot — dated audit proof.
+  documentUrl: z.string().nullable().optional(),
 });
 export type ExclusionScreening = z.infer<typeof ExclusionScreening>;
 

@@ -566,6 +566,7 @@ function exclusionFrom(r: Record<string, unknown>): ExclusionScreening {
     result: r.result as ExclusionScreening["result"],
     notes: r.notes as string | undefined,
     screenedByName: r.screened_by_name as string | undefined,
+    documentUrl: (r.document_url as string | null) ?? undefined,
   };
 }
 function exclusionTo(d: Partial<ExclusionScreening>) {
@@ -579,6 +580,7 @@ function exclusionTo(d: Partial<ExclusionScreening>) {
     ...(d.result !== undefined && { result: d.result }),
     ...(d.notes !== undefined && { notes: d.notes }),
     ...(d.screenedByName !== undefined && { screened_by_name: d.screenedByName }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
   };
 }
 
