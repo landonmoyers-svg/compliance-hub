@@ -13,11 +13,13 @@ import type { FillableFormTemplate, FormCategory, FormField } from "@/lib/data/s
  * title) and the Form Gap Matrix (review a draft before approving). Pass
  * `footer` to add action buttons (e.g. Approve, Edit in Forms) beside Close.
  */
-export function FormPreview({ template, values, meta, footer, onClose }: {
+export function FormPreview({ template, values, meta, linkedPolicy, footer, onClose }: {
   template?: FillableFormTemplate;
   /** Field key → value. Absent for a blank-template preview. */
   values?: Record<string, string>;
   meta?: { title: string; category?: FormCategory; subtitle?: string; signedByName?: string; completedAt?: string | null };
+  /** The governing policy/SOP this form attests to (resolved from template.linkedDocumentId). */
+  linkedPolicy?: { title: string; fileUrl?: string | null } | null;
   footer?: React.ReactNode;
   onClose: () => void;
 }) {
@@ -59,6 +61,20 @@ export function FormPreview({ template, values, meta, footer, onClose }: {
 
         <div className="space-y-4 px-6 py-5">
           {template?.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
+
+          {template?.bodyText && (
+            <div className="rounded-lg border border-border bg-secondary/20 p-4">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Statement</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{template.bodyText}</p>
+              {linkedPolicy && (
+                linkedPolicy.fileUrl ? (
+                  <FileLink path={linkedPolicy.fileUrl} label={`Read the policy: ${linkedPolicy.title}`} className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline" />
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Governing policy: {linkedPolicy.title}</p>
+                )
+              )}
+            </div>
+          )}
 
           {template?.fileUrl && (
             <FileLink path={template.fileUrl} label="Open original document" className="inline-flex items-center gap-1 text-sm text-primary hover:underline" />

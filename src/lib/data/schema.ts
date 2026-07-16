@@ -915,6 +915,10 @@ export const FillableFormTemplate = z.object({
   sensitive: z.boolean().default(false),
   isDraft: z.boolean().default(false), // AI/auto-generated draft pending HR review
   fileUrl: z.string().nullable().optional(),
+  // The statement the signer is actually attesting to (shown above the signature).
+  bodyText: z.string().nullable().optional(),
+  // Optional link to the governing policy/SOP in the document library (documents.id).
+  linkedDocumentId: z.string().nullable().optional(),
 });
 export type FillableFormTemplate = z.infer<typeof FillableFormTemplate>;
 

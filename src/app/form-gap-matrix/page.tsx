@@ -42,6 +42,31 @@ interface RequiredForm {
   description: string;
 }
 
+// Generic placeholder fields that don't constitute real form content on their own.
+const GENERIC_FIELD_KEYS = new Set([
+  "employee_name", "name", "full_name", "date", "notes", "comments",
+  "signature", "employee_signature", "sign", "signed_by",
+]);
+
+/**
+ * A form is "hollow" — and must not be approved live — when a signature form has
+ * no statement of what's being signed, or a data form has only generic
+ * placeholder fields. Returns a human message describing the gap, or null when
+ * the form has real content. Backs FGM-1 (don't push legally-empty attestations
+ * live) and pairs with FORMS-1 (bodyText + linked policy).
+ */
+function contentGap(t: FillableFormTemplate): string | null {
+  const hasBody = !!t.bodyText && t.bodyText.trim().length > 0;
+  const meaningfulFields = t.fields.filter((f) => !GENERIC_FIELD_KEYS.has(f.key));
+  if (t.requiresSignature && !hasBody) {
+    return "This is a signature form with no statement of what's being signed. Add the attestation text (Statement field) — and link the governing policy — in Forms before approving.";
+  }
+  if (!hasBody && meaningfulFields.length === 0) {
+    return "This form has only generic placeholder fields and no content. Add real form-specific fields (or a statement) in Forms before approving.";
+  }
+  return null;
+}
+
 // The compliance audit baseline. Each entry is a form the practice is expected
 // to maintain; the matrix compares these against actual templates by category.
 const REQUIRED_FORMS: RequiredForm[] = [
@@ -255,6 +280,11 @@ export default function FormGapMatrixPage() {
 
   // Approve a draft: mark it active and no longer a draft.
   async function approveDraft(t: FillableFormTemplate) {
+    const gap = contentGap(t);
+    if (gap) {
+      toast.error(gap);
+      return;
+    }
     setApproving(true);
     try {
       await updateTemplate.mutateAsync({ id: t.id, patch: { isDraft: false, status: "active" } });
@@ -325,9 +355,12 @@ export default function FormGapMatrixPage() {
           meta={{ title: reviewing.title, category: reviewing.category }}
           footer={
             <>
+              {reviewing.isDraft && contentGap(reviewing) && (
+                <p className="mr-auto max-w-xs self-center text-left text-xs text-warning">{contentGap(reviewing)}</p>
+              )}
               <Link href="/fillable-documents"><Button variant="outline">Edit in Forms</Button></Link>
               {reviewing.isDraft && (
-                <Button onClick={() => approveDraft(reviewing)} disabled={approving}>
+                <Button onClick={() => approveDraft(reviewing)} disabled={approving || !!contentGap(reviewing)}>
                   {approving ? "Approving…" : "Approve — mark active"}
                 </Button>
               )}

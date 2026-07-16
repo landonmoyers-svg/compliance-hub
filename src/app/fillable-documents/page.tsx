@@ -18,6 +18,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { FormPreview } from "@/components/shared/form-preview";
+import { FileLink } from "@/components/shared/file-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   FillableFormTemplate,
@@ -89,6 +90,8 @@ interface TemplateForm {
   title: string;
   category: FormCategory;
   description: string;
+  bodyText: string;
+  linkedDocumentId: string;
   requiresSignature: boolean;
   sensitive: boolean;
   fields: DraftField[];
@@ -100,6 +103,8 @@ function templateToForm(t?: FillableFormTemplate): TemplateForm {
       title: "",
       category: "other",
       description: "",
+      bodyText: "",
+      linkedDocumentId: "",
       requiresSignature: false,
       sensitive: false,
       fields: [{ ...EMPTY_DRAFT_FIELD }],
@@ -109,6 +114,8 @@ function templateToForm(t?: FillableFormTemplate): TemplateForm {
     title: t.title,
     category: t.category,
     description: t.description ?? "",
+    bodyText: t.bodyText ?? "",
+    linkedDocumentId: t.linkedDocumentId ?? "",
     requiresSignature: t.requiresSignature,
     sensitive: t.sensitive,
     fields: t.fields.length
@@ -136,11 +143,13 @@ function buildFields(drafts: DraftField[]): FormField[] {
 
 function TemplateDialog({
   initial,
+  documents,
   onClose,
   onSave,
   saving,
 }: {
   initial?: FillableFormTemplate;
+  documents: { id: string; title: string }[];
   onClose: () => void;
   onSave: (form: TemplateForm) => void;
   saving: boolean;
@@ -152,7 +161,8 @@ function TemplateDialog({
   const addField = () => setForm((p) => ({ ...p, fields: [...p.fields, { ...EMPTY_DRAFT_FIELD }] }));
   const removeField = (i: number) => setForm((p) => ({ ...p, fields: p.fields.filter((_, idx) => idx !== i) }));
 
-  const canSave = form.title.trim().length > 0 && form.fields.some((f) => f.label.trim());
+  // An attestation form can be a statement + signature with no data fields.
+  const canSave = form.title.trim().length > 0 && (form.fields.some((f) => f.label.trim()) || form.bodyText.trim().length > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -179,6 +189,21 @@ function TemplateDialog({
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Description</label>
             <textarea className="input w-full" rows={2} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Brief description of this form…" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Statement / attestation text</label>
+            <textarea className="input w-full" rows={4} value={form.bodyText} onChange={(e) => setForm((p) => ({ ...p, bodyText: e.target.value }))} placeholder="What the signer is attesting to — e.g. “I acknowledge that I have received, read, and understand the HIPAA Privacy Policy and agree to comply with it.” Shown prominently above the signature." />
+            <p className="text-xs text-muted-foreground">For acknowledgment/attestation/consent forms, this is what the person is actually signing. Leave blank for data-entry-only forms.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Governing policy (optional)</label>
+            <select className="input w-full" value={form.linkedDocumentId} onChange={(e) => setForm((p) => ({ ...p, linkedDocumentId: e.target.value }))}>
+              <option value="">No linked policy</option>
+              {documents.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">Links this form to the SOP/policy it attests to — signers get a “Read the policy” link before signing.</p>
           </div>
 
           <div className="flex flex-wrap gap-6">
@@ -300,6 +325,7 @@ function FormFiller({
   assignment,
   signerName,
   context,
+  linkedPolicy,
   onClose,
   onSubmit,
   saving,
@@ -308,6 +334,7 @@ function FormFiller({
   assignment: FormAssignment;
   signerName: string;
   context: Record<string, string>;
+  linkedPolicy?: { title: string; fileUrl?: string | null } | null;
   onClose: () => void;
   onSubmit: (values: Record<string, string>, signature: string) => void;
   saving: boolean;
@@ -383,7 +410,20 @@ function FormFiller({
 
         <div className="grid gap-4 overflow-y-auto p-5">
           {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
-          {template.fields.length === 0 && <p className="text-sm text-muted-foreground">This template has no fields.</p>}
+          {template.bodyText && (
+            <div className="rounded-lg border border-border bg-secondary/20 p-4">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Please read before signing</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{template.bodyText}</p>
+              {linkedPolicy && (
+                linkedPolicy.fileUrl ? (
+                  <FileLink path={linkedPolicy.fileUrl} label={`Read the policy: ${linkedPolicy.title}`} className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline" />
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Governing policy: {linkedPolicy.title}</p>
+                )
+              )}
+            </div>
+          )}
+          {template.fields.length === 0 && !template.bodyText && <p className="text-sm text-muted-foreground">This template has no fields.</p>}
           {template.fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <label className="text-sm font-medium">
@@ -440,6 +480,7 @@ export default function FillableDocumentsPage() {
   const assignmentsQ = useCollection("formAssignments");
   const completedQ = useCollection("completedForms");
   const employeesQ = useCollection("employees");
+  const documentsQ = useCollection("documents");
   const orgSettingsQ = useCollection("organizationSettings");
   const orgName = orgSettingsQ.data?.[0]?.orgName ?? DEFAULT_ORG_NAME;
 
@@ -461,8 +502,16 @@ export default function FillableDocumentsPage() {
   const assignments = useMemo(() => assignmentsQ.data ?? [], [assignmentsQ.data]);
   const completed = useMemo(() => completedQ.data ?? [], [completedQ.data]);
   const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+  const documents = useMemo(() => documentsQ.data ?? [], [documentsQ.data]);
 
   const templateById = useMemo(() => new Map(templates.map((t) => [t.id, t])), [templates]);
+  const documentById = useMemo(() => new Map(documents.map((d) => [d.id, d])), [documents]);
+  // Resolve a template's linked governing policy (documents.id) to a title + file for the "Read the policy" link.
+  const resolvePolicy = useMemo(() => (t?: FillableFormTemplate) => {
+    if (!t?.linkedDocumentId) return null;
+    const doc = documentById.get(t.linkedDocumentId);
+    return doc ? { title: doc.title, fileUrl: doc.fileUrl } : null;
+  }, [documentById]);
 
   const { sorted: sortedAssignments, sort: aSort, toggle: aToggle } = useSort(assignments, {
     form: (a) => a.templateTitle,
@@ -505,6 +554,8 @@ export default function FillableDocumentsPage() {
         title: form.title.trim(),
         category: form.category,
         description: form.description.trim() || undefined,
+        bodyText: form.bodyText.trim() || null,
+        linkedDocumentId: form.linkedDocumentId || null,
         fields: buildFields(form.fields),
         requiresSignature: form.requiresSignature,
         sensitive: form.sensitive,
@@ -617,6 +668,7 @@ export default function FillableDocumentsPage() {
       {editingTemplate && (
         <TemplateDialog
           initial={editingTemplate === "new" ? undefined : editingTemplate}
+          documents={documents.map((d) => ({ id: d.id, title: d.title }))}
           onClose={() => setEditingTemplate(null)}
           onSave={saveTemplate}
           saving={saving}
@@ -651,13 +703,14 @@ export default function FillableDocumentsPage() {
               today: new Date().toISOString().slice(0, 10),
             };
           })()}
+          linkedPolicy={resolvePolicy(fillingTemplate)}
           onClose={() => setFilling(null)}
           onSubmit={submitFilled}
           saving={saving}
         />
       )}
       {preview && (
-        <FormPreview template={preview.template} values={preview.values} meta={preview.meta} onClose={() => setPreview(null)} />
+        <FormPreview template={preview.template} values={preview.values} meta={preview.meta} linkedPolicy={resolvePolicy(preview.template)} onClose={() => setPreview(null)} />
       )}
 
       <PageHeader
