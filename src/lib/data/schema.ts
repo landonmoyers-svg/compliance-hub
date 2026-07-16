@@ -819,7 +819,11 @@ export const VendorRecord = z.object({
     .enum(["not_required", "pending", "signed", "expired", "under_review"])
     .default("not_required"),
   baaSignedDate: z.string().nullable().optional(),
+  // Uploaded signed BAA document (private bucket path).
+  baaDocumentUrl: z.string().nullable().optional(),
   insuranceExpirationDate: z.string().nullable().optional(),
+  // Uploaded certificate of insurance (COI) document (private bucket path).
+  insuranceDocumentUrl: z.string().nullable().optional(),
   nextReviewDate: z.string().nullable().optional(),
   status: z
     .enum(["active", "pending", "suspended", "terminated", "under_review"])

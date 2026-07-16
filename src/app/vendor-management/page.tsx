@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
 import { formatDate } from "@/lib/dates";
 import type { VendorRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -171,12 +173,14 @@ function VendorDialog({
 }: {
   initial?: VendorRecord;
   onClose: () => void;
-  onSave: (form: VendorForm) => void;
+  onSave: (form: VendorForm, files: { baa: File | null; coi: File | null }) => void;
   saving: boolean;
 }) {
   const [form, setForm] = useState<VendorForm>(() =>
     syncBaa(initial ? formFromRecord(initial) : emptyForm()),
   );
+  const [baaFile, setBaaFile] = useState<File | null>(null);
+  const [coiFile, setCoiFile] = useState<File | null>(null);
 
   /** Whether baaRequired is forced on (and thus the checkbox is locked). */
   const baaForced = form.vendorType === "business_associate" || form.hasAccessToPHI;
@@ -282,11 +286,33 @@ function VendorDialog({
                 A BAA is required but not signed — this is a HIPAA compliance gap.
               </div>
             )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Signed BAA document</label>
+              <div className="flex items-center gap-3">
+                <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+                  <Plus className="size-4" />
+                  {baaFile ? baaFile.name : "Upload the signed BAA (PDF)"}
+                  <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setBaaFile(e.target.files?.[0] ?? null)} />
+                </label>
+                {initial?.baaDocumentUrl && !baaFile && <FileLink path={initial.baaDocumentUrl} label="Current" className="shrink-0 text-sm text-primary hover:underline" />}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Insurance expiration date</label>
             <input type="date" className="input w-full" value={form.insuranceExpirationDate} onChange={(e) => update({ insuranceExpirationDate: e.target.value })} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Certificate of insurance (COI)</label>
+            <div className="flex items-center gap-3">
+              <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+                <Plus className="size-4" />
+                {coiFile ? coiFile.name : "Upload the certificate of insurance (PDF)"}
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setCoiFile(e.target.files?.[0] ?? null)} />
+              </label>
+              {initial?.insuranceDocumentUrl && !coiFile && <FileLink path={initial.insuranceDocumentUrl} label="Current" className="shrink-0 text-sm text-primary hover:underline" />}
+            </div>
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
@@ -297,7 +323,7 @@ function VendorDialog({
 
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.vendorName.trim() || saving}>
+          <Button onClick={() => onSave(form, { baa: baaFile, coi: coiFile })} disabled={!form.vendorName.trim() || saving}>
             {saving ? "Saving…" : <><Check className="size-3" /> Save</>}
           </Button>
         </div>
@@ -347,10 +373,20 @@ export default function VendorManagementPage() {
     phiAccess: vendors.filter((v) => v.hasAccessToPHI).length,
   }), [vendors]);
 
-  async function handleSave(form: VendorForm) {
+  async function handleSave(form: VendorForm, files: { baa: File | null; coi: File | null }) {
     const synced = syncBaa(form);
     setSaving(true);
     try {
+      let baaDocumentUrl: string | undefined;
+      let insuranceDocumentUrl: string | undefined;
+      if (files.baa) {
+        try { baaDocumentUrl = await uploadFile(files.baa, "vendor-baas"); }
+        catch { toast.error("Couldn't upload the BAA — saving other changes."); }
+      }
+      if (files.coi) {
+        try { insuranceDocumentUrl = await uploadFile(files.coi, "vendor-coi"); }
+        catch { toast.error("Couldn't upload the COI — saving other changes."); }
+      }
       const payload = {
         vendorName: synced.vendorName.trim(),
         vendorType: synced.vendorType,
@@ -365,6 +401,8 @@ export default function VendorManagementPage() {
         nextReviewDate: synced.nextReviewDate || null,
         status: synced.status,
         notes: synced.notes.trim() || undefined,
+        ...(baaDocumentUrl && { baaDocumentUrl }),
+        ...(insuranceDocumentUrl && { insuranceDocumentUrl }),
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -502,9 +540,12 @@ export default function VendorManagementPage() {
                         </td>
                         <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{TYPE_LABEL[v.vendorType]}</td>
                         <td data-label="BAA" className="py-3 pr-4">
-                          <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
-                            <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                              <Badge variant={BAA_VARIANT[v.baaStatus]}>{BAA_LABEL[v.baaStatus]}</Badge>
+                            </button>
+                            {v.baaDocumentUrl && <FileLink path={v.baaDocumentUrl} label="doc" className="text-xs text-primary hover:underline" />}
+                          </div>
                         </td>
                         <td data-label="PHI" className="py-3 pr-4">
                           {v.hasAccessToPHI ? (
@@ -516,15 +557,18 @@ export default function VendorManagementPage() {
                           )}
                         </td>
                         <td data-label="Insurance exp." className="py-3 pr-4">
-                          {ins === "none" ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            <span className={ins === "expired" ? "text-destructive font-medium" : ins === "soon" ? "text-warning font-medium" : ""}>
-                              {formatDate(v.insuranceExpirationDate)}
-                              {ins === "expired" && " (expired)"}
-                              {ins === "soon" && " (soon)"}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {ins === "none" ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span className={ins === "expired" ? "text-destructive font-medium" : ins === "soon" ? "text-warning font-medium" : ""}>
+                                {formatDate(v.insuranceExpirationDate)}
+                                {ins === "expired" && " (expired)"}
+                                {ins === "soon" && " (soon)"}
+                              </span>
+                            )}
+                            {v.insuranceDocumentUrl && <FileLink path={v.insuranceDocumentUrl} label="COI" className="text-xs text-primary hover:underline" />}
+                          </div>
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
                           <button type="button" onClick={() => setEditing(v)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
