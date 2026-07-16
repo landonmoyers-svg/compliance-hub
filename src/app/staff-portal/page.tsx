@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
-import { UserCircle, GraduationCap, FileText, BadgeCheck, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
+import { useMemo, useState } from "react";
+import { UserCircle, GraduationCap, FileText, BadgeCheck, CheckCircle2, AlertTriangle, Shield, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
-import { useCollection } from "@/lib/data/hooks";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
+import type { TrainingAssignment, TrainingModule } from "@/lib/data/schema";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
-import { formatDate, daysUntil } from "@/lib/dates";
+import { formatDate } from "@/lib/dates";
 import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
 import { FileLink } from "@/components/shared/file-link";
@@ -32,10 +35,18 @@ export default function StaffPortalPage() {
   const myName = profile?.fullName ?? user?.fullName ?? "";
 
   const trainingQ = useCollection("trainingAssignments");
+  const modulesQ = useCollection("trainingModules");
+  const questionsQ = useCollection("trainingQuestions");
   const credsQ = useCollection("credentials");
   const docsQ = useCollection("documents");
   const acksQ = useCollection("policyAcks");
   const insuranceQ = useCollection("insurancePolicies");
+  const createAssign = useCreate("trainingAssignments");
+  const updateAssign = useUpdate("trainingAssignments");
+  const createAttempt = useCreate("trainingAttempts");
+
+  const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
+  const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const credentials = useMemo(() => credsQ.data ?? [], [credsQ.data]);
@@ -49,6 +60,65 @@ export default function StaffPortalPage() {
     () => training.filter((a) => a.assignedToUserId === myUserId || a.assignedToName === myName),
     [training, myUserId, myName],
   );
+
+  // Self-serve training: every active module, with THIS user's own status.
+  const activeModules = useMemo(() => (modulesQ.data ?? []).filter((m) => m.active), [modulesQ.data]);
+  const allQuestions = useMemo(() => questionsQ.data ?? [], [questionsQ.data]);
+  const questionCountFor = (moduleId: string) => allQuestions.filter((q) => q.trainingModuleId === moduleId).length;
+  const myModuleCatalog = useMemo(() => activeModules.map((m) => {
+    const mine = myTraining.filter((a) => a.trainingModuleId === m.id);
+    const active = mine.find((a) => a.status !== "completed");
+    const completed = mine.find((a) => a.status === "completed");
+    return { module: m, active: active ?? null, completed: completed ?? null, questions: questionCountFor(m.id) };
+  }), [activeModules, myTraining, allQuestions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function completeAssignment(a: TrainingAssignment, score?: number) {
+    await updateAssign.mutateAsync({ id: a.id, patch: { status: "completed", completedAt: new Date().toISOString(), ...(score != null && { score }) } });
+  }
+
+  /** Record a passed quiz attempt and complete the assignment. */
+  async function handleQuizPassed(a: TrainingAssignment, score: number, answers: number[]) {
+    try {
+      await createAttempt.mutateAsync({
+        assignmentId: a.id, trainingModuleId: a.trainingModuleId, moduleTitle: a.moduleTitle,
+        userId: myUserId, userName: myName, score, passed: true, answers, completedAt: new Date().toISOString(),
+      });
+      await completeAssignment(a, score);
+      toast.success(`Passed with ${score}% — training complete`);
+      void trainingQ.refetch();
+    } catch {
+      toast.error("Saved your score, but updating the record failed.");
+    }
+  }
+
+  // Start (or continue/retake) a module: ensure the user has an assignment, then
+  // open the quiz — or log an honor-system completion when there's no quiz.
+  async function startModule(m: TrainingModule, existing: TrainingAssignment | null, questions: number) {
+    setBusyModuleId(m.id);
+    try {
+      let assignment = existing;
+      if (!assignment) {
+        const created = await createAssign.mutateAsync({
+          trainingModuleId: m.id, moduleTitle: m.title,
+          assignedToUserId: myUserId, assignedToName: myName, status: "assigned",
+        });
+        assignment = created as TrainingAssignment;
+        void trainingQ.refetch();
+      }
+      if (questions > 0) {
+        setTakingQuiz(assignment);
+      } else {
+        if (!window.confirm(`Log completion of "${m.title}"? This records your training completion.`)) return;
+        await completeAssignment(assignment);
+        toast.success("Training completion logged");
+        void trainingQ.refetch();
+      }
+    } catch {
+      toast.error("Couldn't start this training. Please try again.");
+    } finally {
+      setBusyModuleId(null);
+    }
+  }
   const myCreds = useMemo(
     () => credentials.filter((c) => c.employeeUserId === myUserId || c.employeeName === myName),
     [credentials, myUserId, myName],
@@ -88,7 +158,7 @@ export default function StaffPortalPage() {
   // Combined action items
   const actionItems = useMemo(() => {
     const items: { label: string; href: string; tone: "destructive" | "warning" }[] = [];
-    if (myTrainingStats.overdue > 0) items.push({ label: `${myTrainingStats.overdue} overdue training assignment${myTrainingStats.overdue > 1 ? "s" : ""}`, href: "/training", tone: "destructive" });
+    if (myTrainingStats.overdue > 0) items.push({ label: `${myTrainingStats.overdue} overdue training assignment${myTrainingStats.overdue > 1 ? "s" : ""}`, href: "/staff-portal", tone: "destructive" });
     if (expiringCreds > 0) items.push({ label: `${expiringCreds} credential${expiringCreds > 1 ? "s" : ""} expiring or expired`, href: "/credentials", tone: "warning" });
     if (pendingAcks.length > 0) items.push({ label: `${pendingAcks.length} polic${pendingAcks.length > 1 ? "ies" : "y"} awaiting your acknowledgment`, href: "/policy-attestation", tone: "warning" });
     return items;
@@ -108,6 +178,16 @@ export default function StaffPortalPage() {
 
   return (
     <div className="space-y-6">
+      {takingQuiz && (
+        <TakeQuizDialog
+          assignment={takingQuiz}
+          module={activeModules.find((m) => m.id === takingQuiz.trainingModuleId)}
+          questions={allQuestions.filter((q) => q.trainingModuleId === takingQuiz.trainingModuleId)}
+          onClose={() => setTakingQuiz(null)}
+          onPassed={handleQuizPassed}
+        />
+      )}
+
       <PageHeader
         title="My Portal"
         description="Your personal compliance dashboard — action items, training, credentials, and acknowledgments."
@@ -162,37 +242,48 @@ export default function StaffPortalPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* My training */}
+        {/* My training — take any available module, assigned or not */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><GraduationCap className="size-4 text-muted-foreground" /> My training</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading || modulesQ.isLoading ? (
               <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-            ) : myTraining.length === 0 ? (
-              <EmptyState icon={GraduationCap} title="No training assigned" description="Training assigned to you will appear here." />
+            ) : myModuleCatalog.length === 0 ? (
+              <EmptyState icon={GraduationCap} title="No training available" description="Training modules will appear here once they're published." />
             ) : (
               <ul className="divide-y divide-border">
-                {myTraining.map((a) => {
-                  const overdue = assignmentIsOverdue(a);
-                  const days = daysUntil(a.dueDate);
+                {myModuleCatalog.map(({ module, active, completed, questions }) => {
+                  const overdue = active ? assignmentIsOverdue(active) : false;
+                  const done = !!completed && !active;
+                  const busy = busyModuleId === module.id;
                   return (
-                    <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium">{a.moduleTitle}</p>
-                        {a.dueDate && (
-                          <p className="text-xs text-muted-foreground">
-                            Due {formatDate(a.dueDate)}
-                            {days !== null && a.status !== "completed" && (
-                              <span className={overdue ? " text-destructive" : ""}> ({days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "today" : `${days}d left`})</span>
-                            )}
-                          </p>
+                    <li key={module.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{module.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {questions > 0 ? `${questions} question${questions !== 1 ? "s" : ""}` : "No quiz"}
+                          {active?.dueDate ? ` · due ${formatDate(active.dueDate)}` : ""}
+                          {overdue ? " · overdue" : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {done ? (
+                          <>
+                            <Badge variant="success">Completed</Badge>
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>Retake</Button>
+                          </>
+                        ) : (
+                          <>
+                            {overdue && <Badge variant="destructive">Overdue</Badge>}
+                            <Button size="sm" variant={active ? "outline" : "default"} disabled={busy} onClick={() => startModule(module, active, questions)}>
+                              {questions > 0 && <ListChecks className="size-4" />}
+                              {busy ? "…" : active ? (questions > 0 ? "Take quiz" : "Continue") : "Start"}
+                            </Button>
+                          </>
                         )}
                       </div>
-                      <Badge variant={a.status === "completed" ? "success" : overdue ? "destructive" : "secondary"}>
-                        {a.status === "completed" ? "Done" : overdue ? "Overdue" : a.status === "in_progress" ? "In progress" : "Assigned"}
-                      </Badge>
                     </li>
                   );
                 })}
