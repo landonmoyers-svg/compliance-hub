@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +27,7 @@ export function StatCard({
   tone = "default",
   hint,
   loading = false,
+  href,
 }: {
   label: string;
   value: string | number;
@@ -33,34 +35,46 @@ export function StatCard({
   tone?: Tone;
   hint?: string;
   loading?: boolean;
+  /** When set, the whole card links here (drill-down to the source list). */
+  href?: string;
 }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-between gap-3 p-4">
-        <div className="min-w-0 space-y-1">
-          <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {label}
-          </p>
-          {loading ? (
-            <Skeleton className="h-7 w-16" />
-          ) : (
-            <p className="text-2xl font-semibold tabular-nums">{value}</p>
-          )}
-          {hint && !loading && (
-            <p className="truncate text-xs text-muted-foreground">{hint}</p>
-          )}
-        </div>
-        {Icon && (
-          <div
-            className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-lg",
-              toneBg[tone],
-            )}
-          >
-            <Icon className={cn("size-5", toneText[tone])} aria-hidden />
-          </div>
+  const inner = (
+    <CardContent className="flex items-center justify-between gap-3 p-4">
+      <div className="min-w-0 space-y-1">
+        {/* Wrap (up to 2 lines) instead of truncating so labels are never clipped. */}
+        <p className="text-xs font-medium uppercase leading-tight tracking-wide text-muted-foreground line-clamp-2">
+          {label}
+        </p>
+        {loading ? (
+          <Skeleton className="h-7 w-16" />
+        ) : (
+          <p className="text-2xl font-semibold tabular-nums">{value}</p>
         )}
-      </CardContent>
-    </Card>
+        {hint && !loading && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{hint}</p>
+        )}
+      </div>
+      {Icon && (
+        <div
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-lg",
+            toneBg[tone],
+          )}
+        >
+          <Icon className={cn("size-5", toneText[tone])} aria-hidden />
+        </div>
+      )}
+    </CardContent>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        <Card className="h-full transition-colors hover:border-primary/40 hover:bg-secondary/20">
+          {inner}
+        </Card>
+      </Link>
+    );
+  }
+  return <Card>{inner}</Card>;
 }
