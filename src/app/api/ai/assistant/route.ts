@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
 import { capabilityForPath } from "@/lib/ai/page-capabilities";
+import { buildComplianceSnapshot } from "@/lib/ai/evidence-snapshot";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -18,6 +19,7 @@ Behavior:
 - Ask for any required field you don't have (e.g. an employee email) rather than inventing it. Never fabricate license numbers, dates, or emails.
 - Convert relative dates to absolute ISO (YYYY-MM-DD) using today's date given below.
 - For "what can this page do / how do I…" questions, answer briefly from the page purpose.
+- GROUND YOUR ANSWERS IN THE LIVE SNAPSHOT below. For "what should I focus on / what's my status / what needs attention" questions, cite the actual figures (e.g. "4 credentials are expired", "backups are due") — never give a generic textbook answer when real data is available. Don't dump the whole snapshot; surface only the relevant numbers, and flag the biggest problems first.
 
 Action data shapes (only use types allowed on the current page):
 - create_task: { title, description?, priority?: "low"|"medium"|"high"|"critical" }
@@ -61,8 +63,11 @@ export async function POST(request: NextRequest) {
   }
 
   const page = capabilityForPath(path);
-  const orgName = await getOrgName(supabase);
-  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}\n=== END CONTEXT ===`;
+  const [orgName, snapshot] = await Promise.all([
+    getOrgName(supabase),
+    buildComplianceSnapshot(supabase).catch(() => ""),
+  ]);
+  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}\n\n=== LIVE SNAPSHOT (this practice's real data — use it to answer with specifics) ===\n${snapshot}\n=== END CONTEXT ===`;
 
   let response: Anthropic.Messages.Message;
   try {
