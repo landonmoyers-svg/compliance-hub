@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   BadgeCheck,
   CalendarClock,
   FileText,
@@ -240,6 +241,29 @@ export default function ExecutiveDashboardPage() {
     return out.sort(bySoonest((d) => d.date)).slice(0, 8);
   }, [credentials, training, documents, insurance]);
 
+  // Already-overdue / expired items. Surfaced explicitly so the dashboard can't
+  // read as "all clear" (100% + nothing due) while the score is docked for them
+  // — this is what reconciles the exec view with the compliance score. Includes
+  // expired credentials that aren't matched to a current employee.
+  const overdue = useMemo(() => {
+    type O = { id: string; label: string; type: string; detail: string };
+    const out: O[] = [];
+    credentials.forEach((c) => {
+      if (credentialStatus(c) === "expired")
+        out.push({ id: `oc-${c.id}`, label: `${c.credentialName} — ${c.employeeName}`, type: "Credential", detail: c.expirationDate ? `Expired ${formatDate(c.expirationDate)}` : "Expired" });
+    });
+    training.forEach((a) => {
+      if (a.status !== "completed" && assignmentIsOverdue(a))
+        out.push({ id: `ot-${a.id}`, label: `${a.moduleTitle} — ${a.assignedToName}`, type: "Training", detail: a.dueDate ? `Due ${formatDate(a.dueDate)}` : "Overdue" });
+    });
+    insurance.forEach((i) => {
+      const d = daysUntil(i.renewalDate);
+      if (d !== null && d < 0)
+        out.push({ id: `oi-${i.id}`, label: `Renew: ${i.policyName}`, type: "Insurance", detail: i.renewalDate ? `Lapsed ${formatDate(i.renewalDate)}` : "Lapsed" });
+    });
+    return out;
+  }, [credentials, training, insurance]);
+
   const openRisk = risk.filter((r) => r.status === "open" || r.status === "investigating");
   const riskBySeverity = useMemo(() => {
     const order: { key: string; label: string; color: string }[] = [
@@ -345,6 +369,7 @@ export default function ExecutiveDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Department compliance</CardTitle>
+            <p className="text-xs text-muted-foreground">Active staff with no expired credential or overdue training. Unassigned/expired items show in the Overdue panel.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -368,6 +393,31 @@ export default function ExecutiveDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Overdue & expired — surfaced so the dashboard reconciles with the score */}
+      {!loading && overdue.length > 0 && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-4" /> Overdue &amp; expired — needs attention ({overdue.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {overdue.slice(0, 8).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{o.label}</p>
+                    <p className="text-xs text-muted-foreground">{o.type} · {o.detail}</p>
+                  </div>
+                  <Badge variant="destructive">Overdue</Badge>
+                </li>
+              ))}
+            </ul>
+            {overdue.length > 8 && <p className="mt-2 text-xs text-muted-foreground">+{overdue.length - 8} more</p>}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Deadlines + risk */}
       <div className="grid gap-4 lg:grid-cols-3">
