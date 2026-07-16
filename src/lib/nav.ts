@@ -51,6 +51,17 @@ export interface NavGroup {
  * source app's HR-section behavior, applied consistently to every group).
  */
 export const NAV_GROUPS: NavGroup[] = [
+  // 1. Command center + daily entry points — what a user lands on first.
+  {
+    label: "Overview",
+    items: [
+      { label: "Home", href: "/", icon: LayoutDashboard },
+      { label: "Daily Priorities", href: "/chief-of-staff", icon: Sparkles, adminOnly: true, highlight: true },
+      { label: "Compliance Calendar", href: "/compliance-calendar", icon: CalendarDays, adminOnly: true },
+      { label: "Setup Guide", href: "/compliance-concierge", icon: Sparkles, adminOnly: true, highlight: true },
+    ],
+  },
+  // 2. Personal, daily-use tools every signed-in user has.
   {
     label: "My Workspace",
     items: [
@@ -60,31 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Time Off", href: "/hr/time-off", icon: Umbrella },
     ],
   },
-  {
-    label: "Overview",
-    items: [
-      { label: "Home", href: "/", icon: LayoutDashboard },
-      { label: "Daily Priorities", href: "/chief-of-staff", icon: Sparkles, adminOnly: true, highlight: true },
-      {
-        label: "Setup Guide",
-        href: "/compliance-concierge",
-        icon: Sparkles,
-        adminOnly: true,
-        highlight: true,
-      },
-      { label: "Compliance Calendar", href: "/compliance-calendar", icon: CalendarDays, adminOnly: true },
-    ],
-  },
-  {
-    label: "Documents & Forms",
-    items: [
-      { label: "SOP Library", href: "/sop-library", icon: FileText, adminOnly: true },
-      { label: "Forms", href: "/fillable-documents", icon: Layers, adminOnly: true },
-      { label: "Missing Forms", href: "/form-gap-matrix", icon: ClipboardCheck, adminOnly: true },
-      { label: "Document Intake", href: "/document-intake", icon: Inbox, adminOnly: true },
-      { label: "Policy Attestation", href: "/policy-attestation", icon: CheckCircle2, adminOnly: true },
-    ],
-  },
+  // 3. Core compliance every employee touches.
   {
     label: "Training & Credentials",
     items: [
@@ -94,31 +81,36 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Compliance & Safety",
+    label: "Documents & Forms",
     items: [
-      { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
-      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
-      { label: "Inventory", href: "/inventory", icon: Package },
-      { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
-      { label: "Audits & Mock Surveys", href: "/audits", icon: ClipboardCheck, adminOnly: true },
-      { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
-      { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
-      { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
-      { label: "Insurance Vault", href: "/insurance-vault", icon: Shield, adminOnly: true },
-      { label: "Vendor Management", href: "/vendor-management", icon: Building2, adminOnly: true },
+      { label: "SOP Library", href: "/sop-library", icon: FileText, adminOnly: true },
+      { label: "Forms", href: "/fillable-documents", icon: Layers, adminOnly: true },
+      { label: "Missing Forms", href: "/form-gap-matrix", icon: ClipboardCheck, adminOnly: true },
+      { label: "Policy Attestation", href: "/policy-attestation", icon: CheckCircle2, adminOnly: true },
+      { label: "Document Intake", href: "/document-intake", icon: Inbox, adminOnly: true },
     ],
   },
+  // 5. Compliance-officer risk functions: incidents, assessments, audits, third-party.
   {
-    label: "Admin & Resources",
+    label: "Risk & Compliance",
     items: [
-      { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
+      { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
+      { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
+      { label: "Audits & Mock Surveys", href: "/audits", icon: ClipboardCheck, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
-      { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
-      { label: "Data Backup", href: "/backup", icon: DatabaseBackup, adminOnly: true },
-      { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
-      { label: "Role Permissions", href: "/access-matrix", icon: Shield, adminOnly: true },
-      { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
-      { label: "Settings", href: "/settings", icon: Building2, adminOnly: true },
+      { label: "Vendor Management", href: "/vendor-management", icon: Building2, adminOnly: true },
+      { label: "Insurance Vault", href: "/insurance-vault", icon: Shield, adminOnly: true },
+    ],
+  },
+  // 6. Physical / clinical safety and assets.
+  {
+    label: "Safety & Environment",
+    items: [
+      { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
+      { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
+      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
+      { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
+      { label: "Inventory", href: "/inventory", icon: Package },
     ],
   },
   {
@@ -130,6 +122,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Performance", href: "/hr/performance", icon: Star, adminOnly: true },
       { label: "Benefits", href: "/hr/benefits", icon: Heart, adminOnly: true },
       { label: "Disciplinary", href: "/hr/disciplinary", icon: AlertTriangle, adminOnly: true },
+    ],
+  },
+  // 8. System administration + reference — least-frequent, so last.
+  {
+    label: "Admin & Resources",
+    items: [
+      { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
+      { label: "Role Permissions", href: "/access-matrix", icon: Shield, adminOnly: true },
+      { label: "Settings", href: "/settings", icon: Building2, adminOnly: true },
+      { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
+      { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
+      { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
+      { label: "Data Backup", href: "/backup", icon: DatabaseBackup, adminOnly: true },
     ],
   },
 ];
