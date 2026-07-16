@@ -346,7 +346,7 @@ export default function DocumentIntakePage() {
           });
           break;
         case "insurance":
-          created = await createInsurance.mutateAsync({ policyName: title, policyType: "malpractice" });
+          created = await createInsurance.mutateAsync({ policyName: title, policyType: "malpractice", documentUrl: r.fileUrl });
           break;
         case "regulatory_sources":
           created = await createRegulatory.mutateAsync({
