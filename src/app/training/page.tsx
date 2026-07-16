@@ -9,6 +9,7 @@ import { PersonLink } from "@/components/shared/person-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
+import { AttestModuleDialog } from "@/components/training/attest-module-dialog";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -180,6 +181,8 @@ export default function TrainingPage() {
   const createAttempt = useCreate("trainingAttempts");
 
   const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
+  const [attesting, setAttesting] = useState<TrainingAssignment | null>(null);
+  const [attestBusy, setAttestBusy] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pending" | "overdue" | "completed">("all");
@@ -306,15 +309,26 @@ export default function TrainingPage() {
     URL.revokeObjectURL(url);
   }
 
-  async function markComplete(a: TrainingAssignment) {
+  // Record a completion for a NO-QUIZ module via the admin's attestation.
+  // Completion always leaves a record (attempt) — never a bare status flip.
+  async function handleAttest() {
+    if (!attesting) return;
+    const a = attesting;
+    setAttestBusy(true);
     try {
-      await updateMut.mutateAsync({
-        id: a.id,
-        patch: { status: "completed", completedAt: new Date().toISOString() },
+      await createAttempt.mutateAsync({
+        assignmentId: a.id, trainingModuleId: a.trainingModuleId, moduleTitle: a.moduleTitle,
+        userId: a.assignedToUserId || (profile?.userId ?? user?.id ?? ""),
+        userName: a.assignedToName, score: 100, passed: true, answers: [],
+        completedAt: new Date().toISOString(),
       });
-      toast.success("Marked as complete");
+      await updateMut.mutateAsync({ id: a.id, patch: { status: "completed", completedAt: new Date().toISOString() } });
+      toast.success(`Attestation recorded — ${a.moduleTitle} complete`);
+      setAttesting(null);
     } catch {
-      toast.error("Failed to update");
+      toast.error("Failed to record the attestation.");
+    } finally {
+      setAttestBusy(false);
     }
   }
 
@@ -384,6 +398,17 @@ export default function TrainingPage() {
           questions={questionsFor(takingQuiz)}
           onClose={() => setTakingQuiz(null)}
           onPassed={handleQuizPassed}
+        />
+      )}
+
+      {attesting && (
+        <AttestModuleDialog
+          module={modules.find((m) => m.id === attesting.trainingModuleId) ?? { id: attesting.trainingModuleId, createdDate: "", title: attesting.moduleTitle, trainingType: "compliance", passingScore: 80, active: true }}
+          busy={attestBusy}
+          onAttest={handleAttest}
+          onClose={() => setAttesting(null)}
+          subtitle={`Recording completion for ${attesting.assignedToName}.`}
+          statement={`I confirm that ${attesting.assignedToName} has completed this training and attested to reading and understanding its contents.`}
         />
       )}
 
@@ -496,12 +521,8 @@ export default function TrainingPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (questionsFor(a).length > 0) {
-                                  setTakingQuiz(a);
-                                  return;
-                                }
-                                if (!window.confirm(`Mark "${a.moduleTitle}" complete for ${a.assignedToName}? This records a training completion.`)) return;
-                                markComplete(a);
+                                if (questionsFor(a).length > 0) setTakingQuiz(a);
+                                else setAttesting(a);
                               }}
                               title="Open to manage"
                               className="cursor-pointer"
@@ -524,15 +545,8 @@ export default function TrainingPage() {
                                   <ListChecks className="size-4" /> Take quiz
                                 </Button>
                               ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (!window.confirm(`Mark "${a.moduleTitle}" complete for ${a.assignedToName}? This records a training completion.`)) return;
-                                    markComplete(a);
-                                  }}
-                                >
-                                  Mark complete
+                                <Button size="sm" variant="outline" onClick={() => setAttesting(a)}>
+                                  Attest complete
                                 </Button>
                               )}
                             </div>

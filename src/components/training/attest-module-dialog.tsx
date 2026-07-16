@@ -15,11 +15,16 @@ export function AttestModuleDialog({
   onClose,
   onAttest,
   busy,
+  statement = "I attest that I have read and understand the contents of this module.",
+  subtitle = "Read the module, then attest to complete it.",
 }: {
   module: TrainingModule;
   onClose: () => void;
   onAttest: () => void;
   busy: boolean;
+  /** The attestation the user is agreeing to (self vs. admin-on-behalf). */
+  statement?: string;
+  subtitle?: string;
 }) {
   const [checked, setChecked] = useState(false);
 
@@ -29,7 +34,7 @@ export function AttestModuleDialog({
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="flex items-center gap-2 font-semibold"><GraduationCap className="size-4 text-muted-foreground" /> {module.title}</h2>
-            <p className="text-xs text-muted-foreground">Read the module, then attest to complete it.</p>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
         </div>
@@ -43,7 +48,7 @@ export function AttestModuleDialog({
 
           <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-3 text-sm hover:bg-secondary/20">
             <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 size-4" />
-            <span>I attest that I have read and understand the contents of this module.</span>
+            <span>{statement}</span>
           </label>
         </div>
 
