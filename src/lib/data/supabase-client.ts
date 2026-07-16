@@ -394,30 +394,36 @@ function incidentFrom(r: Record<string, unknown>): Incident {
   return {
     id: r.id as string, createdDate: r.created_date as string,
     title: r.title as string,
+    reportType: (r.report_type as Incident["reportType"]) ?? "other",
     category: r.category as Incident["category"],
     description: r.description as string | undefined,
     severity: r.severity as Incident["severity"],
     status: r.status as Incident["status"],
     anonymous: r.anonymous as boolean,
+    attested: (r.attested as boolean) ?? false,
     reportedByUserId: (r.reported_by_user_id as string | null) ?? undefined,
     reportedByName: r.reported_by_name as string | undefined,
     locationId: (r.location_id as string | null) ?? undefined,
     occurredDate: toISO(r.occurred_date as string),
+    evidenceUrl: (r.evidence_url as string | null) ?? undefined,
     resolutionSummary: r.resolution_summary as string | undefined,
   };
 }
 function incidentTo(d: Partial<Incident>) {
   return {
     ...(d.title !== undefined && { title: d.title }),
+    ...(d.reportType !== undefined && { report_type: d.reportType }),
     ...(d.category !== undefined && { category: d.category }),
     ...(d.description !== undefined && { description: d.description }),
     ...(d.severity !== undefined && { severity: d.severity }),
     ...(d.status !== undefined && { status: d.status }),
     ...(d.anonymous !== undefined && { anonymous: d.anonymous }),
+    ...(d.attested !== undefined && { attested: d.attested }),
     ...(d.reportedByUserId !== undefined && { reported_by_user_id: d.reportedByUserId }),
     ...(d.reportedByName !== undefined && { reported_by_name: d.reportedByName }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
     ...(d.occurredDate !== undefined && { occurred_date: d.occurredDate }),
+    ...(d.evidenceUrl !== undefined && { evidence_url: d.evidenceUrl }),
     ...(d.resolutionSummary !== undefined && { resolution_summary: d.resolutionSummary }),
   };
 }

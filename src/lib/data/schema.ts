@@ -252,18 +252,29 @@ export const incidentCategories = [
   "privacy_hipaa", "safety_osha", "billing", "hr_conduct", "medication", "security", "other",
 ] as const;
 
+// The kind of report — drives the intake fields, anonymity rules, and routing
+// (HIPAA → breach assessment, injury → OSHA record). See incidents page.
+export const incidentReportTypes = [
+  "hipaa_privacy", "injury", "patient_safety", "staff_conduct", "whistleblower", "other",
+] as const;
+
 export const Incident = z.object({
   ...base,
   title: z.string(),
+  reportType: z.enum(incidentReportTypes).default("other"),
   category: z.enum(incidentCategories).default("other"),
   description: z.string().optional(),
   severity: Priority.default("medium"),
   status: z.enum(["new", "triaged", "investigating", "corrective_action", "closed"]).default("new"),
   anonymous: z.boolean().default(false),
+  // The reporter checked the truthfulness attestation (signed reports only).
+  attested: z.boolean().default(false),
   reportedByUserId: z.string().nullable().optional(),
   reportedByName: z.string().optional(),
   locationId: z.string().nullable().optional(),
   occurredDate: z.string().nullable().optional(),
+  // Optional supporting evidence (photo/document) uploaded with the report.
+  evidenceUrl: z.string().nullable().optional(),
   resolutionSummary: z.string().optional(),
 });
 export type Incident = z.infer<typeof Incident>;

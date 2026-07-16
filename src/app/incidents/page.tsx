@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldAlert, Plus, Search, Check, X, AlertTriangle, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ShieldAlert, Plus, Search, Check, X, AlertTriangle, Sparkles, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import type { Incident, CorrectiveAction } from "@/lib/data/schema";
@@ -31,19 +35,86 @@ const CAPA_STATUS_VARIANT: Record<string, "secondary" | "warning" | "success" | 
 };
 const INCIDENT_STATUSES = ["new", "triaged", "investigating", "corrective_action", "closed"] as const;
 
+// Report types drive intake, anonymity, and routing. Anonymous is allowed ONLY
+// for whistleblower/compliance concerns; medicine + OSHA expect a signed name on
+// injury/patient/HIPAA/conduct reports.
+const REPORT_TYPES = {
+  hipaa_privacy: {
+    label: "HIPAA / privacy incident",
+    blurb: "A privacy or security event involving PHI — wrong-patient disclosure, lost/stolen device, misdirected fax or email, snooping, or unauthorized access.",
+    category: "privacy_hipaa" as Incident["category"],
+    route: { href: "/breach-assessment", label: "Start a Breach Assessment (4-factor)" },
+    allowAnonymous: false,
+  },
+  injury: {
+    label: "Injury — staff or patient",
+    blurb: "A physical injury or exposure — needlestick, sharps, fall, or any work-related injury or illness.",
+    category: "safety_osha" as Incident["category"],
+    route: { href: "/osha-tracker", label: "Log an OSHA injury record" },
+    allowAnonymous: false,
+  },
+  patient_safety: {
+    label: "Patient incident / safety event",
+    blurb: "A patient-safety event — medication error, adverse reaction, near miss, or a concern about care delivered.",
+    category: "medication" as Incident["category"],
+    route: null,
+    allowAnonymous: false,
+  },
+  staff_conduct: {
+    label: "Staff incident / conduct",
+    blurb: "A workplace conduct issue — policy violation, harassment, or a behavior concern involving staff.",
+    category: "hr_conduct" as Incident["category"],
+    route: null,
+    allowAnonymous: false,
+  },
+  whistleblower: {
+    label: "Whistleblower / compliance concern",
+    blurb: "A good-faith report of suspected fraud, illegal conduct, or a serious compliance concern. This is the only report type that may be submitted anonymously.",
+    category: "other" as Incident["category"],
+    route: null,
+    allowAnonymous: true,
+  },
+  other: {
+    label: "Other",
+    blurb: "Anything that doesn't fit the types above.",
+    category: "other" as Incident["category"],
+    route: null,
+    allowAnonymous: false,
+  },
+} as const;
+type ReportTypeKey = keyof typeof REPORT_TYPES;
+
+const OBSERVED_GUIDANCE = "Report only what you personally observed or what was directly communicated to you. Stick to objective facts — do not speculate about the what, why, how, who, or when unless it is provable or documented.";
+const ATTESTATION_TEXT = "I attest that this report is true and accurate to the best of my knowledge, and that I have described only what I personally observed or was directly told. I understand this report may become part of the practice's official compliance records.";
+
 /* ------------------------------ report dialog ------------------------------ */
 
-function ReportDialog({ onClose, onSubmit, saving }: {
+function ReportDialog({ locations, onClose, onSubmit, saving }: {
+  locations: { id: string; name: string }[];
   onClose: () => void;
-  onSubmit: (d: { title: string; category: Incident["category"]; description: string; severity: Incident["severity"]; occurredDate: string; anonymous: boolean }) => void;
+  onSubmit: (d: { reportType: ReportTypeKey; title: string; description: string; severity: Incident["severity"]; occurredDate: string; locationId: string; anonymous: boolean; attested: boolean; file: File | null }) => void;
   saving: boolean;
 }) {
+  const [reportType, setReportType] = useState<ReportTypeKey>("hipaa_privacy");
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Incident["category"]>("other");
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<Incident["severity"]>("medium");
   const [occurredDate, setOccurredDate] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [attested, setAttested] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+
+  const meta = REPORT_TYPES[reportType];
+  const canAnon = meta.allowAnonymous;
+  const effectiveAnon = canAnon && anonymous;
+  // Signed reports must attest; anonymous whistleblower reports need no signature.
+  const canSubmit = !!title.trim() && !saving && (effectiveAnon || attested);
+
+  function pickType(t: ReportTypeKey) {
+    setReportType(t);
+    if (!REPORT_TYPES[t].allowAnonymous) setAnonymous(false);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -54,39 +125,79 @@ function ReportDialog({ onClose, onSubmit, saving }: {
         </div>
         <div className="space-y-4 p-5">
           <div className="space-y-1.5">
+            <label className="text-sm font-medium">Report type *</label>
+            <select className="input w-full" value={reportType} onChange={(e) => pickType(e.target.value as ReportTypeKey)}>
+              {(Object.keys(REPORT_TYPES) as ReportTypeKey[]).map((k) => <option key={k} value={k}>{REPORT_TYPES[k].label}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">{meta.blurb}</p>
+          </div>
+
+          {/* INC-3: objective-facts guidance, shown prominently */}
+          <div className="flex gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-primary" />
+            <p className="text-xs leading-relaxed text-foreground">{OBSERVED_GUIDANCE}</p>
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-sm font-medium">What happened? *</label>
-            <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short summary" />
+            <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short factual summary" />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Category</label>
-              <select className="input w-full" value={category} onChange={(e) => setCategory(e.target.value as Incident["category"])}>
-                {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Severity</label>
               <select className="input w-full" value={severity} onChange={(e) => setSeverity(e.target.value as Incident["severity"])}>
                 {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{humanizeLabel(s)}</option>)}
               </select>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Date it occurred</label>
+              <input type="date" className="input w-full" value={occurredDate} onChange={(e) => setOccurredDate(e.target.value)} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Date it occurred</label>
-            <input type="date" className="input w-full" value={occurredDate} onChange={(e) => setOccurredDate(e.target.value)} />
-          </div>
+          {locations.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Location</label>
+              <select className="input w-full" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+                <option value="">Not specified</option>
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Details</label>
-            <textarea className="input w-full resize-none" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what happened, who was involved, and any immediate actions taken." />
+            <textarea className="input w-full resize-none" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Objectively describe what you observed or were told, who was involved, and any immediate actions taken." />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} className="size-4" />
-            Submit anonymously (your name won’t be attached to this report)
-          </label>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Evidence <span className="text-muted-foreground">(optional)</span></label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              <Plus className="size-4" />
+              {file ? file.name : "Attach a photo or document"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+
+          {/* INC-4: anonymity only for whistleblower; INC-5: attestation otherwise */}
+          {canAnon ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} className="size-4" />
+              Submit anonymously (your name won’t be attached to this report)
+            </label>
+          ) : (
+            <p className="rounded-md border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+              This report type is submitted under your name — {" "}
+              medicine and OSHA expect a signed reporter on injury, patient, HIPAA, and conduct reports. Only whistleblower/compliance concerns may be anonymous.
+            </p>
+          )}
+          {!effectiveAnon && (
+            <label className="flex items-start gap-2 rounded-lg border border-border bg-secondary/20 p-3 text-xs leading-relaxed">
+              <input type="checkbox" checked={attested} onChange={(e) => setAttested(e.target.checked)} className="mt-0.5 size-4 shrink-0" />
+              <span>{ATTESTATION_TEXT} <span className="text-destructive">*</span></span>
+            </label>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSubmit({ title, category, description, severity, occurredDate, anonymous })} disabled={!title.trim() || saving}>
+          <Button onClick={() => onSubmit({ reportType, title, description, severity, occurredDate, locationId, anonymous: effectiveAnon, attested: effectiveAnon ? false : attested, file })} disabled={!canSubmit}>
             {saving ? "Submitting…" : "Submit report"}
           </Button>
         </div>
@@ -99,11 +210,12 @@ function ReportDialog({ onClose, onSubmit, saving }: {
 
 const ROOT_CAUSES = ["Human error", "Process gap", "Training gap", "System / technical failure", "Communication breakdown", "Policy / procedure gap", "External / vendor issue", "Inadequate supervision", "Documentation error"];
 
-function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, onAddCapa, onUpdateCapa, onAiDraft }: {
+function IncidentDetail({ incident, capas, isAdmin, owners, locations, onClose, onStatus, onAddCapa, onUpdateCapa, onAiDraft }: {
   incident: Incident;
   capas: CorrectiveAction[];
   isAdmin: boolean;
   owners: string[];
+  locations: { id: string; name: string }[];
   onClose: () => void;
   onStatus: (status: Incident["status"]) => void;
   onAddCapa: (d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) => void;
@@ -141,9 +253,10 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
             <h2 className="font-semibold">{incident.title}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant={SEVERITY_VARIANT[incident.severity]} className="capitalize">{humanizeLabel(incident.severity)}</Badge>
-              <span>{CATEGORY_LABEL[incident.category]}</span>
+              <Badge variant="outline">{REPORT_TYPES[incident.reportType]?.label ?? CATEGORY_LABEL[incident.category]}</Badge>
               <span>· Reported {formatDate(incident.createdDate)}</span>
-              <span>· by {incident.anonymous ? "Anonymous" : incident.reportedByName || "—"}</span>
+              <span>· by {incident.anonymous ? "Anonymous" : incident.reportedByName || "—"}{!incident.anonymous && incident.attested ? " (attested)" : ""}</span>
+              {incident.locationId && locations.find((l) => l.id === incident.locationId) && <span>· {locations.find((l) => l.id === incident.locationId)!.name}</span>}
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
@@ -151,6 +264,18 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {incident.description && <p className="whitespace-pre-wrap text-sm">{incident.description}</p>}
+
+          {incident.evidenceUrl && (
+            <FileLink path={incident.evidenceUrl} label="View attached evidence" className="inline-flex items-center gap-1 text-sm text-primary hover:underline" />
+          )}
+
+          {/* INC-2: connect the incident to the specialized tool for its type */}
+          {REPORT_TYPES[incident.reportType]?.route && (
+            <Link href={REPORT_TYPES[incident.reportType]!.route!.href} className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm hover:bg-primary/10">
+              <span>{incident.reportType === "hipaa_privacy" ? "This may be a reportable breach — run the 4-factor assessment." : "Record this injury in the OSHA log."}</span>
+              <span className="flex items-center gap-1 font-medium text-primary">{REPORT_TYPES[incident.reportType]!.route!.label} <ExternalLink className="size-3.5" /></span>
+            </Link>
+          )}
 
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium">Status</span>
@@ -237,10 +362,12 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
 
 export default function IncidentsPage() {
   const { profile, isAdmin } = useAuth();
+  const router = useRouter();
   const myUserId = profile?.userId ?? "";
   const incidentsQ = useCollection("incidents");
   const capasQ = useCollection("correctiveActions");
   const employeesQ = useCollection("employees");
+  const locationsQ = useCollection("locations");
   const createIncident = useCreate("incidents");
   const updateIncident = useUpdate("incidents");
   const createCapa = useCreate("correctiveActions");
@@ -253,6 +380,7 @@ export default function IncidentsPage() {
 
   const incidents = useMemo(() => incidentsQ.data ?? [], [incidentsQ.data]);
   const capas = useMemo(() => capasQ.data ?? [], [capasQ.data]);
+  const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
   const owners = useMemo(() => (employeesQ.data ?? []).map((e) => [e.firstName, e.lastName].filter(Boolean).join(" ")).filter(Boolean).sort(), [employeesQ.data]);
 
   async function aiDraftCapa(incident: Incident) {
@@ -292,22 +420,41 @@ export default function IncidentsPage() {
     return { open, investigating, overdueCapas };
   }, [incidents, capas]);
 
-  async function submitReport(d: { title: string; category: Incident["category"]; description: string; severity: Incident["severity"]; occurredDate: string; anonymous: boolean }) {
+  async function submitReport(d: { reportType: ReportTypeKey; title: string; description: string; severity: Incident["severity"]; occurredDate: string; locationId: string; anonymous: boolean; attested: boolean; file: File | null }) {
     setSaving(true);
     try {
+      let evidenceUrl: string | null = null;
+      if (d.file) {
+        try { evidenceUrl = await uploadFile(d.file, "incidents"); }
+        catch { toast.error("Couldn't upload the evidence file — submitting without it."); }
+      }
       await createIncident.mutateAsync({
         title: d.title.trim(),
-        category: d.category,
+        reportType: d.reportType,
+        category: REPORT_TYPES[d.reportType].category,
         description: d.description.trim() || undefined,
         severity: d.severity,
         status: "new",
         anonymous: d.anonymous,
+        attested: d.attested,
         reportedByUserId: d.anonymous ? null : (myUserId || null),
         reportedByName: d.anonymous ? undefined : (profile?.fullName || undefined),
+        locationId: d.locationId || null,
         occurredDate: d.occurredDate ? dateInputToISO(d.occurredDate) : null,
+        evidenceUrl,
       });
-      toast.success("Report submitted. Thank you.");
       setReporting(false);
+      // INC-2: route HIPAA → Breach Assessment, injury → OSHA record.
+      const route = REPORT_TYPES[d.reportType].route;
+      if (route) {
+        toast.success("Report submitted. Next step recommended:", {
+          description: route.label,
+          action: { label: "Go", onClick: () => router.push(route.href) },
+          duration: 8000,
+        });
+      } else {
+        toast.success("Report submitted. Thank you.");
+      }
     } catch {
       toast.error("Couldn't submit the report.");
     } finally {
@@ -340,13 +487,14 @@ export default function IncidentsPage() {
   return (
     <div className="space-y-6">
       <PageTabs tabs={INCIDENT_TABS} />
-      {reporting && <ReportDialog onClose={() => setReporting(false)} onSubmit={submitReport} saving={saving} />}
+      {reporting && <ReportDialog locations={locations} onClose={() => setReporting(false)} onSubmit={submitReport} saving={saving} />}
       {openIncident && (
         <IncidentDetail
           incident={openIncident}
           capas={capasFor(openIncident.id)}
           isAdmin={isAdmin}
           owners={owners}
+          locations={locations}
           onClose={() => setOpenId(null)}
           onStatus={(status) => void updateIncident.mutateAsync({ id: openIncident.id, patch: { status } })}
           onAddCapa={(d) => void addCapa(openIncident.id, d)}
