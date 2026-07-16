@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { cn } from "@/lib/cn";
+import { humanizeLabel } from "@/lib/format";
 import type { Audit, AuditItem } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -248,7 +249,7 @@ export default function AuditsPage() {
                     </div>
                     {openFindings(a.id) > 0 && <Badge variant="warning">{openFindings(a.id)} open</Badge>}
                     {score !== null && <Badge variant={score >= 90 ? "success" : score >= 70 ? "warning" : "destructive"}>{score}%</Badge>}
-                    <Badge variant={a.status === "complete" ? "success" : "secondary"} className="capitalize">{a.status.replace("_", " ")}</Badge>
+                    <Badge variant={a.status === "complete" ? "success" : "secondary"} className="capitalize">{humanizeLabel(a.status)}</Badge>
                   </button>
                 );
               })}

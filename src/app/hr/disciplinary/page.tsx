@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
 import type { DisciplinaryAction, Employee } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 type ActionType = DisciplinaryAction["actionType"];
@@ -138,7 +139,7 @@ function ActionDialog({
             <label className="text-sm font-medium">Status</label>
             <select className="input w-full" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as Status }))}>
               {(["active", "resolved", "escalated", "archived"] as const).map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                <option key={s} value={s}>{humanizeLabel(s)}</option>
               ))}
             </select>
           </div>
@@ -377,7 +378,7 @@ export default function DisciplinaryPage() {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {humanizeLabel(s)}
               </button>
             ))}
           </div>
@@ -409,7 +410,7 @@ export default function DisciplinaryPage() {
                           title="Open to manage"
                           className="cursor-pointer"
                         >
-                          <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
+                          <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{humanizeLabel(r.status)}</Badge>
                         </button>
                       </div>
                       <p className="mt-0.5 text-sm text-muted-foreground">

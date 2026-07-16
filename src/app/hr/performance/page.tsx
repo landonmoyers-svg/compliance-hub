@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import type { PerformanceReview, PerformanceRock, ReviewType } from "@/lib/data/schema";
 import { reviewTypes } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
@@ -271,7 +272,7 @@ export default function PerformancePage() {
                         <Target className="size-3.5 text-muted-foreground" />
                         <span className="flex-1">{rk.title}</span>
                         <button onClick={() => cycleRock(i)} className="rounded px-1.5 py-0.5">
-                          <Badge variant={rk.status === "complete" ? "success" : rk.status === "off_track" ? "destructive" : "warning"} className="capitalize">{rk.status.replace("_", " ")}</Badge>
+                          <Badge variant={rk.status === "complete" ? "success" : rk.status === "off_track" ? "destructive" : "warning"} className="capitalize">{humanizeLabel(rk.status)}</Badge>
                         </button>
                         <button onClick={() => removeRock(i)} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
                       </div>
@@ -332,7 +333,7 @@ export default function PerformancePage() {
                     <CardTitle className="text-base">{r.employeeName}</CardTitle>
                     <p className="text-sm text-muted-foreground">{REVIEW_TYPE_LABEL[r.reviewType]} · {r.reviewDate ?? "—"}</p>
                   </div>
-                  <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status.replace("_", " ")}</Badge>
+                  <Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{humanizeLabel(r.status)}</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

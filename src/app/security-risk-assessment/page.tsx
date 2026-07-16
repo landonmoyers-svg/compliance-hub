@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, dateInputToISO } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import type { SraAssessment, SraFinding } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -309,8 +310,8 @@ export default function SraPage() {
                 <div key={f.id} className="flex items-center justify-between gap-2 border-b border-border/50 py-1.5 text-sm last:border-0">
                   <span className="truncate">{f.question.replace(/\s*\(§.*\)$/, "")}</span>
                   <span className="flex shrink-0 items-center gap-2">
-                    <Badge variant={RISK_VARIANT[f.riskLevel]} className="capitalize">{f.riskLevel}</Badge>
-                    <Badge variant={f.remediationStatus === "complete" || f.remediationStatus === "accepted" ? "success" : "outline"} className="capitalize">{f.remediationStatus === "none" ? "no plan" : f.remediationStatus.replace("_", " ")}</Badge>
+                    <Badge variant={RISK_VARIANT[f.riskLevel]} className="capitalize">{humanizeLabel(f.riskLevel)}</Badge>
+                    <Badge variant={f.remediationStatus === "complete" || f.remediationStatus === "accepted" ? "success" : "outline"} className="capitalize">{f.remediationStatus === "none" ? "no plan" : humanizeLabel(f.remediationStatus)}</Badge>
                   </span>
                 </div>
               ))}
@@ -364,7 +365,7 @@ export default function SraPage() {
                       <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>{pct}%</span></div>
                       <div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary" style={{ width: `${pct}%` }} /></div>
                     </div>
-                    <Badge variant={(a as SraAssessment).status === "complete" ? "success" : "secondary"} className="capitalize">{(a as SraAssessment).status.replace("_", " ")}</Badge>
+                    <Badge variant={(a as SraAssessment).status === "complete" ? "success" : "secondary"} className="capitalize">{humanizeLabel((a as SraAssessment).status)}</Badge>
                   </button>
                 );
               })}

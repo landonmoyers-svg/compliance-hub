@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { LucideIcon } from "lucide-react";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 const MAX_FILE_MB = 25;
@@ -508,7 +509,7 @@ export default function DocumentIntakePage() {
                     {r.fileUrl && <FileLink path={r.fileUrl} label="view" />}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant={CONFIDENCE_VARIANT[r.confidence]} className="capitalize">{r.confidence}</Badge>
+                    <Badge variant={CONFIDENCE_VARIANT[r.confidence]} className="capitalize">{humanizeLabel(r.confidence)}</Badge>
                     {r.status === "filed" && <Badge variant="success"><Check className="size-3" /> Filed</Badge>}
                     {r.status === "rejected" && <Badge variant="secondary"><X className="size-3" /> Dismissed</Badge>}
                   </div>

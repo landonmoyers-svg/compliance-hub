@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
+import { formatName } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /**
@@ -13,7 +14,7 @@ import { cn } from "@/lib/cn";
  */
 export function PersonLink({ userId = null, name, className }: { userId?: string | null; name?: string | null; className?: string }) {
   const [open, setOpen] = useState(false);
-  const label = (name ?? "").trim();
+  const label = formatName(name);
   if (!label) return <span className="text-muted-foreground">—</span>;
 
   return (

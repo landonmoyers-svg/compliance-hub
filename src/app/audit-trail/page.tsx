@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSort, SortHeader } from "@/components/shared/sortable";
+import { humanizeLabel } from "@/lib/format";
 import type { AuditLog } from "@/lib/data/schema";
 
 type ActionType = AuditLog["action"];
@@ -271,7 +272,7 @@ export default function AuditTrailPage() {
                 >
                   <option value="all">All risk levels</option>
                   {RISK_OPTIONS.map((r) => (
-                    <option key={r} value={r} className="capitalize">{r}</option>
+                    <option key={r} value={r} className="capitalize">{humanizeLabel(r)}</option>
                   ))}
                 </select>
               </div>
@@ -308,7 +309,7 @@ function ActionBadge({ action }: { action: ActionType }) {
 }
 
 function RiskBadge({ level }: { level: RiskLevel }) {
-  return <Badge variant={RISK_BADGE[level]} className="capitalize">{level}</Badge>;
+  return <Badge variant={RISK_BADGE[level]} className="capitalize">{humanizeLabel(level)}</Badge>;
 }
 
 function TimelineTable({ rows }: { rows: AuditLog[] }) {

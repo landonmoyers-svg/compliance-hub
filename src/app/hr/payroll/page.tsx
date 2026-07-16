@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { PayrollRecord } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 function formatCents(cents: number): string {
@@ -344,7 +345,7 @@ export default function PayrollPage() {
                       <td data-label="Pay period" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>
                       <td data-label="Gross" className="py-3 pr-4 text-right tabular-nums">{formatCents(r.grossPayCents)}</td>
                       <td data-label="Net pay" className="py-3 pr-4 text-right font-medium tabular-nums">{formatCents(r.netPayCents)}</td>
-                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge></td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{humanizeLabel(r.status)}</Badge></td>
                       <td data-label="" className="py-3">
                         <div className="flex gap-1.5 md:justify-end">
                           {r.status === "draft" && (

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -185,7 +186,7 @@ export default function PolicyAttestationPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">{doc.title}</p>
-                        <Badge variant="outline" className="capitalize">{doc.documentType}</Badge>
+                        <Badge variant="outline" className="capitalize">{humanizeLabel(doc.documentType)}</Badge>
                         <Badge variant="outline">v{doc.version}</Badge>
                       </div>
                       {doc.summary && (

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
@@ -320,7 +321,7 @@ export default function InsuranceVaultPage() {
                     return (
                       <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Policy name" className="py-3 pr-4 font-medium">{p.policyName}</td>
-                        <td data-label="Type" className="py-3 pr-4 capitalize">{p.policyType}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(p.policyType)}</td>
                         <td data-label="Carrier" className="py-3 pr-4">{p.carrierName ?? "—"}</td>
                         <td data-label="Policy #" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
                         <td data-label="Coverage" className="py-3 pr-4 text-right">{formatCents(p.coverageAmountCents)}</td>

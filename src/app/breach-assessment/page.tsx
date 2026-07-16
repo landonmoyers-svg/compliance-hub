@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, dateInputToISO, parseDate, daysUntil } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { BreachAssessment } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -265,7 +266,7 @@ export default function BreachAssessmentPage() {
                             <span className={urgent ? "font-medium text-destructive" : "text-muted-foreground"}>{formatDate(dl.toISOString())}{du !== null && du >= 0 ? ` · ${du}d left` : du !== null ? " · overdue" : ""}</span>
                           ) : "—"}
                         </td>
-                        <td data-label="Status" className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize cursor-pointer">{a.status}</Badge></td>
+                        <td data-label="Status" className="py-3"><Badge variant={a.status === "final" ? "success" : "secondary"} className="capitalize cursor-pointer">{humanizeLabel(a.status)}</Badge></td>
                       </tr>
                     );
                   })}

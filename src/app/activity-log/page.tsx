@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 interface Entry {
@@ -143,7 +144,7 @@ export default function ActivityLogPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className={`truncate text-sm ${e.undone ? "text-muted-foreground line-through" : ""}`}>{e.summary}</p>
-                          <p className="text-xs text-muted-foreground">{e.actorName}{e.assistant ? ` · ${e.assistant.replace(/_/g, " ")}` : ""} · {timeOf(e.time)}{e.undone ? " · undone" : ""}</p>
+                          <p className="text-xs text-muted-foreground">{e.actorName}{e.assistant ? ` · ${humanizeLabel(e.assistant)}` : ""} · {timeOf(e.time)}{e.undone ? " · undone" : ""}</p>
                         </div>
                         {e.actorType === "ai" && <Badge variant="outline" className="shrink-0">AI</Badge>}
                         {e.reversible && (

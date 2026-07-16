@@ -17,6 +17,7 @@ import {
   holderIsActive, credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 
 type Tab = "overview" | "credentials" | "training" | "risk";
 
@@ -402,7 +403,7 @@ export default function ReportsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t}
+            {humanizeLabel(t)}
           </button>
         ))}
       </div>
@@ -494,7 +495,7 @@ export default function ReportsPage() {
                           <td data-label="Employee" className="py-2 pr-4">{c.employeeName}</td>
                           <td data-label="Credential" className="py-2 pr-4">{c.credentialName}</td>
                           <td data-label="Expiration" className="py-2 pr-4">{c.expirationDate ? formatDate(c.expirationDate) : "No expiry"}</td>
-                          <td data-label="Status" className="py-2 capitalize">{credentialStatus(c).replace("_", " ")}</td>
+                          <td data-label="Status" className="py-2 capitalize">{humanizeLabel(credentialStatus(c))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -541,7 +542,7 @@ export default function ReportsPage() {
                           <td data-label="Module" className="py-2 pr-4">{a.moduleTitle}</td>
                           <td data-label="Due date" className="py-2 pr-4">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
                           <td data-label="Status" className="py-2">
-                            {assignmentIsOverdue(a) ? "Overdue" : a.status.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())}
+                            {assignmentIsOverdue(a) ? "Overdue" : humanizeLabel(a.status)}
                           </td>
                         </tr>
                       ))}
@@ -582,9 +583,9 @@ export default function ReportsPage() {
                       {risk.map((r) => (
                         <tr key={r.id} className="border-b border-border/50">
                           <td data-label="Case" className="py-2 pr-4">{r.caseTitle}</td>
-                          <td data-label="Type" className="py-2 pr-4 capitalize">{r.caseType}</td>
-                          <td data-label="Severity" className="py-2 pr-4 capitalize">{r.severity}</td>
-                          <td data-label="Status" className="py-2 pr-4 capitalize">{r.status}</td>
+                          <td data-label="Type" className="py-2 pr-4 capitalize">{humanizeLabel(r.caseType)}</td>
+                          <td data-label="Severity" className="py-2 pr-4 capitalize">{humanizeLabel(r.severity)}</td>
+                          <td data-label="Status" className="py-2 pr-4 capitalize">{humanizeLabel(r.status)}</td>
                           <td data-label="Incident date" className="py-2">{r.incidentDate ? formatDate(r.incidentDate) : "—"}</td>
                         </tr>
                       ))}

@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/shared/states";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { allPages, allowedRolesFor, SELECTABLE_ROLES, RECOVERY_PATHS } from "@/lib/nav";
+import { humanizeLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 
@@ -340,7 +341,7 @@ function LocationsTab() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Type</label>
                 <select className="input w-full" value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value as WorkLocation["type"] }))}>
-                  {(["clinic", "office", "remote", "other"] as const).map((t) => <option key={t} value={t}>{t}</option>)}
+                  {(["clinic", "office", "remote", "other"] as const).map((t) => <option key={t} value={t}>{humanizeLabel(t)}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -399,7 +400,7 @@ function LocationsTab() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-medium">{loc.name}</p>
-                    <Badge variant="outline" className="capitalize">{loc.type}</Badge>
+                    <Badge variant="outline" className="capitalize">{humanizeLabel(loc.type)}</Badge>
                     {!loc.active && <Badge variant="secondary">Inactive</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground">{[loc.city, loc.state].filter(Boolean).join(", ") || "—"}</p>

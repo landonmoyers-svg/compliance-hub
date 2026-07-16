@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatName } from "@/lib/format";
 
 const PRIVILEGED = ["owner", "admin", "hr", "clinical_leadership"];
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     staffRole?: string; department?: string;
   };
   const email = body.email?.trim().toLowerCase();
-  const fullName = body.fullName?.trim();
+  const fullName = formatName(body.fullName);
   if (!email || !fullName) {
     return NextResponse.json({ error: "Email and full name are required." }, { status: 400 });
   }

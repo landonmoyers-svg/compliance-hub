@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { roleLabel } from "@/lib/auth/roles";
+import { formatName } from "@/lib/format";
 import { accountRoles } from "@/lib/data/schema";
 import type { ComplianceUserProfile } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -174,7 +175,7 @@ export default function UserManagementPage() {
     setSaving(true);
     try {
       const payload = {
-        fullName: form.fullName.trim(),
+        fullName: formatName(form.fullName),
         email: form.email.trim().toLowerCase(),
         accountRole: form.accountRole,
         staffRole: form.staffRole.trim() || undefined,

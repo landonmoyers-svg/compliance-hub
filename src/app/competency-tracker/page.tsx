@@ -15,6 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import { buildHolderIndex, holderIsActive } from "@/lib/compliance";
 import type { CompetencyRecord, Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -260,7 +261,7 @@ function CompetencyDialog({
             >
               {COMPETENCY_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {humanizeLabel(t)}
                 </option>
               ))}
             </select>
@@ -600,7 +601,7 @@ export default function CompetencyTrackerPage() {
                 <option value="all">All types</option>
                 {COMPETENCY_TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                    {humanizeLabel(t)}
                   </option>
                 ))}
               </select>
@@ -673,7 +674,7 @@ export default function CompetencyTrackerPage() {
                           <PersonLink userId={null} name={r.employeeName} />
                         </td>
                         <td data-label="Competency" className="py-3 pr-4">{r.competencyName}</td>
-                        <td data-label="Type" className="py-3 pr-4 capitalize">{r.competencyType}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(r.competencyType)}</td>
                         <td data-label="Evaluator" className="py-3 pr-4 text-muted-foreground">
                           {r.evaluatorName || "—"}
                         </td>

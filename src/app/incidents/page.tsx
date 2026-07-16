@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { Incident, CorrectiveAction } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -66,7 +67,7 @@ function ReportDialog({ onClose, onSubmit, saving }: {
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Severity</label>
               <select className="input w-full" value={severity} onChange={(e) => setSeverity(e.target.value as Incident["severity"])}>
-                {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                {(["low", "medium", "high", "critical"] as const).map((s) => <option key={s} value={s}>{humanizeLabel(s)}</option>)}
               </select>
             </div>
           </div>
@@ -139,7 +140,7 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
           <div>
             <h2 className="font-semibold">{incident.title}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant={SEVERITY_VARIANT[incident.severity]} className="capitalize">{incident.severity}</Badge>
+              <Badge variant={SEVERITY_VARIANT[incident.severity]} className="capitalize">{humanizeLabel(incident.severity)}</Badge>
               <span>{CATEGORY_LABEL[incident.category]}</span>
               <span>· Reported {formatDate(incident.createdDate)}</span>
               <span>· by {incident.anonymous ? "Anonymous" : incident.reportedByName || "—"}</span>
@@ -155,10 +156,10 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
             <span className="text-sm font-medium">Status</span>
             {isAdmin ? (
               <select className="input" value={incident.status} onChange={(e) => onStatus(e.target.value as Incident["status"])}>
-                {INCIDENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                {INCIDENT_STATUSES.map((s) => <option key={s} value={s}>{humanizeLabel(s)}</option>)}
               </select>
             ) : (
-              <Badge variant={STATUS_VARIANT[incident.status]} className="capitalize">{incident.status.replace("_", " ")}</Badge>
+              <Badge variant={STATUS_VARIANT[incident.status]} className="capitalize">{humanizeLabel(incident.status)}</Badge>
             )}
           </div>
 
@@ -183,7 +184,7 @@ function IncidentDetail({ incident, capas, isAdmin, owners, onClose, onStatus, o
                   <div key={c.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium">{c.title}</p>
-                      <Badge variant={CAPA_STATUS_VARIANT[c.status]} className="capitalize shrink-0">{c.status.replace("_", " ")}</Badge>
+                      <Badge variant={CAPA_STATUS_VARIANT[c.status]} className="capitalize shrink-0">{humanizeLabel(c.status)}</Badge>
                     </div>
                     {c.rootCause && <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium">Root cause:</span> {c.rootCause}</p>}
                     {c.actionPlan && <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium">Plan:</span> {c.actionPlan}</p>}
@@ -396,10 +397,10 @@ export default function IncidentsPage() {
                     <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
                       <td data-label="Incident" className="py-3 pr-4 font-medium">{i.title}{i.anonymous && <span className="ml-2 text-xs text-muted-foreground">(anonymous)</span>}</td>
                       <td data-label="Category" className="py-3 pr-4 text-muted-foreground">{CATEGORY_LABEL[i.category]}</td>
-                      <td data-label="Severity" className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{i.severity}</Badge></td>
+                      <td data-label="Severity" className="py-3 pr-4"><Badge variant={SEVERITY_VARIANT[i.severity]} className="capitalize">{humanizeLabel(i.severity)}</Badge></td>
                       <td data-label="Reported" className="py-3 pr-4 text-muted-foreground">{formatDate(i.createdDate)}</td>
                       <td data-label="Corrective actions" className="py-3 pr-4 text-muted-foreground">{capasFor(i.id).length}</td>
-                      <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize cursor-pointer">{i.status.replace("_", " ")}</Badge></td>
+                      <td data-label="Status" className="py-3"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize cursor-pointer">{humanizeLabel(i.status)}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

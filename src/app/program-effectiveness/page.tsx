@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { daysUntil } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 
 type Status = "strong" | "partial" | "gap";
 const STATUS_VARIANT: Record<Status, "success" | "warning" | "destructive"> = { strong: "success", partial: "warning", gap: "destructive" };
@@ -128,7 +129,7 @@ export default function ProgramEffectivenessPage() {
         <CardContent className="space-y-2">
           {elements.map((e) => (
             <div key={e.name} className="flex items-center gap-3 rounded-lg border border-border p-3">
-              <Badge variant={STATUS_VARIANT[e.status]} className="shrink-0 capitalize">{e.status}</Badge>
+              <Badge variant={STATUS_VARIANT[e.status]} className="shrink-0 capitalize">{humanizeLabel(e.status)}</Badge>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{e.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{e.metric}</p>

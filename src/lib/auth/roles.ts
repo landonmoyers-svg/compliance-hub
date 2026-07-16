@@ -1,4 +1,5 @@
 import type { AccountRole } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 
 /**
  * Single source of truth for authorization. The original app mixed `user.role`
@@ -79,8 +80,5 @@ export function hasPermission(
 
 export function roleLabel(role: AccountRole | null | undefined): string {
   if (!role) return "—";
-  return role
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  return humanizeLabel(role); // "hr" → "HR", "clinical_leadership" → "Clinical Leadership"
 }

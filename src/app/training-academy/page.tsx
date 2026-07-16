@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import type { TrainingModule, TrainingQuestion } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 interface ModuleForm {
@@ -392,7 +393,7 @@ export default function TrainingAcademyPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">{m.title}</p>
                         {!m.active && <Badge variant="secondary">Inactive</Badge>}
-                        <Badge variant="outline" className="capitalize">{m.trainingType}</Badge>
+                        <Badge variant="outline" className="capitalize">{humanizeLabel(m.trainingType)}</Badge>
                         {quizCount > 0 && <Badge variant="secondary">{quizCount} quiz Q{quizCount !== 1 ? "s" : ""}</Badge>}
                       </div>
                       {m.description && (

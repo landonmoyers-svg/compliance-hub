@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { RegulatorySource } from "@/lib/data/schema";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -111,7 +112,7 @@ export default function OfficialSourceLibraryPage() {
                 : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
             }`}
           >
-            {t}
+            {humanizeLabel(t)}
           </button>
         ))}
       </div>
@@ -139,7 +140,7 @@ export default function OfficialSourceLibraryPage() {
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-sm leading-snug">{s.title}</CardTitle>
                   <Badge variant={REVIEW_VARIANT[s.reviewStatus]} className="shrink-0 text-xs">
-                    {s.reviewStatus === "needs_review" ? "Needs review" : s.reviewStatus === "under_review" ? "Under review" : s.reviewStatus.charAt(0).toUpperCase() + s.reviewStatus.slice(1)}
+                    {humanizeLabel(s.reviewStatus)}
                   </Badge>
                 </div>
               </CardHeader>
@@ -150,7 +151,7 @@ export default function OfficialSourceLibraryPage() {
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   {s.issuingBody && <span>{s.issuingBody}</span>}
                   {s.jurisdiction && <span>· {s.jurisdiction}</span>}
-                  <span className="capitalize">· {s.sourceType}</span>
+                  <span className="capitalize">· {humanizeLabel(s.sourceType)}</span>
                 </div>
                 {s.lastCheckedAt && (
                   <p className="text-xs text-muted-foreground">Last checked: {formatDate(s.lastCheckedAt)}</p>

@@ -15,6 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { formatDate, dateInputToISO, daysUntil } from "@/lib/dates";
 import type { ExclusionScreening } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 const DUE_DAYS = 30; // OIG recommends monthly exclusion screening
@@ -227,9 +228,9 @@ export default function ExclusionScreeningPage() {
                   {subjectsSort.sorted.map(({ sub, last, daysAgo, due }) => (
                     <tr key={sub.key} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setLogging(sub)}>
                       <td data-label="Subject" className="py-3 pr-4 font-medium">{sub.name}</td>
-                      <td data-label="Type" className="py-3 pr-4 capitalize text-muted-foreground">{sub.type}</td>
+                      <td data-label="Type" className="py-3 pr-4 capitalize text-muted-foreground">{humanizeLabel(sub.type)}</td>
                       <td data-label="Last screened" className="py-3 pr-4 text-muted-foreground">{last?.screenedDate ? `${formatDate(last.screenedDate)}${daysAgo !== null ? ` · ${daysAgo}d ago` : ""}` : "Never"}</td>
-                      <td data-label="Result" className="py-3 pr-4">{last ? <Badge variant={RESULT_VARIANT[last.result]} className="capitalize">{last.result}</Badge> : "—"}</td>
+                      <td data-label="Result" className="py-3 pr-4">{last ? <Badge variant={RESULT_VARIANT[last.result]} className="capitalize">{humanizeLabel(last.result)}</Badge> : "—"}</td>
                       <td data-label="Status" className="py-3">{due ? <Badge variant="warning">Due</Badge> : <Badge variant="success">Current</Badge>}</td>
                     </tr>
                   ))}
@@ -261,7 +262,7 @@ export default function ExclusionScreeningPage() {
                       <td data-label="Subject" className="py-2.5 pr-4"><PersonLink userId={s.subjectUserId ?? null} name={s.subjectName} /></td>
                       <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">{formatDate(s.screenedDate)}</td>
                       <td data-label="Lists" className="py-2.5 pr-4 text-muted-foreground">{s.sources ?? "—"}</td>
-                      <td data-label="Result" className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{s.result}</Badge></td>
+                      <td data-label="Result" className="py-2.5 pr-4"><Badge variant={RESULT_VARIANT[s.result]} className="capitalize">{humanizeLabel(s.result)}</Badge></td>
                       <td data-label="By" className="py-2.5 text-muted-foreground">{s.screenedByName ?? "—"}</td>
                     </tr>
                   ))}

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, dateInputToISO } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { RiskManagementCase } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -103,7 +104,7 @@ function CaseDialog({
             <label className="text-sm font-medium">Case type</label>
             <select className="input w-full" value={form.caseType} onChange={set("caseType")}>
               {(["clinical", "administrative", "security", "billing", "other"] as const).map((t) => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                <option key={t} value={t}>{humanizeLabel(t)}</option>
               ))}
             </select>
           </div>
@@ -115,7 +116,7 @@ function CaseDialog({
             <label className="text-sm font-medium">Severity *</label>
             <select className="input w-full" value={form.severity} onChange={set("severity")}>
               {(["critical", "high", "medium", "low"] as const).map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                <option key={s} value={s}>{humanizeLabel(s)}</option>
               ))}
             </select>
           </div>
@@ -123,7 +124,7 @@ function CaseDialog({
             <label className="text-sm font-medium">Status</label>
             <select className="input w-full" value={form.status} onChange={set("status")}>
               {(["open", "investigating", "resolved", "closed"] as const).map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                <option key={s} value={s}>{humanizeLabel(s)}</option>
               ))}
             </select>
           </div>
@@ -318,7 +319,7 @@ export default function RiskManagementPage() {
                         )}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                        <span className="capitalize">{c.caseType}</span>
+                        <span className="capitalize">{humanizeLabel(c.caseType)}</span>
                         {c.reportedByName && <span>Reported by {c.reportedByName}</span>}
                         {c.incidentDate && <span>Incident: {formatDate(c.incidentDate)}</span>}
                       </div>

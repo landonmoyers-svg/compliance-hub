@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import type { InventoryItem, WorkLocation } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 const MAX_IMG_MB = 12;
@@ -574,7 +575,7 @@ function BatchDialog({
                     </select>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-3">
                       <input className="input w-16" value={it.quantity} inputMode="numeric" onChange={(e) => patch(it.id, { quantity: e.target.value })} title="Quantity" />
-                      <span className="capitalize">{it.itemType}</span>
+                      <span className="capitalize">{humanizeLabel(it.itemType)}</span>
                       {it.aiIdentified && <span className="inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI {it.aiConfidence}</span>}
                       {it.status === "error" && <span className="text-destructive">AI failed — enter manually</span>}
                     </div>
@@ -786,7 +787,7 @@ export default function InventoryPage() {
                           <div>
                             <div className="font-medium">{i.itemName}</div>
                             <div className="text-xs capitalize text-muted-foreground">
-                              {i.itemType}{i.aiIdentified && <span className="ml-1 inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI</span>}
+                              {humanizeLabel(i.itemType)}{i.aiIdentified && <span className="ml-1 inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI</span>}
                             </div>
                           </div>
                         </div>
@@ -801,8 +802,8 @@ export default function InventoryPage() {
                       </td>
                       <td data-label="Qty" className="py-3 pr-4">{i.quantity ?? 1}</td>
                       {isAdmin && <td data-label="Est. value" className="py-3 pr-4">{usd(i.estimatedValueCents)}</td>}
-                      <td data-label="Condition" className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{i.condition}</Badge></td>
-                      <td data-label="Status" className="py-3 pr-4"><button type="button" onClick={() => setEditing(i)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{i.status}</Badge></button></td>
+                      <td data-label="Condition" className="py-3 pr-4"><Badge variant={CONDITION_VARIANT[i.condition]} className="capitalize">{humanizeLabel(i.condition)}</Badge></td>
+                      <td data-label="Status" className="py-3 pr-4"><button type="button" onClick={() => setEditing(i)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40"><Badge variant={STATUS_VARIANT[i.status]} className="capitalize">{humanizeLabel(i.status)}</Badge></button></td>
                       <td data-label="" className="py-3"><Button size="sm" variant="ghost" onClick={() => setEditing(i)}>Edit</Button></td>
                     </tr>
                   ))}

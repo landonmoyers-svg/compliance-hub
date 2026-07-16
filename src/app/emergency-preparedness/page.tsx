@@ -13,6 +13,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, isExpired, daysUntil, dateInputToISO } from "@/lib/dates";
 import type { EmergencyDrill } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 const STATUS_VARIANT = {
@@ -261,7 +262,7 @@ export default function EmergencyPreparednessPage() {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {s}
+                {humanizeLabel(s)}
               </button>
             ))}
           </div>
@@ -298,7 +299,7 @@ export default function EmergencyPreparednessPage() {
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Title" className="py-3 pr-4 font-medium">{d.drillTitle}</td>
-                        <td data-label="Type" className="py-3 pr-4 capitalize">{d.drillType}</td>
+                        <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(d.drillType)}</td>
                         <td data-label="Date" className="py-3 pr-4">
                           {d.scheduledDate ? (
                             <div>
@@ -315,7 +316,7 @@ export default function EmergencyPreparednessPage() {
                         <td data-label="Status" className="py-3 pr-4">
                           <button type="button" onClick={() => setEditing(d)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                             <Badge variant={overdue ? "destructive" : STATUS_VARIANT[d.status]}>
-                              {overdue ? "Overdue" : d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                              {overdue ? "Overdue" : humanizeLabel(d.status)}
                             </Badge>
                           </button>
                         </td>

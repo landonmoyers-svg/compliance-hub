@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { documentNeedsReview } from "@/lib/compliance";
 import { formatDate, dateInputToISO } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import type { ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -150,7 +151,7 @@ function DocDialog({
             <label className="text-sm font-medium">Status</label>
             <select className="input w-full" value={form.status} onChange={set("status")}>
               {(["active", "draft", "under_review", "archived"] as const).map((s) => (
-                <option key={s} value={s}>{s.replace("_", " ")}</option>
+                <option key={s} value={s}>{humanizeLabel(s)}</option>
               ))}
             </select>
           </div>
@@ -362,7 +363,7 @@ export default function SOPLibraryPage() {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {s === "all" ? "All" : s.replace("_", " ")}
+                {s === "all" ? "All" : humanizeLabel(s)}
               </button>
             ))}
           </div>
@@ -405,7 +406,7 @@ export default function SOPLibraryPage() {
                           )}
                         </td>
                         <td data-label="Type / Area" className="py-3 pr-4">
-                          <div className="capitalize">{d.documentType}</div>
+                          <div className="capitalize">{humanizeLabel(d.documentType)}</div>
                           {d.complianceArea && (
                             <div className="text-xs text-muted-foreground">{d.complianceArea}</div>
                           )}
@@ -422,7 +423,7 @@ export default function SOPLibraryPage() {
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
                           <Badge variant={STATUS_VARIANT[d.status]}>
-                            {d.status.replace("_", " ")}
+                            {humanizeLabel(d.status)}
                           </Badge>
                         </td>
                         <td data-label="" className="py-3">

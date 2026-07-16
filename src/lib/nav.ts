@@ -8,7 +8,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
-  Clock,
   DatabaseBackup,
   DollarSign,
   FileText,
@@ -24,7 +23,6 @@ import {
   Shield,
   Sparkles,
   Star,
-  Umbrella,
   UserCircle,
   Users,
   type LucideIcon,
@@ -67,8 +65,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "My Portal", href: "/staff-portal", icon: UserCircle },
       { label: "Policy Q&A", href: "/policy-assistant", icon: MessageSquare },
-      { label: "Time Clock", href: "/hr/timeclock", icon: Clock },
-      { label: "Time Off", href: "/hr/time-off", icon: Umbrella },
     ],
   },
   // 3. Core compliance every employee touches.

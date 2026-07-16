@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { credentialStatus } from "@/lib/compliance";
 import { formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 
 /**
  * Aggregated 360° view of every record linked to one person — the same rows
@@ -86,7 +87,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
                 sub={c.issuingBody ?? c.credentialType}
                 right={
                   <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
-                    {st === "no_expiry" ? "No expiry" : st.replace("_", " ")}
+                    {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
                     {c.expirationDate ? ` · ${formatDate(c.expirationDate)}` : ""}
                   </Badge>
                 }
@@ -117,7 +118,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
           {empDocs.map((d) => (
             <Row key={d.id}
               left={<span className="font-medium">{d.title}</span>}
-              sub={d.documentType.replace(/_/g, " ")}
+              sub={humanizeLabel(d.documentType)}
               right={d.sensitive ? <Badge variant="warning">Restricted</Badge> : null}
               fileUrl={d.fileUrl ?? undefined}
             />
@@ -134,7 +135,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
               sub={a.dueDate ? `Due ${formatDate(a.dueDate)}` : undefined}
               right={
                 <Badge variant={a.status === "completed" ? "success" : "secondary"}>
-                  {a.status === "completed" ? `Completed${a.score != null ? ` · ${a.score}%` : ""}` : a.status.replace("_", " ")}
+                  {a.status === "completed" ? `Completed${a.score != null ? ` · ${a.score}%` : ""}` : humanizeLabel(a.status)}
                 </Badge>
               }
             />
@@ -148,8 +149,8 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
           {competencies.map((c) => (
             <Row key={c.id}
               left={<span className="font-medium">{c.competencyName}</span>}
-              sub={c.competencyType}
-              right={<Badge variant={c.status === "passed" ? "success" : c.status === "failed" || c.status === "expired" ? "destructive" : "secondary"}>{c.status}</Badge>}
+              sub={humanizeLabel(c.competencyType)}
+              right={<Badge variant={c.status === "passed" ? "success" : c.status === "failed" || c.status === "expired" ? "destructive" : "secondary"}>{humanizeLabel(c.status)}</Badge>}
             />
           ))}
         </Section>
@@ -162,7 +163,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
             <Row key={a.id}
               left={<span className="font-medium">{a.documentTitle}</span>}
               sub={a.acknowledgedAt ? `Acknowledged ${formatDate(a.acknowledgedAt)}` : undefined}
-              right={<Badge variant={a.status === "acknowledged" ? "success" : "warning"}>{a.status}</Badge>}
+              right={<Badge variant={a.status === "acknowledged" ? "success" : "warning"}>{humanizeLabel(a.status)}</Badge>}
             />
           ))}
         </Section>

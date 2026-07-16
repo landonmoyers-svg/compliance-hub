@@ -16,6 +16,7 @@ import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { provisionLogin } from "@/lib/admin";
+import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
 import { accountRoles } from "@/lib/data/schema";
 import type { Employee } from "@/lib/data/schema";
@@ -142,7 +143,7 @@ function EmployeeDialog({
             <select className="input w-full" value={form.department} onChange={set("department")}>
               <option value="">— None —</option>
               {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
+                <option key={d} value={d}>{humanizeLabel(d)}</option>
               ))}
             </select>
           </div>
@@ -257,8 +258,8 @@ export default function EmployeesPage() {
     setSaving(true);
     try {
       const payload = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
+        firstName: formatName(form.firstName),
+        lastName: formatName(form.lastName),
         email: form.email.trim().toLowerCase(),
         title: form.title.trim() || undefined,
         department: (form.department as Employee["department"]) || undefined,
@@ -383,7 +384,7 @@ export default function EmployeesPage() {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {s === "all" ? "All" : s === "on_leave" ? "On leave" : s.charAt(0).toUpperCase() + s.slice(1)}
+                {humanizeLabel(s)}
               </button>
             ))}
           </div>
@@ -428,11 +429,11 @@ export default function EmployeesPage() {
                       </td>
                       <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email || "—"}</td>
                       <td data-label="Title" className="py-3 pr-4">{e.title ?? "—"}</td>
-                      <td data-label="Department" className="py-3 pr-4 capitalize">{e.department ?? "—"}</td>
+                      <td data-label="Department" className="py-3 pr-4 capitalize">{e.department ? humanizeLabel(e.department) : "—"}</td>
                       <td data-label="Hire date" className="py-3 pr-4">{e.hireDate ? formatDate(e.hireDate) : "—"}</td>
                       <td data-label="Status" className="py-3 pr-4">
                         <Badge variant={STATUS_VARIANT[e.employmentStatus]}>
-                          {e.employmentStatus === "on_leave" ? "On leave" : e.employmentStatus.charAt(0).toUpperCase() + e.employmentStatus.slice(1)}
+                          {humanizeLabel(e.employmentStatus)}
                         </Badge>
                       </td>
                       <td data-label="" className="py-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { UserCircle, GraduationCap, FileText, BadgeCheck, Umbrella, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
+import { UserCircle, GraduationCap, FileText, BadgeCheck, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
@@ -14,36 +14,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil } from "@/lib/dates";
+import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
 import { FileLink } from "@/components/shared/file-link";
 import { AddCredentialButton, AddInsuranceButton } from "@/components/portal/self-service-records";
-
-const TIMEOFF_STATUS_VARIANT = {
-  pending: "warning",
-  approved: "success",
-  denied: "destructive",
-  cancelled: "secondary",
-} as const;
 
 export default function StaffPortalPage() {
   const { profile, user } = useAuth();
   const myUserId = profile?.userId ?? user?.id ?? "";
   const myName = profile?.fullName ?? user?.fullName ?? "";
-  const year = new Date().getFullYear();
 
   const trainingQ = useCollection("trainingAssignments");
   const credsQ = useCollection("credentials");
   const docsQ = useCollection("documents");
-  const timeOffQ = useCollection("timeOffRequests");
-  const balQ = useCollection("ptoBalances");
   const acksQ = useCollection("policyAcks");
   const insuranceQ = useCollection("insurancePolicies");
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const credentials = useMemo(() => credsQ.data ?? [], [credsQ.data]);
   const documents = useMemo(() => docsQ.data ?? [], [docsQ.data]);
-  const timeOff = useMemo(() => timeOffQ.data ?? [], [timeOffQ.data]);
-  const balances = useMemo(() => balQ.data ?? [], [balQ.data]);
   const acks = useMemo(() => acksQ.data ?? [], [acksQ.data]);
 
   const loading = trainingQ.isLoading || credsQ.isLoading || docsQ.isLoading;
@@ -60,14 +49,6 @@ export default function StaffPortalPage() {
   const staffDocs = useMemo(
     () => documents.filter((d) => d.status === "active" && d.accessLevel === "all_staff"),
     [documents],
-  );
-  const myTimeOff = useMemo(
-    () => timeOff.filter((r) => r.userId === myUserId).slice(0, 5),
-    [timeOff, myUserId],
-  );
-  const myBalance = useMemo(
-    () => balances.find((b) => b.userId === myUserId && b.year === year),
-    [balances, myUserId, year],
   );
   const insurance = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
   const myInsurance = useMemo(
@@ -122,7 +103,7 @@ export default function StaffPortalPage() {
     <div className="space-y-6">
       <PageHeader
         title="My Portal"
-        description="Your personal compliance dashboard — action items, training, credentials, time off, and acknowledgments."
+        description="Your personal compliance dashboard — action items, training, credentials, and acknowledgments."
       />
 
       {profile && (
@@ -133,12 +114,12 @@ export default function StaffPortalPage() {
                 {profile.fullName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-lg font-semibold">{profile.fullName}</p>
+                <p className="text-lg font-semibold">{formatName(profile.fullName)}</p>
                 <p className="text-sm text-muted-foreground">{profile.email}</p>
                 <div className="mt-1 flex gap-2">
                   <Badge variant="secondary">{roleLabel(profile.accountRole)}</Badge>
                   {profile.staffRole && <Badge variant="outline">{profile.staffRole}</Badge>}
-                  {profile.department && <Badge variant="outline" className="capitalize">{profile.department}</Badge>}
+                  {profile.department && <Badge variant="outline" className="capitalize">{humanizeLabel(profile.department)}</Badge>}
                 </div>
               </div>
             </div>
@@ -167,11 +148,10 @@ export default function StaffPortalPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Training completed" value={myTrainingStats.completed} icon={GraduationCap} tone="success" loading={loading} />
         <StatCard label="Training pending" value={myTrainingStats.pending} icon={GraduationCap} tone="warning" loading={loading} />
         <StatCard label="Training overdue" value={myTrainingStats.overdue} icon={GraduationCap} tone={myTrainingStats.overdue ? "destructive" : "default"} loading={loading} />
-        <StatCard label="PTO available (hrs)" value={myBalance ? myBalance.ptoAccruedHours + myBalance.carryOverHours - myBalance.ptoUsedHours : 0} icon={Umbrella} tone="success" loading={balQ.isLoading} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -240,7 +220,7 @@ export default function StaffPortalPage() {
                       <div className="flex items-center gap-2">
                         {c.documentUrl && <FileLink path={c.documentUrl} label="View" />}
                         <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
-                          {st === "no_expiry" ? "No expiry" : st.replace("_", " ")}
+                          {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
                         </Badge>
                       </div>
                     </li>
@@ -280,51 +260,6 @@ export default function StaffPortalPage() {
               )}
             </CardContent>
           </Card>
-
-        {/* My time off */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Umbrella className="size-4 text-muted-foreground" /> My time off</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {myBalance && (
-              <div className="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-md bg-secondary/30 py-2">
-                  <p className="font-semibold tabular-nums">{myBalance.ptoAccruedHours + myBalance.carryOverHours - myBalance.ptoUsedHours}h</p>
-                  <p className="text-muted-foreground">PTO left</p>
-                </div>
-                <div className="rounded-md bg-secondary/30 py-2">
-                  <p className="font-semibold tabular-nums">{myBalance.sickAccruedHours - myBalance.sickUsedHours}h</p>
-                  <p className="text-muted-foreground">Sick left</p>
-                </div>
-                <div className="rounded-md bg-secondary/30 py-2">
-                  <p className="font-semibold tabular-nums">{myBalance.holidayAllottedHours - myBalance.holidayUsedHours}h</p>
-                  <p className="text-muted-foreground">Holiday</p>
-                </div>
-              </div>
-            )}
-            {timeOffQ.isLoading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : myTimeOff.length === 0 ? (
-              <div className="py-2 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">No time-off requests yet.</p>
-                <Link href="/hr/time-off"><Button size="sm" variant="outline">Request time off</Button></Link>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {myTimeOff.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium capitalize">{r.requestType.replace("_", " ")}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(r.startDate)} – {formatDate(r.endDate)} · {r.hours}h</p>
-                    </div>
-                    <Badge variant={TIMEOFF_STATUS_VARIANT[r.status]} className="capitalize">{r.status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
 
         {/* My acknowledgments */}
         <Card>
@@ -373,7 +308,7 @@ export default function StaffPortalPage() {
                 <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div>
                     <p className="text-sm font-medium">{d.title}</p>
-                    <p className="text-xs capitalize text-muted-foreground">{d.documentType} · v{d.version}</p>
+                    <p className="text-xs capitalize text-muted-foreground">{humanizeLabel(d.documentType)} · v{d.version}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {d.requiresAcknowledgment && <Badge variant="warning" className="text-xs">Ack. required</Badge>}

@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { parseDate, formatDate } from "@/lib/dates";
+import { humanizeLabel } from "@/lib/format";
 import {
   startOfMonth,
   endOfMonth,
@@ -252,7 +253,7 @@ export default function ComplianceCalendarPage() {
               {(Object.entries(TYPE_COLOR) as [CalEvent["type"], string][]).map(([type, cls]) => (
                 <div key={type} className="flex items-center gap-2 text-sm">
                   <span className={`size-3 rounded-sm ${cls}`} />
-                  <span className="capitalize">{type}</span>
+                  <span className="capitalize">{humanizeLabel(type)}</span>
                 </div>
               ))}
             </CardContent>
@@ -273,7 +274,7 @@ export default function ComplianceCalendarPage() {
                 <ul className="space-y-2">
                   {selectedEvents.map((e) => (
                     <li key={e.id} className="flex items-start gap-2 text-sm">
-                      <Badge variant="secondary" className="shrink-0 capitalize text-xs">{e.type}</Badge>
+                      <Badge variant="secondary" className="shrink-0 capitalize text-xs">{humanizeLabel(e.type)}</Badge>
                       <span className="break-words">{e.label}</span>
                     </li>
                   ))}
@@ -307,7 +308,7 @@ export default function ComplianceCalendarPage() {
                     <li key={e.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                       <div className="min-w-0">
                         <p className="truncate font-medium">{e.label}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{e.type}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{humanizeLabel(e.type)}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {e.urgent && <Badge variant="destructive">Urgent</Badge>}

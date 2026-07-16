@@ -27,6 +27,7 @@ import type {
   Employee,
 } from "@/lib/data/schema";
 import { formCategories } from "@/lib/data/schema";
+import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
 /* ─── constants ─────────────────────────────────────────────── */
@@ -488,7 +489,7 @@ function FormPreview({ template, values, meta, onClose }: {
           {/* Template was deleted — show whatever was captured. */}
           {orphanKeys.map((k) => (
             <div key={k} className="space-y-1.5">
-              <label className="text-sm font-medium capitalize">{k.replace(/_/g, " ")}</label>
+              <label className="text-sm font-medium capitalize">{humanizeLabel(k)}</label>
               <div className="whitespace-pre-wrap rounded-md border border-border bg-card px-3 py-2 text-sm">{(values as Record<string, string>)[k] || "—"}</div>
             </div>
           ))}
@@ -852,7 +853,7 @@ export default function FillableDocumentsPage() {
                           {!t.requiresSignature && !t.sensitive && !t.isDraft && <span className="text-muted-foreground">—</span>}
                         </div>
                       </td>
-                      <td data-label="Status" className="py-3 pr-4"><Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{t.status}</Badge></td>
+                      <td data-label="Status" className="py-3 pr-4"><Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{humanizeLabel(t.status)}</Badge></td>
                       <td data-label="" className="py-3">
                         <div className="flex gap-2 md:justify-end">
                           <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
@@ -906,7 +907,7 @@ export default function FillableDocumentsPage() {
                         </td>
                         <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} /></td>
                         <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
-                        <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{a.status.replace("_", " ")}</Badge></td>
+                        <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{humanizeLabel(a.status)}</Badge></td>
                         <td data-label="" className="py-3 text-right">
                           {a.status !== "completed" ? (
                             <Button size="sm" onClick={() => setFilling(a)} disabled={!templateById.has(a.templateId)}>
