@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
+import { AttestModuleDialog } from "@/components/training/attest-module-dialog";
 import type { TrainingAssignment, TrainingModule } from "@/lib/data/schema";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -46,6 +47,8 @@ export default function StaffPortalPage() {
   const createAttempt = useCreate("trainingAttempts");
 
   const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
+  const [attesting, setAttesting] = useState<{ module: TrainingModule; assignment: TrainingAssignment } | null>(null);
+  const [attestBusy, setAttestBusy] = useState(false);
   const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
@@ -92,7 +95,9 @@ export default function StaffPortalPage() {
   }
 
   // Start (or continue/retake) a module: ensure the user has an assignment, then
-  // open the quiz — or log an honor-system completion when there's no quiz.
+  // route to the completion gate — a QUIZ (must pass) or, for modules without a
+  // quiz, an ATTESTATION that they've read and understood the contents. There is
+  // no plain "mark complete" self-serve path.
   async function startModule(m: TrainingModule, existing: TrainingAssignment | null, questions: number) {
     setBusyModuleId(m.id);
     try {
@@ -105,18 +110,35 @@ export default function StaffPortalPage() {
         assignment = created as TrainingAssignment;
         void trainingQ.refetch();
       }
-      if (questions > 0) {
-        setTakingQuiz(assignment);
-      } else {
-        if (!window.confirm(`Log completion of "${m.title}"? This records your training completion.`)) return;
-        await completeAssignment(assignment);
-        toast.success("Training completion logged");
-        void trainingQ.refetch();
-      }
+      if (questions > 0) setTakingQuiz(assignment);
+      else setAttesting({ module: m, assignment });
     } catch {
       toast.error("Couldn't start this training. Please try again.");
     } finally {
       setBusyModuleId(null);
+    }
+  }
+
+  // Complete a no-quiz module by attestation: record it as a passed attempt
+  // (with the attestation as the answer) and complete the assignment.
+  async function handleAttest() {
+    if (!attesting) return;
+    const { module: m, assignment } = attesting;
+    setAttestBusy(true);
+    try {
+      await createAttempt.mutateAsync({
+        assignmentId: assignment.id, trainingModuleId: m.id, moduleTitle: m.title,
+        userId: myUserId, userName: myName, score: 100, passed: true, answers: [],
+        completedAt: new Date().toISOString(),
+      });
+      await completeAssignment(assignment);
+      toast.success("Attestation recorded — training complete");
+      setAttesting(null);
+      void trainingQ.refetch();
+    } catch {
+      toast.error("Couldn't record your attestation. Please try again.");
+    } finally {
+      setAttestBusy(false);
     }
   }
   const myCreds = useMemo(
@@ -185,6 +207,14 @@ export default function StaffPortalPage() {
           questions={allQuestions.filter((q) => q.trainingModuleId === takingQuiz.trainingModuleId)}
           onClose={() => setTakingQuiz(null)}
           onPassed={handleQuizPassed}
+        />
+      )}
+      {attesting && (
+        <AttestModuleDialog
+          module={attesting.module}
+          busy={attestBusy}
+          onAttest={handleAttest}
+          onClose={() => setAttesting(null)}
         />
       )}
 
@@ -263,7 +293,7 @@ export default function StaffPortalPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium">{module.title}</p>
                         <p className="text-xs text-muted-foreground">
-                          {questions > 0 ? `${questions} question${questions !== 1 ? "s" : ""}` : "No quiz"}
+                          {questions > 0 ? `${questions} question${questions !== 1 ? "s" : ""} · pass to complete` : "Read & attest to complete"}
                           {active?.dueDate ? ` · due ${formatDate(active.dueDate)}` : ""}
                           {overdue ? " · overdue" : ""}
                         </p>
@@ -272,14 +302,14 @@ export default function StaffPortalPage() {
                         {done ? (
                           <>
                             <Badge variant="success">Completed</Badge>
-                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>Retake</Button>
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>{questions > 0 ? "Retake" : "Re-attest"}</Button>
                           </>
                         ) : (
                           <>
                             {overdue && <Badge variant="destructive">Overdue</Badge>}
                             <Button size="sm" variant={active ? "outline" : "default"} disabled={busy} onClick={() => startModule(module, active, questions)}>
-                              {questions > 0 && <ListChecks className="size-4" />}
-                              {busy ? "…" : active ? (questions > 0 ? "Take quiz" : "Continue") : "Start"}
+                              {questions > 0 ? <ListChecks className="size-4" /> : <CheckCircle2 className="size-4" />}
+                              {busy ? "…" : questions > 0 ? (active ? "Take quiz" : "Start") : (active ? "Attest" : "Start")}
                             </Button>
                           </>
                         )}
