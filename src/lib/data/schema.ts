@@ -216,6 +216,22 @@ export const OSHARecord = z.object({
   recordabilityStatus: z
     .enum(["not_reviewed", "recordable", "non_recordable"])
     .default("not_reviewed"),
+  // OSHA 300/301 injury/illness detail (only relevant for injury/illness records).
+  injuredEmployeeName: z.string().optional(),
+  injuredEmployeeUserId: z.string().nullable().optional(),
+  bodyPart: z.string().optional(),
+  natureOfInjury: z.string().optional(),
+  // OSHA 300 case-outcome classification (columns G–J).
+  caseOutcome: z
+    .enum(["death", "days_away", "restricted_transfer", "other_recordable", "first_aid_only"])
+    .nullable()
+    .optional(),
+  daysAway: z.number().nullable().optional(),
+  daysRestricted: z.number().nullable().optional(),
+  treatmentBeyondFirstAid: z.boolean().optional(),
+  physicianName: z.string().optional(),
+  // Uploaded OSHA 301 / medical / incident document.
+  documentUrl: z.string().nullable().optional(),
 });
 export type OSHARecord = z.infer<typeof OSHARecord>;
 

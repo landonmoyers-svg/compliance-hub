@@ -331,6 +331,16 @@ function oshaFrom(r: Record<string, unknown>): OSHARecord {
     description: r.description as string | undefined,
     status: r.status as OSHARecord["status"],
     recordabilityStatus: r.recordability_status as OSHARecord["recordabilityStatus"],
+    injuredEmployeeName: r.injured_employee_name as string | undefined,
+    injuredEmployeeUserId: (r.injured_employee_user_id as string | null) ?? undefined,
+    bodyPart: r.body_part as string | undefined,
+    natureOfInjury: r.nature_of_injury as string | undefined,
+    caseOutcome: (r.case_outcome as OSHARecord["caseOutcome"]) ?? undefined,
+    daysAway: (r.days_away as number | null) ?? undefined,
+    daysRestricted: (r.days_restricted as number | null) ?? undefined,
+    treatmentBeyondFirstAid: (r.treatment_beyond_first_aid as boolean) ?? false,
+    physicianName: r.physician_name as string | undefined,
+    documentUrl: (r.document_url as string | null) ?? undefined,
   };
 }
 function oshaTo(d: Partial<OSHARecord>) {
@@ -341,6 +351,16 @@ function oshaTo(d: Partial<OSHARecord>) {
     ...(d.description !== undefined && { description: d.description }),
     ...(d.status !== undefined && { status: d.status }),
     ...(d.recordabilityStatus !== undefined && { recordability_status: d.recordabilityStatus }),
+    ...(d.injuredEmployeeName !== undefined && { injured_employee_name: d.injuredEmployeeName }),
+    ...(d.injuredEmployeeUserId !== undefined && { injured_employee_user_id: d.injuredEmployeeUserId }),
+    ...(d.bodyPart !== undefined && { body_part: d.bodyPart }),
+    ...(d.natureOfInjury !== undefined && { nature_of_injury: d.natureOfInjury }),
+    ...(d.caseOutcome !== undefined && { case_outcome: d.caseOutcome }),
+    ...(d.daysAway !== undefined && { days_away: d.daysAway }),
+    ...(d.daysRestricted !== undefined && { days_restricted: d.daysRestricted }),
+    ...(d.treatmentBeyondFirstAid !== undefined && { treatment_beyond_first_aid: d.treatmentBeyondFirstAid }),
+    ...(d.physicianName !== undefined && { physician_name: d.physicianName }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
   };
 }
 

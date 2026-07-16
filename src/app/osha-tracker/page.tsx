@@ -11,9 +11,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { OSHARecord } from "@/lib/data/schema";
 import { toast } from "sonner";
+
+const CASE_OUTCOME_LABEL: Record<NonNullable<OSHARecord["caseOutcome"]>, string> = {
+  death: "Death",
+  days_away: "Days away from work",
+  restricted_transfer: "Restricted duty / job transfer",
+  other_recordable: "Other recordable case",
+  first_aid_only: "First aid only (not recordable)",
+};
 
 const STATUS_VARIANT = {
   open: "warning",
@@ -45,6 +55,14 @@ interface RecordForm {
   description: string;
   status: OSHARecord["status"];
   recordabilityStatus: OSHARecord["recordabilityStatus"];
+  injuredEmployeeName: string;
+  bodyPart: string;
+  natureOfInjury: string;
+  caseOutcome: "" | NonNullable<OSHARecord["caseOutcome"]>;
+  daysAway: string;
+  daysRestricted: string;
+  treatmentBeyondFirstAid: boolean;
+  physicianName: string;
 }
 
 const EMPTY: RecordForm = {
@@ -54,6 +72,14 @@ const EMPTY: RecordForm = {
   description: "",
   status: "open",
   recordabilityStatus: "not_reviewed",
+  injuredEmployeeName: "",
+  bodyPart: "",
+  natureOfInjury: "",
+  caseOutcome: "",
+  daysAway: "",
+  daysRestricted: "",
+  treatmentBeyondFirstAid: false,
+  physicianName: "",
 };
 
 function RecordDialog({
@@ -64,7 +90,7 @@ function RecordDialog({
 }: {
   initial?: OSHARecord;
   onClose: () => void;
-  onSave: (data: RecordForm) => void;
+  onSave: (data: RecordForm, file: File | null) => void;
   saving: boolean;
 }) {
   const [form, setForm] = useState<RecordForm>(
@@ -76,9 +102,19 @@ function RecordDialog({
           description: initial.description ?? "",
           status: initial.status,
           recordabilityStatus: initial.recordabilityStatus,
+          injuredEmployeeName: initial.injuredEmployeeName ?? "",
+          bodyPart: initial.bodyPart ?? "",
+          natureOfInjury: initial.natureOfInjury ?? "",
+          caseOutcome: initial.caseOutcome ?? "",
+          daysAway: initial.daysAway != null ? String(initial.daysAway) : "",
+          daysRestricted: initial.daysRestricted != null ? String(initial.daysRestricted) : "",
+          treatmentBeyondFirstAid: initial.treatmentBeyondFirstAid ?? false,
+          physicianName: initial.physicianName ?? "",
         }
       : EMPTY,
   );
+  const [file, setFile] = useState<File | null>(null);
+  const isInjury = form.recordType === "injury" || form.recordType === "illness";
 
   const set =
     (k: keyof RecordForm) =>
@@ -128,6 +164,58 @@ function RecordDialog({
               <option value="non_recordable">Non-recordable</option>
             </select>
           </div>
+          {isInjury && (
+            <>
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground sm:col-span-2">
+                <span className="font-medium text-foreground">OSHA 300/301 recordability.</span> An injury/illness is generally recordable if it involves death, days away from work, restricted duty or job transfer, loss of consciousness, or medical treatment beyond first aid (29 CFR 1904.7). First-aid-only cases are not recordable. Record the details below and keep the OSHA 301 / medical documentation.
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Injured employee</label>
+                <input className="input w-full" value={form.injuredEmployeeName} onChange={set("injuredEmployeeName")} placeholder="Name" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Case outcome (OSHA 300)</label>
+                <select className="input w-full" value={form.caseOutcome} onChange={set("caseOutcome")}>
+                  <option value="">Not classified</option>
+                  {(Object.entries(CASE_OUTCOME_LABEL) as [NonNullable<OSHARecord["caseOutcome"]>, string][]).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Body part affected</label>
+                <input className="input w-full" value={form.bodyPart} onChange={set("bodyPart")} placeholder="e.g. Right hand" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Nature of injury/illness</label>
+                <input className="input w-full" value={form.natureOfInjury} onChange={set("natureOfInjury")} placeholder="e.g. Needlestick, laceration, strain" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Days away from work</label>
+                <input type="number" min={0} className="input w-full" value={form.daysAway} onChange={set("daysAway")} placeholder="0" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Days restricted / transferred</label>
+                <input type="number" min={0} className="input w-full" value={form.daysRestricted} onChange={set("daysRestricted")} placeholder="0" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Treating physician / facility</label>
+                <input className="input w-full" value={form.physicianName} onChange={set("physicianName")} placeholder="Name" />
+              </div>
+              <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
+                <input type="checkbox" className="size-4" checked={form.treatmentBeyondFirstAid} onChange={(e) => setForm((p) => ({ ...p, treatmentBeyondFirstAid: e.target.checked }))} />
+                Treatment beyond first aid
+              </label>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">OSHA 301 / medical document {initial?.documentUrl ? <span className="text-muted-foreground">(uploaded)</span> : null}</label>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+                  <Plus className="size-4" />
+                  {file ? file.name : "Attach the OSHA 301 / incident report or medical record"}
+                  <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            </>
+          )}
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Description</label>
             <textarea className="input w-full resize-none" rows={3} value={form.description} onChange={set("description")} placeholder="Details about the incident or inspection" />
@@ -135,7 +223,7 @@ function RecordDialog({
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.recordTitle.trim() || saving}>
+          <Button onClick={() => onSave(form, file)} disabled={!form.recordTitle.trim() || saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -184,9 +272,16 @@ export default function OSHATrackerPage() {
     total: records.length,
   }), [records]);
 
-  async function handleSave(form: RecordForm) {
+  async function handleSave(form: RecordForm, file: File | null) {
     setSaving(true);
     try {
+      const isInjury = form.recordType === "injury" || form.recordType === "illness";
+      let documentUrl: string | null | undefined = undefined;
+      if (file) {
+        try { documentUrl = await uploadFile(file, "osha-records"); }
+        catch { toast.error("Couldn't upload the document — saving without it."); }
+      }
+      const num = (s: string) => (s.trim() === "" ? null : Number(s));
       const payload = {
         recordTitle: form.recordTitle.trim(),
         recordType: form.recordType,
@@ -194,6 +289,16 @@ export default function OSHATrackerPage() {
         description: form.description.trim() || undefined,
         status: form.status,
         recordabilityStatus: form.recordabilityStatus,
+        // OSHA 300/301 detail — only meaningful for injury/illness records.
+        injuredEmployeeName: isInjury ? (form.injuredEmployeeName.trim() || undefined) : undefined,
+        bodyPart: isInjury ? (form.bodyPart.trim() || undefined) : undefined,
+        natureOfInjury: isInjury ? (form.natureOfInjury.trim() || undefined) : undefined,
+        caseOutcome: isInjury ? (form.caseOutcome || null) : null,
+        daysAway: isInjury ? num(form.daysAway) : null,
+        daysRestricted: isInjury ? num(form.daysRestricted) : null,
+        treatmentBeyondFirstAid: isInjury ? form.treatmentBeyondFirstAid : false,
+        physicianName: isInjury ? (form.physicianName.trim() || undefined) : undefined,
+        ...(documentUrl !== undefined && { documentUrl }),
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -309,7 +414,10 @@ export default function OSHATrackerPage() {
                 <tbody>
                   {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Title" className="py-3 pr-4 font-medium">{r.recordTitle}</td>
+                      <td data-label="Title" className="py-3 pr-4 font-medium">
+                        {r.recordTitle}
+                        {r.injuredEmployeeName && <span className="block text-xs font-normal text-muted-foreground">{r.injuredEmployeeName}{r.caseOutcome ? ` · ${CASE_OUTCOME_LABEL[r.caseOutcome]}` : ""}</span>}
+                      </td>
                       <td data-label="Type" className="py-3 pr-4">{RECORD_TYPE_LABEL[r.recordType]}</td>
                       <td data-label="Event date" className="py-3 pr-4">{r.eventDate ? formatDate(r.eventDate) : "—"}</td>
                       <td data-label="Status" className="py-3 pr-4">
@@ -327,7 +435,10 @@ export default function OSHATrackerPage() {
                         </button>
                       </td>
                       <td data-label="" className="py-3">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>Edit</Button>
+                        <div className="flex items-center gap-2">
+                          {r.documentUrl && <FileLink path={r.documentUrl} label="301" className="text-xs text-primary hover:underline" />}
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>Edit</Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
