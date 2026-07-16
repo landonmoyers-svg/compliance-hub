@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Users, Plus, Search, X, FolderOpen } from "lucide-react";
+import { Users, Plus, Search, X, FolderOpen, Mail } from "lucide-react";
 import { useCollection, useUpdate } from "@/lib/data/hooks";
+import { createClient } from "@/lib/supabase/client";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -132,8 +133,28 @@ export default function UserManagementPage() {
   const [editing, setEditing] = useState<ComplianceUserProfile | null | "new">(null);
   const [viewingRecords, setViewingRecords] = useState<ComplianceUserProfile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
 
   const profiles = useMemo(() => data ?? [], [data]);
+
+  // Sends a set-password / login email via Supabase's built-in email sender —
+  // works for anyone with an account (a first-time invitee who never clicked
+  // their invite, or a returning user). No custom domain required.
+  async function sendLoginEmail(p: ComplianceUserProfile) {
+    if (!p.email) { toast.error("This user has no email on file."); return; }
+    setSendingTo(p.id);
+    try {
+      const supabase = createClient();
+      const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(p.email.toLowerCase(), { redirectTo });
+      if (error) toast.error(error.message);
+      else toast.success(`Login email sent to ${p.email}. Ask them to check spam if it doesn't arrive.`);
+    } catch {
+      toast.error("Couldn't send the email. Please try again.");
+    } finally {
+      setSendingTo(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -304,6 +325,9 @@ export default function UserManagementPage() {
                         </td>
                         <td data-label="" className="py-3">
                           <div className="flex gap-1 md:justify-end">
+                            <Button size="sm" variant="ghost" onClick={() => void sendLoginEmail(p)} disabled={!p.email || sendingTo === p.id} title="Email this person a link to set their password and sign in">
+                              <Mail className="size-3.5" /> {sendingTo === p.id ? "Sending…" : "Send login email"}
+                            </Button>
                             <Button size="sm" variant="ghost" onClick={() => setViewingRecords(p)}><FolderOpen className="size-3.5" /> Records</Button>
                             <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
                           </div>
