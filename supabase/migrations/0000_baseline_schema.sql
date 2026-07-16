@@ -1303,8 +1303,21 @@ CREATE EVENT TRIGGER ensure_rls ON ddl_command_end WHEN TAG IN ('CREATE TABLE', 
 -- ============================== GRANTS ==============================
 grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete on all tables in schema public to authenticated;
-grant all on all tables in schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to authenticated;
+grant all privileges on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
 -- anon intentionally receives NO table privileges; every RLS policy gates on auth.uid().
+
+-- Default privileges so tables/sequences created AFTER this baseline inherit the
+-- same grants automatically. Their ABSENCE is what let the live DB drift — new
+-- MCP-created tables had no service_role DML, breaking server-side admin writes
+-- (e.g. the invite route's profiles upsert → "permission denied for table ...").
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant usage, select on sequences to authenticated;
+alter default privileges in schema public grant all privileges on tables to service_role;
+alter default privileges in schema public grant all privileges on sequences to service_role;
+alter default privileges in schema public grant execute on functions to service_role;
 
 -- SECURITY DEFINER helper/trigger functions: only what the app needs directly.
 revoke all on function public.audit_generic() from public, anon, authenticated;

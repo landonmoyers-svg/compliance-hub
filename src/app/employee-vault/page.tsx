@@ -311,7 +311,7 @@ function DocumentDialog({
 /* ─── page ──────────────────────────────────────────────────── */
 
 export default function EmployeeVaultPage() {
-  const { profile, user } = useAuth();
+  const { profile, user, isAdmin } = useAuth();
   const uploadedByName = profile?.fullName ?? user?.fullName ?? "Unknown";
 
   const docsQ = useCollection("employeeDocuments");
@@ -368,6 +368,7 @@ export default function EmployeeVaultPage() {
   }, [documents]);
 
   async function handleDelete(doc: EmployeeDocument) {
+    if (!isAdmin) { toast.error("Only administrators can delete vault documents."); return; }
     if (!confirm(`Remove "${doc.title}" from the active list? A retained copy is kept in version history for legal recordkeeping.`)) return;
     try {
       await removeMut.mutateAsync(doc.id);
@@ -528,9 +529,11 @@ export default function EmployeeVaultPage() {
                         <div className="flex items-center gap-1 md:justify-end">
                           <VersionHistoryButton entityType="employee_documents" entityId={d.id} title={`${d.title} — ${d.employeeName}`} />
                           <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(d)} aria-label="Delete document">
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
+                          {isAdmin && (
+                            <Button size="sm" variant="ghost" onClick={() => handleDelete(d)} aria-label="Delete document" title="Delete document (admin)">
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
