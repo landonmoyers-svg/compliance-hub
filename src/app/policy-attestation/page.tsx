@@ -19,9 +19,10 @@ import type { ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 export default function PolicyAttestationPage() {
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const docsQ = useCollection("documents");
   const acksQ = useCollection("policyAcks");
+  const employeesQ = useCollection("employees");
   const createMut = useCreate("policyAcks");
 
   const [search, setSearch] = useState("");
@@ -65,6 +66,30 @@ export default function PolicyAttestationPage() {
 
   const pending = requiresAck.filter((d) => !ackedDocIds.has(d.id)).length;
   const acknowledged = requiresAck.filter((d) => ackedDocIds.has(d.id)).length;
+
+  // ATT-1: org-wide completion per policy (admin view). Only active employees
+  // with a login can acknowledge in-app, so that's the honest denominator; we
+  // surface how many active staff still have no login separately.
+  const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+  const orgCompletion = useMemo(() => {
+    const activeWithLogin = employees.filter((e) => e.employmentStatus === "active" && e.userId);
+    const noLoginCount = employees.filter((e) => e.employmentStatus === "active" && !e.userId).length;
+    const now = new Date();
+    // userId -> set of documentIds acknowledged and not expired
+    const ackedByUser = new Map<string, Set<string>>();
+    for (const a of acks) {
+      if (!a.userId || a.status !== "acknowledged") continue;
+      if (a.expiresAt && new Date(a.expiresAt) < now) continue;
+      if (!ackedByUser.has(a.userId)) ackedByUser.set(a.userId, new Set());
+      ackedByUser.get(a.userId)!.add(a.documentId);
+    }
+    const perPolicy = requiresAck.map((doc) => {
+      const done = activeWithLogin.filter((e) => ackedByUser.get(e.userId!)?.has(doc.id));
+      const pendingStaff = activeWithLogin.filter((e) => !ackedByUser.get(e.userId!)?.has(doc.id));
+      return { doc, doneCount: done.length, total: activeWithLogin.length, pendingStaff };
+    });
+    return { perPolicy, activeWithLoginCount: activeWithLogin.length, noLoginCount };
+  }, [employees, acks, requiresAck]);
 
   async function acknowledge(doc: ComplianceDocument) {
     if (!profile) { toast.error("You must be logged in to acknowledge."); return; }
@@ -217,6 +242,48 @@ export default function PolicyAttestationPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ATT-1: org-wide completion per policy (admin) */}
+      {isAdmin && !loading && requiresAck.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">Completion by policy</h3>
+              <p className="text-xs text-muted-foreground">
+                Across {orgCompletion.activeWithLoginCount} active staff with a login
+                {orgCompletion.noLoginCount > 0 && ` · ${orgCompletion.noLoginCount} active staff have no login yet and can't acknowledge in-app`}
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {orgCompletion.perPolicy.map(({ doc, doneCount, total, pendingStaff }) => {
+                const pct = total ? Math.round((doneCount / total) * 100) : 0;
+                return (
+                  <div key={doc.id} className="rounded-lg border border-border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{doc.title}</p>
+                      <Badge variant={pct === 100 ? "success" : pct >= 80 ? "secondary" : "warning"}>{doneCount}/{total} · {pct}%</Badge>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                      <div className={pct === 100 ? "h-full bg-success" : "h-full bg-warning"} style={{ width: `${pct}%` }} />
+                    </div>
+                    {pendingStaff.length > 0 && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Pending:</span>{" "}
+                        {pendingStaff.slice(0, 8).map((e, i) => (
+                          <span key={e.id}>{i > 0 ? ", " : ""}<PersonLink userId={e.userId ?? null} name={`${e.firstName} ${e.lastName}`.trim()} /></span>
+                        ))}
+                        {pendingStaff.length > 8 && ` +${pendingStaff.length - 8} more`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* All acknowledgment records (admin view) */}
       {acks.length > 0 && (
