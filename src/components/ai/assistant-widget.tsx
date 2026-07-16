@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Sparkles, X, Send, Plus, Check } from "lucide-react";
+import { Sparkles, X, Send, Plus, Check, History, SquarePen, Trash2 } from "lucide-react";
 import { useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { provisionLogin } from "@/lib/admin";
@@ -12,6 +12,25 @@ import { toast } from "sonner";
 
 interface ProposedAction { type: string; label: string; data: Record<string, unknown>; done?: boolean; }
 interface Msg { role: "assistant" | "user"; text: string; actions?: ProposedAction[]; }
+
+/** A saved assistant conversation, kept per-user in localStorage so old chats
+ *  can be resumed. Not shown by default — each page starts a fresh chat. */
+interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: Msg[]; }
+const HISTORY_LIMIT = 30;
+const hKey = (uid: string) => `assistant-chats:${uid}`;
+function loadHistory(uid: string): Conversation[] {
+  try { const r = localStorage.getItem(hKey(uid)); return r ? (JSON.parse(r) as Conversation[]) : []; } catch { return []; }
+}
+function saveHistory(uid: string, list: Conversation[]) {
+  try { localStorage.setItem(hKey(uid), JSON.stringify(list)); } catch { /* quota / disabled */ }
+}
+function genId(): string {
+  try { return crypto.randomUUID(); } catch { return `c_${Math.random().toString(36).slice(2)}`; }
+}
+function deriveTitle(msgs: Msg[]): string {
+  const first = msgs.find((m) => m.role === "user")?.text.trim() ?? "";
+  return first ? (first.length > 44 ? first.slice(0, 44) + "…" : first) : "New chat";
+}
 
 function str(v: unknown, fallback = ""): string { return typeof v === "string" && v.trim() ? v.trim() : fallback; }
 function num(v: unknown, fallback: number): number { return typeof v === "number" && Number.isFinite(v) ? v : fallback; }
@@ -26,9 +45,46 @@ export function AssistantWidget() {
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [currentId, setCurrentId] = useState<string>(() => genId());
+  const [history, setHistory] = useState<Conversation[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const uid = profile?.userId ?? "anon";
+
+  // Load saved chats once we know the user.
+  useEffect(() => { setHistory(loadHistory(uid)); }, [uid]);
+
+  // Each page starts a fresh chat — the assistant doesn't carry a prior page's
+  // conversation over. The previous chat is already saved in history to resume.
+  useEffect(() => {
+    setMessages([]);
+    setCurrentId(genId());
+    setShowHistory(false);
+    setInput("");
+  }, [pathname]);
+
+  // Auto-save the active conversation (once it has content) into history.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    setHistory((prev) => {
+      const now = Date.now();
+      const existing = prev.find((c) => c.id === currentId);
+      const conv: Conversation = { id: currentId, title: deriveTitle(messages), createdAt: existing?.createdAt ?? now, updatedAt: now, messages };
+      const next = [conv, ...prev.filter((c) => c.id !== currentId)].slice(0, HISTORY_LIMIT);
+      saveHistory(uid, next);
+      return next;
+    });
+  }, [messages, currentId, uid]);
+
+  function newChat() { setMessages([]); setCurrentId(genId()); setShowHistory(false); setInput(""); }
+  function resumeChat(c: Conversation) { setMessages(c.messages); setCurrentId(c.id); setShowHistory(false); }
+  function deleteChat(id: string) {
+    setHistory((prev) => { const next = prev.filter((c) => c.id !== id); saveHistory(uid, next); return next; });
+    if (id === currentId) newChat();
+  }
 
   // Creators for every action the assistant can execute.
   const createTask = useCreate("tasks");
@@ -193,9 +249,33 @@ export function AssistantWidget() {
                 <p className="mt-0.5 text-xs text-muted-foreground">{page.title}</p>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground" aria-label="Close"><X className="size-4" /></button>
+            <div className="flex items-center gap-0.5">
+              <button onClick={newChat} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="New chat" title="New chat"><SquarePen className="size-4" /></button>
+              <button onClick={() => setShowHistory((s) => !s)} className={`rounded-md p-1.5 hover:bg-secondary hover:text-foreground ${showHistory ? "text-primary" : "text-muted-foreground"}`} aria-label="Chat history" title="Chat history"><History className="size-4" /></button>
+              <button onClick={() => setOpen(false)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Close"><X className="size-4" /></button>
+            </div>
           </div>
 
+          {showHistory ? (
+            <div className="flex-1 overflow-y-auto p-3">
+              <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">Recent chats</p>
+              {history.length === 0 ? (
+                <p className="px-1 text-sm text-muted-foreground">No past chats yet. Your conversations will appear here so you can pick one back up.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {history.map((c) => (
+                    <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 hover:border-primary">
+                      <button onClick={() => resumeChat(c)} className="min-w-0 flex-1 text-left">
+                        <p className="truncate text-sm">{c.title}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(c.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {c.messages.length} message{c.messages.length !== 1 ? "s" : ""}</p>
+                      </button>
+                      <button onClick={() => deleteChat(c.id)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label="Delete chat" title="Delete"><Trash2 className="size-3.5" /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && (
               <div className="space-y-3">
@@ -234,6 +314,7 @@ export function AssistantWidget() {
             {thinking && <div className="flex justify-start"><div className="rounded-xl bg-secondary px-3 py-2 text-sm text-muted-foreground">Thinking…</div></div>}
             <div ref={endRef} />
           </div>
+          )}
 
           <div className="border-t border-border p-3">
             <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="flex gap-2">
