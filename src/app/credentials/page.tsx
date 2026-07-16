@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useState, useMemo } from "react";
-import { BadgeCheck, Plus, Search, Sparkles, X } from "lucide-react";
+import { Fragment, useState, useMemo, useRef } from "react";
+import { BadgeCheck, Plus, Search, Sparkles, X, Upload } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
-import { getSignedUrl } from "@/lib/storage";
+import { getSignedUrl, uploadFile } from "@/lib/storage";
 import { cn } from "@/lib/cn";
 import { DuplicateFinder } from "@/components/shared/duplicate-finder";
 import { useSort, SortHeader } from "@/components/shared/sortable";
@@ -137,6 +137,25 @@ const EMPTY_FORM: FormState = {
 
 /* ----------------------------- dialog ------------------------------- */
 
+function fileToBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// AI extraction supports images + PDF; returns the media type or null.
+function analyzableMedia(file: File): string | null {
+  const t = file.type;
+  if (t === "application/pdf" || t.startsWith("image/")) return t;
+  const ext = file.name.toLowerCase().split(".").pop();
+  if (ext === "pdf") return "application/pdf";
+  if (["png", "jpg", "jpeg", "webp"].includes(ext ?? "")) return `image/${ext === "jpg" ? "jpeg" : ext}`;
+  return null;
+}
+
 function CredentialDialog({
   initial,
   onClose,
@@ -145,7 +164,7 @@ function CredentialDialog({
 }: {
   initial?: CredentialRecord;
   onClose: () => void;
-  onSave: (data: FormState) => void;
+  onSave: (data: FormState, file: File | null) => void;
   saving: boolean;
 }) {
   const [form, setForm] = useState<FormState>(
@@ -162,9 +181,42 @@ function CredentialDialog({
         }
       : EMPTY_FORM,
   );
+  const [file, setFile] = useState<File | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  async function analyze(f: File) {
+    const media = analyzableMedia(f);
+    if (!media) return;
+    setAnalyzing(true);
+    try {
+      const fileBase64 = await fileToBase64(f);
+      const res = await fetch("/api/ai/credential-analyze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64, mediaType: media }),
+      });
+      if (res.status === 429) { toast.error("Daily AI limit reached — enter the details manually."); return; }
+      const d = await res.json() as { credentialType?: string; credentialName?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null };
+      if (res.ok) {
+        setForm((p) => ({
+          ...p,
+          credentialName: p.credentialName || d.credentialName || "",
+          credentialType: d.credentialType && (CRED_TYPES as readonly string[]).includes(d.credentialType) ? d.credentialType : p.credentialType,
+          issuingBody: p.issuingBody || d.issuingBody || "",
+          credentialNumber: p.credentialNumber || d.credentialNumber || "",
+          issueDate: p.issueDate || (d.issueDate ?? ""),
+          expirationDate: p.expirationDate || (d.expirationDate ?? ""),
+        }));
+        toast.success("Filled in from the document — review and save.");
+      } else {
+        toast.error("Couldn't read that document — enter the details manually.");
+      }
+    } catch { toast.error("Couldn't read that document — enter the details manually."); }
+    finally { setAnalyzing(false); }
+  }
 
   const valid =
     form.employeeName.trim() !== "" &&
@@ -188,6 +240,28 @@ function CredentialDialog({
           </button>
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setFile(f);
+                if (f) void analyze(f);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={analyzing || saving}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-3 text-sm text-muted-foreground hover:bg-secondary/20 disabled:opacity-60"
+            >
+              {analyzing ? <><Sparkles className="size-4 animate-pulse text-primary" /> Reading the document…</> : <><Upload className="size-4" /> {file ? file.name : "Upload license/certificate — AI fills the fields"}</>}
+            </button>
+            {file && !analyzing && <p className="flex items-center gap-1 text-xs text-primary"><Sparkles className="size-3" /> Fields prefilled from the document — verify before saving. The file will be attached.</p>}
+          </div>
           <div className="sm:col-span-2">
             <PersonSelect
               label="Employee"
@@ -242,8 +316,8 @@ function CredentialDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => onSave(form)}
-            disabled={!valid || saving}
+            onClick={() => onSave(form, file)}
+            disabled={!valid || saving || analyzing}
           >
             {saving ? "Saving…" : "Save"}
           </Button>
@@ -514,9 +588,14 @@ export default function CredentialsPage() {
     return out;
   }, [credentials, isFormerHolder]);
 
-  async function handleSave(form: FormState) {
+  async function handleSave(form: FormState, file: File | null) {
     setSaving(true);
     try {
+      let documentUrl: string | undefined;
+      if (file) {
+        try { documentUrl = await uploadFile(file, "credential"); }
+        catch { toast.error("Couldn't upload the document — saving the details without it."); }
+      }
       const payload = {
         employeeUserId: form.employeeUserId,
         employeeName: form.employeeName.trim(),
@@ -526,6 +605,7 @@ export default function CredentialsPage() {
         credentialNumber: form.credentialNumber.trim() || undefined,
         issueDate: form.issueDate ? dateInputToISO(form.issueDate) : undefined,
         expirationDate: form.expirationDate ? dateInputToISO(form.expirationDate) : undefined,
+        ...(documentUrl && { documentUrl }),
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
