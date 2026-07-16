@@ -19,6 +19,13 @@ import { roleLabel } from "@/lib/auth/roles";
 import { FileLink } from "@/components/shared/file-link";
 import { AddCredentialButton, AddInsuranceButton } from "@/components/portal/self-service-records";
 
+/** A record's name that opens its attached document on click (plain text if none). */
+function DocName({ url, name }: { url?: string | null; name: string }) {
+  return url
+    ? <FileLink path={url} label={name} className="inline-flex items-center gap-1 text-left text-sm font-medium text-primary hover:underline" />
+    : <p className="text-sm font-medium">{name}</p>;
+}
+
 export default function StaffPortalPage() {
   const { profile, user } = useAuth();
   const myUserId = profile?.userId ?? user?.id ?? "";
@@ -213,16 +220,13 @@ export default function StaffPortalPage() {
                   const st = credentialStatus(c);
                   return (
                     <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium">{c.credentialName}</p>
+                      <div className="min-w-0">
+                        <DocName url={c.documentUrl} name={c.credentialName} />
                         {c.expirationDate && <p className="text-xs text-muted-foreground">Expires {formatDate(c.expirationDate)}</p>}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {c.documentUrl && <FileLink path={c.documentUrl} label="View" />}
-                        <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
-                          {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
-                        </Badge>
-                      </div>
+                      <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
+                        {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
+                      </Badge>
                     </li>
                   );
                 })}
@@ -246,14 +250,11 @@ export default function StaffPortalPage() {
               <ul className="divide-y divide-border">
                 {myInsurance.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium">{p.policyName}</p>
-                      <p className="text-xs capitalize text-muted-foreground">{[p.policyType, p.carrierName].filter(Boolean).join(" · ")}</p>
+                    <div className="min-w-0">
+                      <DocName url={p.documentUrl} name={p.policyName} />
+                      <p className="text-xs text-muted-foreground">{[humanizeLabel(p.policyType), p.carrierName].filter(Boolean).join(" · ")}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {p.renewalDate && <span className="text-xs text-muted-foreground">Renews {formatDate(p.renewalDate)}</span>}
-                      {p.documentUrl && <FileLink path={p.documentUrl} label="View" />}
-                    </div>
+                    {p.renewalDate && <span className="shrink-0 text-xs text-muted-foreground">Renews {formatDate(p.renewalDate)}</span>}
                   </li>
                 ))}
               </ul>
@@ -277,7 +278,7 @@ export default function StaffPortalPage() {
                   const done = myAckedDocIds.has(d.id);
                   return (
                     <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <p className="text-sm font-medium">{d.title}</p>
+                      <DocName url={d.fileUrl} name={d.title} />
                       {done ? (
                         <Badge variant="success">Acknowledged</Badge>
                       ) : (
@@ -306,14 +307,11 @@ export default function StaffPortalPage() {
             <ul className="divide-y divide-border">
               {staffDocs.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">{d.title}</p>
-                    <p className="text-xs capitalize text-muted-foreground">{humanizeLabel(d.documentType)} · v{d.version}</p>
+                  <div className="min-w-0">
+                    <DocName url={d.fileUrl} name={d.title} />
+                    <p className="text-xs text-muted-foreground">{humanizeLabel(d.documentType)} · v{d.version}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {d.requiresAcknowledgment && <Badge variant="warning" className="text-xs">Ack. required</Badge>}
-                    {d.fileUrl && <FileLink path={d.fileUrl} label="View" />}
-                  </div>
+                  {d.requiresAcknowledgment && <Badge variant="warning" className="shrink-0 text-xs">Ack. required</Badge>}
                 </li>
               ))}
             </ul>
