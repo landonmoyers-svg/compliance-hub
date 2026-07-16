@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Grid3x3,
   CheckCircle2,
@@ -9,7 +10,8 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react";
-import { useCollection, useCreate } from "@/lib/data/hooks";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { FormPreview } from "@/components/shared/form-preview";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,10 +168,13 @@ export default function FormGapMatrixPage() {
   // Documents are loaded for cross-reference context (not required for the match).
   useCollection("documents");
   const createTemplate = useCreate("formTemplates");
+  const updateTemplate = useUpdate("formTemplates");
 
   const [filter, setFilter] = useState<"all" | GapStatus>("all");
   const [busyName, setBusyName] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [reviewing, setReviewing] = useState<FillableFormTemplate | null>(null);
+  const [approving, setApproving] = useState(false);
 
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
 
@@ -235,14 +240,30 @@ export default function FormGapMatrixPage() {
   async function generateDraft(required: RequiredForm) {
     setBusyName(required.name);
     try {
-      await createTemplate.mutateAsync(buildDraft(required));
+      const created = await createTemplate.mutateAsync(buildDraft(required));
       toast.success(`Draft created: ${required.name}`, {
-        description: "Marked DRAFT — needs HR/Compliance review.",
+        description: "Review it now, then approve or edit.",
       });
+      // Open the new draft for review immediately.
+      if (created) setReviewing(created as FillableFormTemplate);
     } catch {
       toast.error(`Failed to generate draft for ${required.name}.`);
     } finally {
       setBusyName(null);
+    }
+  }
+
+  // Approve a draft: mark it active and no longer a draft.
+  async function approveDraft(t: FillableFormTemplate) {
+    setApproving(true);
+    try {
+      await updateTemplate.mutateAsync({ id: t.id, patch: { isDraft: false, status: "active" } });
+      toast.success(`Approved: ${t.title}`);
+      setReviewing(null);
+    } catch {
+      toast.error("Failed to approve. Try again.");
+    } finally {
+      setApproving(false);
     }
   }
 
@@ -298,6 +319,24 @@ export default function FormGapMatrixPage() {
 
   return (
     <div className="space-y-6">
+      {reviewing && (
+        <FormPreview
+          template={reviewing}
+          meta={{ title: reviewing.title, category: reviewing.category }}
+          footer={
+            <>
+              <Link href="/fillable-documents"><Button variant="outline">Edit in Forms</Button></Link>
+              {reviewing.isDraft && (
+                <Button onClick={() => approveDraft(reviewing)} disabled={approving}>
+                  {approving ? "Approving…" : "Approve — mark active"}
+                </Button>
+              )}
+            </>
+          }
+          onClose={() => setReviewing(null)}
+        />
+      )}
+
       <PageHeader
         title="Form Gap Matrix"
         description="Audits the forms your practice should maintain against the templates that actually exist. Generate a clearly-marked draft for any gap."
@@ -392,15 +431,24 @@ export default function FormGapMatrixPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <p className="text-sm font-medium">{required.name}</p>
-                            <Badge variant={STATUS_VARIANT[status]} className="shrink-0 text-xs">
-                              {STATUS_LABEL[status]}
-                            </Badge>
+                            {match ? (
+                              <button
+                                type="button"
+                                onClick={() => setReviewing(match)}
+                                title={status === "draft" ? "Review draft — approve or edit" : "Open the covered form"}
+                                className="shrink-0 rounded-full transition-shadow hover:ring-2 hover:ring-primary/40"
+                              >
+                                <Badge variant={STATUS_VARIANT[status]} className="text-xs">{STATUS_LABEL[status]}</Badge>
+                              </button>
+                            ) : (
+                              <Badge variant={STATUS_VARIANT[status]} className="shrink-0 text-xs">{STATUS_LABEL[status]}</Badge>
+                            )}
                           </div>
                           <p className="mt-0.5 text-xs text-muted-foreground">{required.description}</p>
                           {match && (
                             <p className="mt-1 text-xs text-muted-foreground">
                               Matched template:{" "}
-                              <span className="text-foreground">{match.title}</span>
+                              <button type="button" onClick={() => setReviewing(match)} className="text-primary hover:underline">{match.title}</button>
                             </p>
                           )}
                           {status !== "covered" && (
