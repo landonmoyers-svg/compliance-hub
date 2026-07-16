@@ -881,6 +881,10 @@ function auditItemFrom(r: Record<string, unknown>): AuditItem {
     remediationStatus: r.remediation_status as AuditItem["remediationStatus"],
     citation: r.citation as string | undefined,
     aiSuggested: (r.ai_suggested as boolean | null) ?? false,
+    rubric: r.rubric as string | undefined,
+    howToVerify: r.how_to_verify as string | undefined,
+    regCitation: r.reg_citation as string | undefined,
+    evidenceUrl: (r.evidence_url as string | null) ?? undefined,
   };
 }
 function auditItemTo(d: Partial<AuditItem>) {
@@ -897,6 +901,10 @@ function auditItemTo(d: Partial<AuditItem>) {
     ...(d.remediationStatus !== undefined && { remediation_status: d.remediationStatus }),
     ...(d.citation !== undefined && { citation: d.citation }),
     ...(d.aiSuggested !== undefined && { ai_suggested: d.aiSuggested }),
+    ...(d.rubric !== undefined && { rubric: d.rubric }),
+    ...(d.howToVerify !== undefined && { how_to_verify: d.howToVerify }),
+    ...(d.regCitation !== undefined && { reg_citation: d.regCitation }),
+    ...(d.evidenceUrl !== undefined && { evidence_url: d.evidenceUrl }),
   };
 }
 

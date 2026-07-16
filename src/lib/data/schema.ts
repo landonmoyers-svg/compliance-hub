@@ -566,6 +566,13 @@ export const AuditItem = z.object({
   remediationStatus: z.enum(["none", "open", "in_progress", "complete", "accepted"]).default("none"),
   citation: z.string().optional(),
   aiSuggested: z.boolean().default(false),
+  // AUDIT-1: objective rubric (what Pass/Partial/Fail looks like), how to verify
+  // it, the governing regulation, and uploaded evidence — so ratings are honest,
+  // reproducible, and defensible rather than a bare yes/no.
+  rubric: z.string().optional(),
+  howToVerify: z.string().optional(),
+  regCitation: z.string().optional(),
+  evidenceUrl: z.string().nullable().optional(),
 });
 export type AuditItem = z.infer<typeof AuditItem>;
 
