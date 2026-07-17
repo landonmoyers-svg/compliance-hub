@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldAlert, Plus, Search, X, Upload, AlertTriangle, ArrowLeft, Package, UserCheck, FlaskConical } from "lucide-react";
+import { ShieldAlert, Plus, Search, X, Upload, AlertTriangle, ArrowLeft, Package, UserCheck, FlaskConical, Sparkles, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
@@ -51,6 +51,15 @@ const QTY_EVENTS: CSEventType[] = ["administer", "waste", "adjust"];
 function fullName(e: { firstName: string; lastName: string }) {
   return `${e.firstName} ${e.lastName}`.trim();
 }
+
+interface CsAudit {
+  verdict: "clean" | "issues" | "critical";
+  balanceReconciles: boolean;
+  summary: string;
+  issues: { issue: string; severity: "low" | "medium" | "high" }[];
+  recommendations: string[];
+}
+const AUDIT_TONE: Record<CsAudit["verdict"], "success" | "warning" | "destructive"> = { clean: "success", issues: "warning", critical: "destructive" };
 
 /* ─────────────────────────── receive delivery ─────────────────────────── */
 
@@ -330,6 +339,8 @@ export default function ControlledSubstancesPage() {
   const [addingEvent, setAddingEvent] = useState(false);
   const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
   const [saving, setSaving] = useState(false);
+  const [auditing, setAuditing] = useState(false);
+  const [audit, setAudit] = useState<CsAudit | null>(null);
 
   const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
   const events = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
@@ -454,6 +465,27 @@ export default function ControlledSubstancesPage() {
     finally { setSaving(false); }
   }
 
+  // CS-8: AI reconstructs and verifies a container's chain of custody.
+  async function runAudit(item: ControlledSubstanceItem) {
+    setAuditing(true);
+    setAudit(null);
+    try {
+      const chain = eventsFor(item.id);
+      const res = await fetch("/api/ai/cs-audit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item: { substanceName: item.substanceName, scheduleClass: item.scheduleClass, quantityUnit: item.quantityUnit, initialQuantity: item.initialQuantity, currentQuantity: item.currentQuantity, state: item.state, custodianName: item.custodianName, hasDiscrepancy: item.hasDiscrepancy },
+          events: chain.map((e) => ({ eventType: e.eventType, eventDate: e.eventDate, quantity: e.quantity, balanceAfter: e.balanceAfter, toCustodianName: e.toCustodianName, performedByName: e.performedByName, witnessName: e.witnessName, hasDocument: !!e.documentUrl, discrepancy: e.discrepancy, hasCorrectiveAction: !!e.correctiveActionId })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI audit failed");
+      setAudit(data as CsAudit);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI audit failed.");
+    } finally { setAuditing(false); }
+  }
+
   if (itemsQ.isError) return <div className="space-y-6"><PageHeader title="Controlled Substances" /><ErrorState message="We couldn't load controlled-substance records." onRetry={() => void itemsQ.refetch()} /></div>;
   const loading = itemsQ.isLoading || eventsQ.isLoading;
 
@@ -468,7 +500,8 @@ export default function ControlledSubstancesPage() {
           title={openItem.substanceName}
           description={`${openItem.strength ? openItem.strength + " · " : ""}Schedule ${openItem.scheduleClass}${openItem.containerLabel ? " · " + openItem.containerLabel : ""}${openItem.lotNumber ? " · Lot " + openItem.lotNumber : ""}`}
           actions={<div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setOpenId(null)}><ArrowLeft className="size-4" /> All bottles</Button>
+            <Button variant="outline" onClick={() => { setOpenId(null); setAudit(null); }}><ArrowLeft className="size-4" /> All bottles</Button>
+            <Button variant="outline" onClick={() => void runAudit(openItem)} disabled={auditing}><Sparkles className="size-4" /> {auditing ? "Auditing…" : "AI chain audit"}</Button>
             {!CLOSED_STATES.includes(openItem.state) && <Button onClick={() => setAddingEvent(true)}><Plus className="size-4" /> Record event</Button>}
           </div>}
         />
@@ -482,6 +515,40 @@ export default function ControlledSubstancesPage() {
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertTriangle className="size-4 shrink-0" /> This container has a flagged discrepancy — review the chain below and ensure a corrective action is documented.
           </div>
+        )}
+        {audit && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="size-4 text-primary" /> AI chain audit</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant={AUDIT_TONE[audit.verdict]} className="capitalize">{audit.verdict}</Badge>
+                  <Badge variant={audit.balanceReconciles ? "success" : "destructive"}>{audit.balanceReconciles ? "Balance reconciles" : "Balance mismatch"}</Badge>
+                  <button onClick={() => setAudit(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>{audit.summary}</p>
+              {audit.issues.length > 0 && (
+                <div className="space-y-1.5">
+                  {audit.issues.map((iss, n) => (
+                    <p key={n} className="flex items-start gap-1.5"><AlertTriangle className={`mt-0.5 size-3.5 shrink-0 ${iss.severity === "high" ? "text-destructive" : "text-warning"}`} /><span>{iss.issue}</span></p>
+                  ))}
+                </div>
+              )}
+              {audit.recommendations.length > 0 && (
+                <div className="rounded-md bg-secondary/30 p-3">
+                  <p className="mb-1 text-xs font-semibold text-muted-foreground">Recommended</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs">{audit.recommendations.map((r, n) => <li key={n}>{r}</li>)}</ul>
+                </div>
+              )}
+              {audit.verdict === "clean" && audit.issues.length === 0 && (
+                <p className="flex items-center gap-1.5 text-xs text-success"><CheckCircle2 className="size-3.5" /> No chain-of-custody issues found. AI decision-support — verify against the source records.</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">AI decision-support, not a substitute for a manual DEA audit. Verify findings against the scanned records.</p>
+            </CardContent>
+          </Card>
         )}
         <Card>
           <CardHeader><CardTitle className="text-sm">Chain of custody</CardTitle></CardHeader>
@@ -571,7 +638,7 @@ export default function ControlledSubstancesPage() {
                 </thead>
                 <tbody>
                   {sorted.map((i) => (
-                    <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
+                    <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => { setOpenId(i.id); setAudit(null); }}>
                       <td data-label="Substance" className="py-3 pr-4">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{i.substanceName}</span>
