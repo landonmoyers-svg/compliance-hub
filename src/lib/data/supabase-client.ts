@@ -21,6 +21,8 @@ import type {
   ComplianceTask,
   ComplianceUserProfile,
   ControlledSubstanceLog,
+  ControlledSubstanceItem,
+  ControlledSubstanceEvent,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -1479,6 +1481,98 @@ function csLogTo(d: Partial<ControlledSubstanceLog>) {
   };
 }
 
+function csItemFrom(r: Record<string, unknown>): ControlledSubstanceItem {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    substanceName: r.substance_name as string,
+    scheduleClass: r.schedule_class as ControlledSubstanceItem["scheduleClass"],
+    ndc: r.ndc as string | undefined,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: toISO(r.expiration_date as string),
+    containerLabel: r.container_label as string | undefined,
+    strength: r.strength as string | undefined,
+    quantityUnit: (r.quantity_unit as string) ?? "mL",
+    initialQuantity: Number(r.initial_quantity ?? 0),
+    currentQuantity: Number(r.current_quantity ?? 0),
+    state: r.state as ControlledSubstanceItem["state"],
+    locationId: (r.location_id as string | null) ?? undefined,
+    custodianUserId: (r.custodian_user_id as string | null) ?? undefined,
+    custodianName: r.custodian_name as string | undefined,
+    receivedDate: toISO(r.received_date as string),
+    orderReference: r.order_reference as string | undefined,
+    supplierName: r.supplier_name as string | undefined,
+    hasDiscrepancy: (r.has_discrepancy as boolean) ?? false,
+    notes: r.notes as string | undefined,
+  };
+}
+function csItemTo(d: Partial<ControlledSubstanceItem>) {
+  return {
+    ...(d.substanceName !== undefined && { substance_name: d.substanceName }),
+    ...(d.scheduleClass !== undefined && { schedule_class: d.scheduleClass }),
+    ...(d.ndc !== undefined && { ndc: d.ndc }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.containerLabel !== undefined && { container_label: d.containerLabel }),
+    ...(d.strength !== undefined && { strength: d.strength }),
+    ...(d.quantityUnit !== undefined && { quantity_unit: d.quantityUnit }),
+    ...(d.initialQuantity !== undefined && { initial_quantity: d.initialQuantity }),
+    ...(d.currentQuantity !== undefined && { current_quantity: d.currentQuantity }),
+    ...(d.state !== undefined && { state: d.state }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.custodianUserId !== undefined && { custodian_user_id: d.custodianUserId }),
+    ...(d.custodianName !== undefined && { custodian_name: d.custodianName }),
+    ...(d.receivedDate !== undefined && { received_date: d.receivedDate }),
+    ...(d.orderReference !== undefined && { order_reference: d.orderReference }),
+    ...(d.supplierName !== undefined && { supplier_name: d.supplierName }),
+    ...(d.hasDiscrepancy !== undefined && { has_discrepancy: d.hasDiscrepancy }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function csEventFrom(r: Record<string, unknown>): ControlledSubstanceEvent {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    itemId: r.item_id as string,
+    eventType: r.event_type as ControlledSubstanceEvent["eventType"],
+    eventDate: toISO(r.event_date as string),
+    quantity: Number(r.quantity ?? 0),
+    balanceAfter: r.balance_after != null ? Number(r.balance_after) : undefined,
+    fromCustodianName: r.from_custodian_name as string | undefined,
+    toCustodianName: r.to_custodian_name as string | undefined,
+    toCustodianUserId: (r.to_custodian_user_id as string | null) ?? undefined,
+    performedByName: r.performed_by_name as string | undefined,
+    performedByUserId: (r.performed_by_user_id as string | null) ?? undefined,
+    witnessName: r.witness_name as string | undefined,
+    patientRef: r.patient_ref as string | undefined,
+    documentUrl: (r.document_url as string | null) ?? undefined,
+    discrepancy: (r.discrepancy as boolean) ?? false,
+    discrepancyNote: r.discrepancy_note as string | undefined,
+    correctiveActionId: (r.corrective_action_id as string | null) ?? undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function csEventTo(d: Partial<ControlledSubstanceEvent>) {
+  return {
+    ...(d.itemId !== undefined && { item_id: d.itemId }),
+    ...(d.eventType !== undefined && { event_type: d.eventType }),
+    ...(d.eventDate !== undefined && { event_date: d.eventDate }),
+    ...(d.quantity !== undefined && { quantity: d.quantity }),
+    ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.fromCustodianName !== undefined && { from_custodian_name: d.fromCustodianName }),
+    ...(d.toCustodianName !== undefined && { to_custodian_name: d.toCustodianName }),
+    ...(d.toCustodianUserId !== undefined && { to_custodian_user_id: d.toCustodianUserId }),
+    ...(d.performedByName !== undefined && { performed_by_name: d.performedByName }),
+    ...(d.performedByUserId !== undefined && { performed_by_user_id: d.performedByUserId }),
+    ...(d.witnessName !== undefined && { witness_name: d.witnessName }),
+    ...(d.patientRef !== undefined && { patient_ref: d.patientRef }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+    ...(d.discrepancy !== undefined && { discrepancy: d.discrepancy }),
+    ...(d.discrepancyNote !== undefined && { discrepancy_note: d.discrepancyNote }),
+    ...(d.correctiveActionId !== undefined && { corrective_action_id: d.correctiveActionId }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 function notificationFrom(r: Record<string, unknown>): Notification {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -1642,6 +1736,8 @@ export function createSupabaseDataClient(): DataClient {
     completedForms:     makeCollection(supabase, "completed_forms",     completedFormFrom,      completedFormTo),
     employeeDocuments:  makeCollection(supabase, "employee_documents",  employeeDocFrom,        employeeDocTo),
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
+    controlledSubstanceItems: makeCollection(supabase, "controlled_substance_items", csItemFrom, csItemTo),
+    controlledSubstanceEvents: makeCollection(supabase, "controlled_substance_events", csEventFrom, csEventTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
     chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),

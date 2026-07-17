@@ -115,6 +115,8 @@ export function createMockDataClient(): DataClient {
     completedForms: new MemoryCollection(seed.completedForms),
     employeeDocuments: new MemoryCollection(seed.employeeDocuments),
     controlledSubstanceLogs: new MemoryCollection(seed.controlledSubstanceLogs),
+    controlledSubstanceItems: new MemoryCollection(seed.controlledSubstanceItems),
+    controlledSubstanceEvents: new MemoryCollection(seed.controlledSubstanceEvents),
     notifications: new MemoryCollection(seed.notifications),
     organizationSettings: new MemoryCollection(seed.organizationSettings),
     chatMessages: new MemoryCollection(seed.chatMessages),

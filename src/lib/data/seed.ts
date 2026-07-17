@@ -175,6 +175,8 @@ export function buildSeed(): SeedData {
     completedForms: [],
     employeeDocuments: [],
     controlledSubstanceLogs: [],
+    controlledSubstanceItems: [],
+    controlledSubstanceEvents: [],
     notifications: [],
     organizationSettings: [],
     chatMessages: [],

@@ -8,6 +8,8 @@ import type {
   ComplianceTask,
   ComplianceUserProfile,
   ControlledSubstanceLog,
+  ControlledSubstanceItem,
+  ControlledSubstanceEvent,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -115,6 +117,8 @@ export interface DataClient {
   completedForms: Collection<CompletedForm>;
   employeeDocuments: Collection<EmployeeDocument>;
   controlledSubstanceLogs: Collection<ControlledSubstanceLog>;
+  controlledSubstanceItems: Collection<ControlledSubstanceItem>;
+  controlledSubstanceEvents: Collection<ControlledSubstanceEvent>;
   notifications: Collection<Notification>;
   organizationSettings: Collection<OrganizationSettings>;
   chatMessages: Collection<ChatMessage>;

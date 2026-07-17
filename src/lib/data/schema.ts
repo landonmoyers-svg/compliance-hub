@@ -1099,3 +1099,75 @@ export const ControlledSubstanceLog = z.object({
   notes: z.string().optional(),
 });
 export type ControlledSubstanceLog = z.infer<typeof ControlledSubstanceLog>;
+
+/* ------- controlled substances: per-bottle chain of custody (CS-1..8) ------- */
+
+// Lifecycle of a single controlled-substance container from receipt to end state.
+// Lone Peak ADMINISTERS on-site only (no dispensing to patients).
+export const csItemStates = [
+  "received",          // delivered to a clinic, in receiving
+  "in_primary_safe",   // moved to the clinic's primary safe
+  "assigned_to_staff", // transferred to a staff member's safe (custody logged)
+  "in_use",            // being administered from
+  "depleted",          // fully administered
+  "wasted",            // remainder wasted (witnessed)
+  "destroyed",         // destroyed per DEA (Form 41)
+  "quarantined",       // held due to a discrepancy / recall
+] as const;
+export const CSItemState = z.enum(csItemStates);
+export type CSItemState = z.infer<typeof CSItemState>;
+
+export const ControlledSubstanceItem = z.object({
+  ...base,
+  substanceName: z.string(),
+  scheduleClass: z.enum(["II", "IIN", "III", "IV", "V"]).default("II"),
+  ndc: z.string().optional(),                 // NDC / product code
+  lotNumber: z.string().optional(),
+  expirationDate: z.string().nullable().optional(),
+  containerLabel: z.string().optional(),      // bottle/vial label id or barcode
+  strength: z.string().optional(),            // e.g. "50 mg/mL"
+  quantityUnit: z.string().default("mL"),     // mL, mg, tablets, vials
+  initialQuantity: z.number().default(0),     // units received
+  currentQuantity: z.number().default(0),     // running balance
+  state: CSItemState.default("received"),
+  locationId: z.string().nullable().optional(),
+  custodianUserId: z.string().nullable().optional(), // staff currently holding it
+  custodianName: z.string().optional(),
+  receivedDate: z.string().nullable().optional(),
+  orderReference: z.string().optional(),      // PO / DEA 222 / CSOS reference
+  supplierName: z.string().optional(),
+  hasDiscrepancy: z.boolean().default(false),
+  notes: z.string().optional(),
+});
+export type ControlledSubstanceItem = z.infer<typeof ControlledSubstanceItem>;
+
+// A custody transition or administration/waste against a specific container.
+// Each event is backed by an uploaded scanned DEA/paper record where applicable.
+export const csEventTypes = [
+  "receive", "transfer_to_safe", "assign_to_staff", "return_to_safe",
+  "administer", "waste", "destroy", "count", "adjust",
+] as const;
+export const CSEventType = z.enum(csEventTypes);
+export type CSEventType = z.infer<typeof CSEventType>;
+
+export const ControlledSubstanceEvent = z.object({
+  ...base,
+  itemId: z.string(),                         // FK to ControlledSubstanceItem
+  eventType: CSEventType.default("administer"),
+  eventDate: z.string().nullable().optional(),
+  quantity: z.number().default(0),            // amount for administer/waste/adjust; 0 for transfer/count
+  balanceAfter: z.number().nullable().optional(),
+  fromCustodianName: z.string().optional(),
+  toCustodianName: z.string().optional(),
+  toCustodianUserId: z.string().nullable().optional(),
+  performedByName: z.string().optional(),
+  performedByUserId: z.string().nullable().optional(),
+  witnessName: z.string().optional(),
+  patientRef: z.string().optional(),          // de-identified reference only
+  documentUrl: z.string().nullable().optional(), // scanned DEA/paper record
+  discrepancy: z.boolean().default(false),
+  discrepancyNote: z.string().optional(),
+  correctiveActionId: z.string().nullable().optional(), // link to a CAPA
+  notes: z.string().optional(),
+});
+export type ControlledSubstanceEvent = z.infer<typeof ControlledSubstanceEvent>;
