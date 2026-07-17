@@ -47,6 +47,7 @@ interface EmployeeForm {
   lastName: string;
   email: string;
   title: string;
+  jobRole: string;
   department: string;
   employmentStatus: Employee["employmentStatus"];
   workerType: Employee["workerType"];
@@ -60,6 +61,7 @@ const EMPTY: EmployeeForm = {
   lastName: "",
   email: "",
   title: "",
+  jobRole: "",
   department: "",
   employmentStatus: "active",
   workerType: "employee",
@@ -70,11 +72,14 @@ const EMPTY: EmployeeForm = {
 
 function EmployeeDialog({
   initial,
+  roles,
   onClose,
   onSave,
   saving,
 }: {
   initial?: Employee;
+  /** Canonical job-role list (Org Chart source of truth). */
+  roles: string[];
   onClose: () => void;
   onSave: (data: EmployeeForm) => void;
   saving: boolean;
@@ -86,6 +91,7 @@ function EmployeeDialog({
           lastName: initial.lastName,
           email: initial.email,
           title: initial.title ?? "",
+          jobRole: initial.jobRole ?? "",
           department: initial.department ?? "",
           employmentStatus: initial.employmentStatus,
           workerType: initial.workerType ?? "employee",
@@ -95,6 +101,8 @@ function EmployeeDialog({
         }
       : EMPTY,
   );
+  // Job role sourced from the canonical list; "＋ Add new role…" reveals a text input.
+  const [addingRole, setAddingRole] = useState(false);
 
   const set =
     (k: keyof EmployeeForm) =>
@@ -135,8 +143,25 @@ function EmployeeDialog({
             <p className="text-xs text-muted-foreground">Optional — leave blank for a former or contract worker with no login. Required only to invite them to the app.</p>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Title / role</label>
+            <label className="text-sm font-medium">Title (display)</label>
             <input className="input w-full" value={form.title} onChange={set("title")} placeholder="e.g. Registered Nurse" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Job role</label>
+            {addingRole ? (
+              <div className="flex gap-2">
+                <input className="input w-full" autoFocus value={form.jobRole} onChange={set("jobRole")} placeholder="New role name" />
+                <Button type="button" variant="outline" size="sm" onClick={() => setAddingRole(false)}>Done</Button>
+              </div>
+            ) : (
+              <select className="input w-full" value={form.jobRole} onChange={(e) => { if (e.target.value === "__add__") { setForm((p) => ({ ...p, jobRole: "" })); setAddingRole(true); } else set("jobRole")(e); }}>
+                <option value="">— None —</option>
+                {form.jobRole && !roles.includes(form.jobRole) && <option value={form.jobRole}>{form.jobRole}</option>}
+                {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+                <option value="__add__">＋ Add new role…</option>
+              </select>
+            )}
+            <p className="text-xs text-muted-foreground">Drives this person&apos;s required competencies (Org Chart / Competency matrix). Shared role list.</p>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Department</label>
@@ -218,6 +243,7 @@ function EmployeeDialog({
 
 export default function EmployeesPage() {
   const { data, isLoading, isError, refetch } = useCollection("employees");
+  const reqsQ = useCollection("roleRequirements");
   const createMut = useCreate("employees");
   const updateMut = useUpdate("employees");
 
@@ -228,6 +254,15 @@ export default function EmployeesPage() {
   const [saving, setSaving] = useState(false);
 
   const employees = useMemo(() => data ?? [], [data]);
+  // CC-6: canonical job-role list = the same source the Org Chart uses
+  // (employee job roles ∪ role-requirement roles), so roles stay unified.
+  const roles = useMemo(
+    () => Array.from(new Set([
+      ...employees.map((e) => e.jobRole).filter(Boolean) as string[],
+      ...(reqsQ.data ?? []).map((r) => r.jobRole),
+    ])).sort(),
+    [employees, reqsQ.data],
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -262,6 +297,7 @@ export default function EmployeesPage() {
         lastName: formatName(form.lastName),
         email: form.email.trim().toLowerCase(),
         title: form.title.trim() || undefined,
+        jobRole: form.jobRole.trim() || null,
         department: (form.department as Employee["department"]) || undefined,
         employmentStatus: form.employmentStatus,
         workerType: form.workerType,
@@ -314,6 +350,7 @@ export default function EmployeesPage() {
       {editing && (
         <EmployeeDialog
           initial={editing === "new" ? undefined : editing}
+          roles={roles}
           onClose={() => setEditing(null)}
           onSave={handleSave}
           saving={saving}
