@@ -52,6 +52,18 @@ function fullName(e: { firstName: string; lastName: string }) {
   return `${e.firstName} ${e.lastName}`.trim();
 }
 
+function fileToBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const s = reader.result as string; resolve(s.slice(s.indexOf(",") + 1)); };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+function isAnalyzable(file: File): boolean {
+  return file.type === "application/pdf" || file.type.startsWith("image/");
+}
+
 interface CsAudit {
   verdict: "clean" | "issues" | "critical";
   balanceReconciles: boolean;
@@ -75,8 +87,38 @@ function ReceiveDialog({ locations, onClose, onSave, saving }: {
     locationId: locations[0]?.id ?? "", receivedDate: new Date().toISOString().slice(0, 10),
   });
   const [file, setFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const set = (k: keyof ReceiveForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   const canSave = f.substanceName.trim() && f.quantity.trim() && Number(f.quantity) > 0;
+
+  // CS-2: OCR/AI extract fields from the scanned receiving document.
+  async function extract(fileToRead: File) {
+    if (!isAnalyzable(fileToRead)) return;
+    setExtracting(true);
+    try {
+      const fileBase64 = await fileToBase64(fileToRead);
+      const res = await fetch("/api/ai/cs-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileBase64, mediaType: fileToRead.type }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Extraction failed");
+      setF((p) => ({
+        ...p,
+        substanceName: d.substanceName ?? p.substanceName,
+        scheduleClass: (["II", "IIN", "III", "IV", "V"].includes(d.scheduleClass) ? d.scheduleClass : p.scheduleClass),
+        strength: d.strength ?? p.strength,
+        ndc: d.ndc ?? p.ndc,
+        lotNumber: d.lotNumber ?? p.lotNumber,
+        expirationDate: d.expirationDate ?? p.expirationDate,
+        quantity: d.quantity != null ? String(d.quantity) : p.quantity,
+        quantityUnit: d.quantityUnit ?? p.quantityUnit,
+        supplierName: d.supplierName ?? p.supplierName,
+        orderReference: d.orderReference ?? p.orderReference,
+        receivedDate: d.receivedDate ?? p.receivedDate,
+      }));
+      toast.success("Fields extracted — verify before saving.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read the document.");
+    } finally { setExtracting(false); }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -148,10 +190,11 @@ function ReceiveDialog({ locations, onClose, onSave, saving }: {
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Scan of the receiving record (packing slip / signed 222)</label>
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
-              <Upload className="size-4" />
-              {file ? file.name : "Upload the scanned receiving document"}
-              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              {extracting ? <Sparkles className="size-4 animate-pulse text-primary" /> : <Upload className="size-4" />}
+              {extracting ? "Reading document…" : file ? file.name : "Upload the scanned receiving document"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" disabled={extracting} onChange={(e) => { const nf = e.target.files?.[0] ?? null; setFile(nf); if (nf && isAnalyzable(nf)) void extract(nf); }} />
             </label>
+            <p className="flex items-center gap-1 text-[11px] text-primary"><Sparkles className="size-3" /> AI reads the scan and prefills the fields below — always verify before saving.</p>
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
