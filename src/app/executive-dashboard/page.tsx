@@ -138,8 +138,9 @@ export default function ExecutiveDashboardPage() {
   const riskQ = useCollection("riskCases");
   const empQ = useCollection("employees");
   const insQ = useCollection("insurancePolicies");
+  const screeningsQ = useCollection("exclusionScreenings");
 
-  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ, insQ];
+  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ, insQ, screeningsQ];
   const loading = queries.some((q) => q.isLoading);
   const isError = queries.some((q) => q.isError);
   const refetchAll = () => queries.forEach((q) => void q.refetch());
@@ -151,9 +152,10 @@ export default function ExecutiveDashboardPage() {
   const risk = useMemo(() => riskQ.data ?? [], [riskQ.data]);
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
   const insurance = useMemo(() => insQ.data ?? [], [insQ.data]);
+  const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
 
-  // Canonical score: same inputs as Home (including employees, so former
-  // employees' expired items don't drag the executive number below Home's).
+  // Canonical score: SAME inputs as Home (incl. employees + exclusion screenings)
+  // so the executive number matches Home's exactly.
   const score = useMemo(
     () =>
       computeComplianceScore({
@@ -163,8 +165,9 @@ export default function ExecutiveDashboardPage() {
         documents,
         riskCases: risk,
         employees,
+        exclusionScreenings: screenings,
       }),
-    [tasks, credentials, training, documents, risk, employees],
+    [tasks, credentials, training, documents, risk, employees, screenings],
   );
   const band = scoreBand(score.score);
 

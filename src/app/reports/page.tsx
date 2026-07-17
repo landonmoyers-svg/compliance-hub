@@ -28,13 +28,14 @@ export default function ReportsPage() {
   const trainingQ = useCollection("trainingAssignments");
   const riskQ = useCollection("riskCases");
   const empQ = useCollection("employees");
+  const screeningsQ = useCollection("exclusionScreenings");
   const vendorsQ = useCollection("vendors");
   const insuranceQ = useCollection("insurancePolicies");
   const orgSettingsQ = useCollection("organizationSettings");
 
   const [tab, setTab] = useState<Tab>("overview");
 
-  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ, vendorsQ, insuranceQ, orgSettingsQ];
+  const queries = [tasksQ, credsQ, docsQ, trainingQ, riskQ, empQ, screeningsQ, vendorsQ, insuranceQ, orgSettingsQ];
   const loading = queries.some((q) => q.isLoading);
   const isError = queries.some((q) => q.isError);
 
@@ -44,13 +45,14 @@ export default function ReportsPage() {
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
   const risk = useMemo(() => riskQ.data ?? [], [riskQ.data]);
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
+  const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
   const vendors = useMemo(() => vendorsQ.data ?? [], [vendorsQ.data]);
   const insurancePolicies = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
   const orgSettings = useMemo(() => orgSettingsQ.data ?? [], [orgSettingsQ.data]);
 
   const score = useMemo(
-    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, employees }),
-    [tasks, credentials, training, documents, risk, employees],
+    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, employees, exclusionScreenings: screenings }),
+    [tasks, credentials, training, documents, risk, employees, screenings],
   );
 
   // Context: former employees' items are history, not warnings.

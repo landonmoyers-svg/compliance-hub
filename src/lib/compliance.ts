@@ -4,6 +4,7 @@ import type {
   ComplianceTask,
   CredentialRecord,
   Employee,
+  ExclusionScreening,
   RiskManagementCase,
   TrainingAssignment,
 } from "./data/schema";
@@ -135,14 +136,34 @@ interface ScoreInput {
   /** When provided, credential/training penalties only count people who still
    *  work here — an expired license of a former employee is history, not risk. */
   employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
-  /** CC-4: additional recurring-obligation penalties (e.g. exclusion screening
-   *  overdue) computed by the caller and folded transparently into the score.
-   *  Each factor's `impact` should already be a capped negative number. */
+  /** CC-4: exclusion screening is a recurring monthly obligation — active staff
+   *  with no screening in the last 30 days are folded into the score. Computed
+   *  in ONE place here so the number is identical on every page. */
+  exclusionScreenings?: Pick<ExclusionScreening, "subjectName" | "screenedDate" | "createdDate">[];
+  /** Additional caller-supplied recurring-obligation penalties (already capped). */
   extraFactors?: ScoreFactor[];
 }
 
 function deduct(count: number, per: number, cap: number): number {
   return -Math.min(count * per, cap);
+}
+
+/** CC-4: active staff with no exclusion screening logged in the last 30 days. */
+export function exclusionScreeningOverdue(
+  employees: Pick<Employee, "firstName" | "lastName" | "employmentStatus">[],
+  screenings: Pick<ExclusionScreening, "subjectName" | "screenedDate" | "createdDate">[],
+): number {
+  const now = Date.now();
+  const latestByName = new Map<string, number>();
+  for (const s of screenings) {
+    const key = (s.subjectName ?? "").toLowerCase();
+    const t = s.screenedDate ? new Date(s.screenedDate).getTime() : new Date(s.createdDate).getTime();
+    if (!latestByName.has(key) || t > latestByName.get(key)!) latestByName.set(key, t);
+  }
+  return employees.filter((e) => e.employmentStatus === "active").filter((e) => {
+    const last = latestByName.get(`${e.firstName} ${e.lastName}`.trim().toLowerCase());
+    return !last || (now - last) > 30 * 864e5;
+  }).length;
 }
 
 /**
@@ -176,6 +197,11 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   const criticalRisk = openRisk.filter((r) => r.severity === "critical").length;
   const highRisk = openRisk.filter((r) => r.severity === "high").length;
 
+  // CC-4: exclusion screening obligation, computed once here for consistency.
+  const screeningDue = input.exclusionScreenings && input.employees
+    ? exclusionScreeningOverdue(input.employees, input.exclusionScreenings)
+    : 0;
+
   const factors: ScoreFactor[] = [
     { key: "overdueTasks", label: "Overdue tasks", count: overdueTasks, impact: deduct(overdueTasks, 3, 25) },
     { key: "expiredCreds", label: "Expired credentials", count: expiredCreds, impact: deduct(expiredCreds, 5, 20) },
@@ -184,7 +210,8 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
     { key: "docsReview", label: "Documents past review", count: docsNeedingReview, impact: deduct(docsNeedingReview, 2, 10) },
     { key: "criticalRisk", label: "Open critical risk cases", count: criticalRisk, impact: deduct(criticalRisk, 6, 18) },
     { key: "highRisk", label: "Open high risk cases", count: highRisk, impact: deduct(highRisk, 3, 12) },
-    // CC-4: caller-supplied recurring-obligation penalties (exclusion screening, etc.).
+    { key: "screeningDue", label: "Staff overdue for exclusion screening", count: screeningDue, impact: deduct(screeningDue, 1, 10) },
+    // Additional caller-supplied recurring-obligation penalties.
     ...(input.extraFactors ?? []),
   ].filter((f) => f.count > 0);
 

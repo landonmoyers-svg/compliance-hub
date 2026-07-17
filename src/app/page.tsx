@@ -178,23 +178,7 @@ export default function CommandCenterPage() {
     [training, holderIdx],
   );
 
-  // CC-4: exclusion screening is a recurring monthly obligation — active staff
-  // with no screening in the last 30 days feed the compliance score.
-  const screeningDue = useMemo(() => {
-    const screenings = screeningsQ.data ?? [];
-    const now = Date.now();
-    const latestByName = new Map<string, number>();
-    for (const s of screenings) {
-      const key = (s.subjectName ?? "").toLowerCase();
-      const t = s.screenedDate ? new Date(s.screenedDate).getTime() : new Date(s.createdDate).getTime();
-      if (!latestByName.has(key) || t > latestByName.get(key)!) latestByName.set(key, t);
-    }
-    return employees.filter((e) => e.employmentStatus === "active").filter((e) => {
-      const last = latestByName.get(`${e.firstName} ${e.lastName}`.trim().toLowerCase());
-      return !last || (now - last) > 30 * 864e5;
-    }).length;
-  }, [screeningsQ.data, employees]);
-
+  const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
   const score = useMemo(
     () =>
       computeComplianceScore({
@@ -204,11 +188,9 @@ export default function CommandCenterPage() {
         documents,
         riskCases: risk,
         employees,
-        extraFactors: screeningDue > 0
-          ? [{ key: "screeningDue", label: "Staff overdue for exclusion screening", count: screeningDue, impact: -Math.min(screeningDue * 1, 10) }]
-          : [],
+        exclusionScreenings: screenings,
       }),
-    [tasks, credentials, training, documents, risk, employees, screeningDue],
+    [tasks, credentials, training, documents, risk, employees, screenings],
   );
   const band = scoreBand(score.score);
   // The program is "configured" once there's operational data to score against
