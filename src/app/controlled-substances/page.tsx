@@ -15,8 +15,12 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
-import type { ControlledSubstanceItem, CSItemState, CSEventType } from "@/lib/data/schema";
+import type { ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction } from "@/lib/data/schema";
 import { toast } from "sonner";
+
+const CAPA_STATUS_VARIANT: Record<CorrectiveAction["status"], "warning" | "outline" | "success" | "secondary"> = {
+  open: "warning", in_progress: "warning", verifying: "outline", complete: "success", cancelled: "secondary",
+};
 
 type Schedule = ControlledSubstanceItem["scheduleClass"];
 const SCHEDULES: Schedule[] = ["II", "IIN", "III", "IV", "V"];
@@ -260,6 +264,51 @@ interface EventForm {
   witnessName: string; patientRef: string; discrepancy: boolean; discrepancyNote: string; notes: string;
 }
 
+/* ─────────────────────── discrepancy → corrective action ─────────────────────── */
+
+const CS_ROOT_CAUSES = ["Miscount", "Documentation error", "Unwitnessed waste", "Transcription error", "Spill / breakage", "Diversion suspected", "Delivery shortage", "Process gap"];
+
+function CapaDialog({ item, event, owners, onClose, onSave, saving }: {
+  item: ControlledSubstanceItem;
+  event: ControlledSubstanceEvent;
+  owners: string[];
+  onClose: () => void;
+  onSave: (d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) => void;
+  saving: boolean;
+}) {
+  const [title, setTitle] = useState(`Controlled-substance discrepancy — ${item.substanceName}${item.containerLabel ? " (" + item.containerLabel + ")" : ""}`);
+  const [rootCause, setRootCause] = useState("");
+  const [actionPlan, setActionPlan] = useState(event.discrepancyNote ?? "");
+  const [ownerName, setOwnerName] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Track corrective action</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-3 p-5">
+          <p className="rounded-md bg-secondary/40 px-2 py-1.5 text-xs text-muted-foreground">DEA compliance: every discrepancy needs a documented root cause and corrective action.</p>
+          <input className="input w-full" placeholder="Title *" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input className="input w-full" list="cs-root-causes" placeholder="Root cause" value={rootCause} onChange={(e) => setRootCause(e.target.value)} />
+          <datalist id="cs-root-causes">{CS_ROOT_CAUSES.map((r) => <option key={r} value={r} />)}</datalist>
+          <textarea className="input w-full resize-none" rows={3} placeholder="Corrective action / action taken" value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <input className="input w-full" list="cs-owners" placeholder="Owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+            <input type="date" className="input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <datalist id="cs-owners">{owners.map((o) => <option key={o} value={o} />)}</datalist>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave({ title, rootCause, actionPlan, ownerName, dueDate })} disabled={!title.trim() || saving}>{saving ? "Saving…" : "Create corrective action"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ──────────────────────────────── page ──────────────────────────────── */
 
 export default function ControlledSubstancesPage() {
@@ -268,21 +317,27 @@ export default function ControlledSubstancesPage() {
   const eventsQ = useCollection("controlledSubstanceEvents");
   const employeesQ = useCollection("employees");
   const locationsQ = useCollection("locations");
+  const capasQ = useCollection("correctiveActions");
   const createItem = useCreate("controlledSubstanceItems");
   const updateItem = useUpdate("controlledSubstanceItems");
   const createEvent = useCreate("controlledSubstanceEvents");
+  const updateEvent = useUpdate("controlledSubstanceEvents");
+  const createCapa = useCreate("correctiveActions");
 
   const [search, setSearch] = useState("");
   const [receiving, setReceiving] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [addingEvent, setAddingEvent] = useState(false);
+  const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
   const [saving, setSaving] = useState(false);
 
   const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
   const events = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
   const staff = useMemo(() => (employeesQ.data ?? []).filter((e) => e.employmentStatus === "active").map((e) => ({ id: e.id, name: fullName(e), userId: e.userId ?? undefined })), [employeesQ.data]);
+  const owners = useMemo(() => staff.map((s) => s.name).sort(), [staff]);
   const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
   const locName = (id?: string | null) => locations.find((l) => l.id === id)?.name;
+  const capaById = useMemo(() => new Map((capasQ.data ?? []).map((c) => [c.id, c])), [capasQ.data]);
 
   const eventsFor = (itemId: string) => events.filter((e) => e.itemId === itemId).sort((a, b) => (b.eventDate ?? b.createdDate).localeCompare(a.eventDate ?? a.createdDate));
   const openItem = items.find((i) => i.id === openId) ?? null;
@@ -378,6 +433,27 @@ export default function ControlledSubstancesPage() {
     finally { setSaving(false); }
   }
 
+  // CS-6: create a tracked corrective action for a discrepancy and link it to the event.
+  async function resolveDiscrepancy(d: { title: string; rootCause: string; actionPlan: string; ownerName: string; dueDate: string }) {
+    if (!resolving) return;
+    setSaving(true);
+    try {
+      const capa = await createCapa.mutateAsync({
+        title: d.title.trim(),
+        rootCause: d.rootCause.trim() || undefined,
+        actionPlan: d.actionPlan.trim() || undefined,
+        ownerName: d.ownerName.trim() || undefined,
+        ownerUserId: staff.find((s) => s.name === d.ownerName.trim())?.userId ?? null,
+        dueDate: d.dueDate ? dateInputToISO(d.dueDate) : null,
+        status: "open",
+      });
+      await updateEvent.mutateAsync({ id: resolving.id, patch: { correctiveActionId: capa.id } });
+      toast.success("Corrective action created and linked");
+      setResolving(null);
+    } catch { toast.error("Couldn't create the corrective action."); }
+    finally { setSaving(false); }
+  }
+
   if (itemsQ.isError) return <div className="space-y-6"><PageHeader title="Controlled Substances" /><ErrorState message="We couldn't load controlled-substance records." onRetry={() => void itemsQ.refetch()} /></div>;
   const loading = itemsQ.isLoading || eventsQ.isLoading;
 
@@ -387,6 +463,7 @@ export default function ControlledSubstancesPage() {
     return (
       <div className="space-y-6">
         {addingEvent && <EventDialog item={openItem} staff={staff} onClose={() => setAddingEvent(false)} onSave={addEvent} saving={saving} />}
+        {resolving && <CapaDialog item={openItem} event={resolving} owners={owners} onClose={() => setResolving(null)} onSave={resolveDiscrepancy} saving={saving} />}
         <PageHeader
           title={openItem.substanceName}
           description={`${openItem.strength ? openItem.strength + " · " : ""}Schedule ${openItem.scheduleClass}${openItem.containerLabel ? " · " + openItem.containerLabel : ""}${openItem.lotNumber ? " · Lot " + openItem.lotNumber : ""}`}
@@ -430,6 +507,19 @@ export default function ControlledSubstancesPage() {
                       {ev.documentUrl && <FileLink path={ev.documentUrl} label="Scanned record" className="text-primary hover:underline" />}
                     </div>
                     {ev.discrepancy && ev.discrepancyNote && <p className="mt-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{ev.discrepancyNote}</p>}
+                    {ev.discrepancy && (
+                      <div className="mt-1.5">
+                        {ev.correctiveActionId && capaById.get(ev.correctiveActionId) ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs">
+                            <span className="text-muted-foreground">Corrective action:</span>
+                            <Badge variant={CAPA_STATUS_VARIANT[capaById.get(ev.correctiveActionId)!.status]}>{capaById.get(ev.correctiveActionId)!.status.replace("_", " ")}</Badge>
+                            <span className="text-muted-foreground">{capaById.get(ev.correctiveActionId)!.title}</span>
+                          </span>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => setResolving(ev)}>Track corrective action</Button>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
