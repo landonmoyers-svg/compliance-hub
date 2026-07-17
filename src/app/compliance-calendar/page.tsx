@@ -45,9 +45,10 @@ const TYPE_COLOR: Record<CalEvent["type"], string> = {
 // and expanded into a concrete Date for whatever year is being displayed.
 type RegulatoryRule = {
   id: string;
-  month: number; // 1-12
+  month?: number; // 1-12; omit for a monthly-recurring rule
   day: number;
   label: string;
+  recurrence?: "monthly"; // expands to every month on `day`
 };
 
 const REGULATORY_RULES: RegulatoryRule[] = [
@@ -65,6 +66,7 @@ const REGULATORY_RULES: RegulatoryRule[] = [
   { id: "cs-recon-q2", month: 6, day: 30, label: "Quarterly controlled-substance reconciliation (Q2)" },
   { id: "cs-recon-q3", month: 9, day: 30, label: "Quarterly controlled-substance reconciliation (Q3)" },
   { id: "cs-recon-q4", month: 12, day: 31, label: "Quarterly controlled-substance reconciliation (Q4)" },
+  { id: "cs-upload-cadence", day: 5, recurrence: "monthly", label: "Scan & upload all controlled-substance paper logs (monthly)" },
   // Added from the regulatory source register. Provider-specific dates (each DEA
   // registration, state license, Spravato REMS cert) should also be entered as
   // credentials with real expiration dates — those render here automatically.
@@ -135,13 +137,14 @@ export default function ComplianceCalendarPage() {
     // Fixed recurring regulatory deadlines, expanded for the displayed year.
     const year = current.getFullYear();
     for (const rule of REGULATORY_RULES) {
-      out.push({
-        id: `reg-${rule.id}-${year}`,
-        date: new Date(year, rule.month - 1, rule.day),
-        label: rule.label,
-        type: "regulatory",
-        urgent: false,
-      });
+      if (rule.recurrence === "monthly") {
+        // Expand to every month on `day` for the displayed year.
+        for (let m = 0; m < 12; m++) {
+          out.push({ id: `reg-${rule.id}-${year}-${m}`, date: new Date(year, m, rule.day), label: rule.label, type: "regulatory", urgent: false });
+        }
+      } else {
+        out.push({ id: `reg-${rule.id}-${year}`, date: new Date(year, (rule.month ?? 1) - 1, rule.day), label: rule.label, type: "regulatory", urgent: false });
+      }
     }
 
     return out;
