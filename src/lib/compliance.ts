@@ -135,6 +135,10 @@ interface ScoreInput {
   /** When provided, credential/training penalties only count people who still
    *  work here — an expired license of a former employee is history, not risk. */
   employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
+  /** CC-4: additional recurring-obligation penalties (e.g. exclusion screening
+   *  overdue) computed by the caller and folded transparently into the score.
+   *  Each factor's `impact` should already be a capped negative number. */
+  extraFactors?: ScoreFactor[];
 }
 
 function deduct(count: number, per: number, cap: number): number {
@@ -180,6 +184,8 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
     { key: "docsReview", label: "Documents past review", count: docsNeedingReview, impact: deduct(docsNeedingReview, 2, 10) },
     { key: "criticalRisk", label: "Open critical risk cases", count: criticalRisk, impact: deduct(criticalRisk, 6, 18) },
     { key: "highRisk", label: "Open high risk cases", count: highRisk, impact: deduct(highRisk, 3, 12) },
+    // CC-4: caller-supplied recurring-obligation penalties (exclusion screening, etc.).
+    ...(input.extraFactors ?? []),
   ].filter((f) => f.count > 0);
 
   const total = factors.reduce((sum, f) => sum + f.impact, 0);
