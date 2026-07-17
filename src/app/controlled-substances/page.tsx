@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldAlert, Plus, Search, X, Check } from "lucide-react";
+import { ShieldAlert, Plus, Search, X, Upload, AlertTriangle, ArrowLeft, Package, UserCheck, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
-import { useCollection, useCreate } from "@/lib/data/hooks";
+import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,439 +12,492 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSort, SortHeader } from "@/components/shared/sortable";
-import type { ControlledSubstanceLog } from "@/lib/data/schema";
-import { formatDate } from "@/lib/dates";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
+import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
+import type { ControlledSubstanceItem, CSItemState, CSEventType } from "@/lib/data/schema";
 import { toast } from "sonner";
 
-type ScheduleClass = ControlledSubstanceLog["scheduleClass"];
-type TransactionType = ControlledSubstanceLog["transactionType"];
-
-const SCHEDULES: ScheduleClass[] = ["II", "III", "IV", "V"];
-const TX_TYPES: TransactionType[] = ["receive", "dispense", "return", "dispose", "adjustment"];
-
-const TX_LABEL: Record<TransactionType, string> = {
-  receive: "Receive",
-  dispense: "Dispense",
-  return: "Return",
-  dispose: "Dispose",
-  adjustment: "Adjustment",
+type Schedule = ControlledSubstanceItem["scheduleClass"];
+const SCHEDULES: Schedule[] = ["II", "IIN", "III", "IV", "V"];
+const SCHED_VARIANT: Record<Schedule, "destructive" | "warning" | "secondary"> = {
+  II: "destructive", IIN: "destructive", III: "warning", IV: "warning", V: "secondary",
 };
 
-const TX_VARIANT: Record<TransactionType, "success" | "warning" | "destructive" | "secondary" | "default"> = {
-  receive: "success",
-  dispense: "default",
-  return: "secondary",
-  dispose: "warning",
-  adjustment: "secondary",
+const STATE_LABEL: Record<CSItemState, string> = {
+  received: "Received", in_primary_safe: "In primary safe", assigned_to_staff: "In staff custody",
+  in_use: "In use", depleted: "Depleted", wasted: "Wasted", destroyed: "Destroyed", quarantined: "Quarantined",
 };
-
-const SCHED_VARIANT: Record<ScheduleClass, "destructive" | "warning" | "secondary"> = {
-  II: "destructive",
-  III: "warning",
-  IV: "warning",
-  V: "secondary",
+const STATE_VARIANT: Record<CSItemState, "success" | "warning" | "secondary" | "destructive" | "outline"> = {
+  received: "outline", in_primary_safe: "secondary", assigned_to_staff: "warning", in_use: "warning",
+  depleted: "secondary", wasted: "secondary", destroyed: "secondary", quarantined: "destructive",
 };
+const CLOSED_STATES: CSItemState[] = ["depleted", "wasted", "destroyed"];
 
-/** Transactions that increase the on-hand balance. */
-const ADDS: TransactionType[] = ["receive", "return"];
-/** Transactions that decrease the on-hand balance. */
-const SUBTRACTS: TransactionType[] = ["dispense", "dispose"];
+// Administer-only vocabulary — NO "dispense" (Lone Peak administers on-site only).
+const EVENT_LABEL: Record<CSEventType, string> = {
+  receive: "Received", transfer_to_safe: "Moved to primary safe", assign_to_staff: "Assigned to staff",
+  return_to_safe: "Returned to safe", administer: "Administered", waste: "Wasted", destroy: "Destroyed",
+  count: "Counted", adjust: "Adjustment",
+};
+// Events staff pick when adding to a bottle (receive is done via "Receive delivery").
+const ADD_EVENT_TYPES: CSEventType[] = ["transfer_to_safe", "assign_to_staff", "return_to_safe", "administer", "waste", "destroy", "count", "adjust"];
+const QTY_EVENTS: CSEventType[] = ["administer", "waste", "adjust"];
 
-/** Effective date used for ordering: transactionDate if present, else createdDate. */
-function effectiveDate(e: ControlledSubstanceLog): string {
-  return e.transactionDate ?? e.createdDate ?? "";
+function fullName(e: { firstName: string; lastName: string }) {
+  return `${e.firstName} ${e.lastName}`.trim();
 }
 
-/** Sort newest-first by effective date, breaking ties with createdDate. */
-function byNewest(a: ControlledSubstanceLog, b: ControlledSubstanceLog): number {
-  const ea = effectiveDate(a);
-  const eb = effectiveDate(b);
-  if (ea !== eb) return eb.localeCompare(ea);
-  return (b.createdDate ?? "").localeCompare(a.createdDate ?? "");
+/* ─────────────────────────── receive delivery ─────────────────────────── */
+
+function ReceiveDialog({ locations, onClose, onSave, saving }: {
+  locations: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (d: ReceiveForm, file: File | null) => void;
+  saving: boolean;
+}) {
+  const [f, setF] = useState<ReceiveForm>({
+    substanceName: "", scheduleClass: "II", strength: "", ndc: "", lotNumber: "", expirationDate: "",
+    containerLabel: "", quantity: "", quantityUnit: "mL", supplierName: "", orderReference: "",
+    locationId: locations[0]?.id ?? "", receivedDate: new Date().toISOString().slice(0, 10),
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const set = (k: keyof ReceiveForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const canSave = f.substanceName.trim() && f.quantity.trim() && Number(f.quantity) > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Receive a delivery</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Substance *</label>
+            <input className="input w-full" value={f.substanceName} onChange={set("substanceName")} placeholder="e.g. Ketamine HCl" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Schedule</label>
+            <select className="input w-full" value={f.scheduleClass} onChange={set("scheduleClass")}>
+              {SCHEDULES.map((s) => <option key={s} value={s}>Schedule {s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Strength</label>
+            <input className="input w-full" value={f.strength} onChange={set("strength")} placeholder="e.g. 50 mg/mL" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Quantity received *</label>
+            <input type="number" min={0} step="any" className="input w-full" value={f.quantity} onChange={set("quantity")} placeholder="0" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Unit</label>
+            <input className="input w-full" value={f.quantityUnit} onChange={set("quantityUnit")} placeholder="mL, mg, tablets, vials" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Container label / barcode</label>
+            <input className="input w-full" value={f.containerLabel} onChange={set("containerLabel")} placeholder="Bottle/vial label id" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">NDC / product code</label>
+            <input className="input w-full" value={f.ndc} onChange={set("ndc")} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Lot number</label>
+            <input className="input w-full" value={f.lotNumber} onChange={set("lotNumber")} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Expiration date</label>
+            <input type="date" className="input w-full" value={f.expirationDate} onChange={set("expirationDate")} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Supplier</label>
+            <input className="input w-full" value={f.supplierName} onChange={set("supplierName")} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Order / DEA 222 / CSOS ref</label>
+            <input className="input w-full" value={f.orderReference} onChange={set("orderReference")} placeholder="For CII, the 222/CSOS number" />
+          </div>
+          {locations.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Clinic</label>
+              <select className="input w-full" value={f.locationId} onChange={set("locationId")}>
+                <option value="">Not specified</option>
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Date received</label>
+            <input type="date" className="input w-full" value={f.receivedDate} onChange={set("receivedDate")} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Scan of the receiving record (packing slip / signed 222)</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              <Upload className="size-4" />
+              {file ? file.name : "Upload the scanned receiving document"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave(f, file)} disabled={!canSave || saving}>{saving ? "Saving…" : "Log receipt"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+interface ReceiveForm {
+  substanceName: string; scheduleClass: Schedule; strength: string; ndc: string; lotNumber: string;
+  expirationDate: string; containerLabel: string; quantity: string; quantityUnit: string;
+  supplierName: string; orderReference: string; locationId: string; receivedDate: string;
 }
 
-/** Signed display quantity for the log table (+ for adds, - for subtracts). */
-function signedQuantity(e: ControlledSubstanceLog): string {
-  if (ADDS.includes(e.transactionType)) return `+${e.quantity}`;
-  if (SUBTRACTS.includes(e.transactionType)) return `-${e.quantity}`;
-  return `${e.quantity}`; // adjustment = absolute set
+/* ─────────────────────────── add custody event ─────────────────────────── */
+
+function EventDialog({ item, staff, onClose, onSave, saving }: {
+  item: ControlledSubstanceItem;
+  staff: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (d: EventForm, file: File | null) => void;
+  saving: boolean;
+}) {
+  const [f, setF] = useState<EventForm>({
+    eventType: "administer", eventDate: new Date().toISOString().slice(0, 10), quantity: "",
+    toCustodian: "", witnessName: "", patientRef: "", discrepancy: false, discrepancyNote: "", notes: "",
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const set = (k: keyof EventForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+  const needsQty = QTY_EVENTS.includes(f.eventType);
+  const needsCustodian = f.eventType === "assign_to_staff";
+  const isAdminister = f.eventType === "administer";
+  const isWasteDestroy = f.eventType === "waste" || f.eventType === "destroy";
+  const isCount = f.eventType === "count";
+  const qtyLabel = f.eventType === "adjust" ? "Corrected balance" : isCount ? "Counted quantity" : "Quantity";
+  const showQty = needsQty || isCount;
+  const canSave = (!showQty || f.quantity.trim() !== "") && (!needsCustodian || f.toCustodian.trim() !== "");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="font-semibold">Record custody event</h2>
+            <p className="text-xs text-muted-foreground">{item.substanceName}{item.containerLabel ? ` · ${item.containerLabel}` : ""} · balance {item.currentQuantity} {item.quantityUnit}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Event</label>
+            <select className="input w-full" value={f.eventType} onChange={set("eventType")}>
+              {ADD_EVENT_TYPES.map((t) => <option key={t} value={t}>{EVENT_LABEL[t]}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Date</label>
+              <input type="date" className="input w-full" value={f.eventDate} onChange={set("eventDate")} />
+            </div>
+            {showQty && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">{qtyLabel} ({item.quantityUnit})</label>
+                <input type="number" min={0} step="any" className="input w-full" value={f.quantity} onChange={set("quantity")} placeholder="0" />
+              </div>
+            )}
+          </div>
+          {needsCustodian && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Assign to staff member *</label>
+              <input className="input w-full" list="cs-staff" value={f.toCustodian} onChange={set("toCustodian")} placeholder="Staff name" />
+              <datalist id="cs-staff">{staff.map((s) => <option key={s.id} value={s.name} />)}</datalist>
+            </div>
+          )}
+          {isAdminister && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Patient reference (de-identified)</label>
+              <input className="input w-full" value={f.patientRef} onChange={set("patientRef")} placeholder="e.g. MRN last 4 or initials — NO full PHI" />
+            </div>
+          )}
+          {(isWasteDestroy || isCount || needsCustodian) && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Witness {isWasteDestroy ? <span className="text-destructive">*</span> : "(recommended)"}</label>
+              <input className="input w-full" list="cs-staff" value={f.witnessName} onChange={set("witnessName")} placeholder="Second-person witness" />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Scanned record (paper log / waste form / 41)</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              <Upload className="size-4" />
+              {file ? file.name : "Upload the scanned document"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4" checked={f.discrepancy} onChange={(e) => setF((p) => ({ ...p, discrepancy: e.target.checked }))} />
+            Flag a discrepancy
+          </label>
+          {f.discrepancy && (
+            <textarea className="input w-full resize-none" rows={2} value={f.discrepancyNote} onChange={set("discrepancyNote")} placeholder="Describe the discrepancy and the corrective action taken (DEA reporting)." />
+          )}
+          {isWasteDestroy && !f.witnessName.trim() && (
+            <p className="flex items-center gap-1.5 text-xs text-warning"><AlertTriangle className="size-3.5" /> Waste and destruction require a witness.</p>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave(f, file)} disabled={!canSave || saving || (isWasteDestroy && !f.witnessName.trim())}>{saving ? "Saving…" : "Record event"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+interface EventForm {
+  eventType: CSEventType; eventDate: string; quantity: string; toCustodian: string;
+  witnessName: string; patientRef: string; discrepancy: boolean; discrepancyNote: string; notes: string;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-
-interface FormState {
-  substanceName: string;
-  scheduleClass: ScheduleClass;
-  transactionType: TransactionType;
-  quantity: string;
-  patientRef: string;
-  prescriberName: string;
-  witnessName: string;
-  transactionDate: string;
-  notes: string;
-}
-
-const emptyForm = (witness: string): FormState => ({
-  substanceName: "",
-  scheduleClass: "II",
-  transactionType: "dispense",
-  quantity: "",
-  patientRef: "",
-  prescriberName: "",
-  witnessName: witness,
-  transactionDate: today(),
-  notes: "",
-});
+/* ──────────────────────────────── page ──────────────────────────────── */
 
 export default function ControlledSubstancesPage() {
-  const { profile, user } = useAuth();
-  const myName = profile?.fullName ?? user?.fullName ?? "";
+  const { profile } = useAuth();
+  const itemsQ = useCollection("controlledSubstanceItems");
+  const eventsQ = useCollection("controlledSubstanceEvents");
+  const employeesQ = useCollection("employees");
+  const locationsQ = useCollection("locations");
+  const createItem = useCreate("controlledSubstanceItems");
+  const updateItem = useUpdate("controlledSubstanceItems");
+  const createEvent = useCreate("controlledSubstanceEvents");
 
-  const { data, isLoading, isError, refetch } = useCollection("controlledSubstanceLogs");
-  const createMut = useCreate("controlledSubstanceLogs");
-
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormState>(() => emptyForm(myName));
+  const [search, setSearch] = useState("");
+  const [receiving, setReceiving] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [addingEvent, setAddingEvent] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [filterSubstance, setFilterSubstance] = useState<string>("all");
-  const [filterType, setFilterType] = useState<TransactionType | "all">("all");
-  const [search, setSearch] = useState("");
+  const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
+  const events = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
+  const staff = useMemo(() => (employeesQ.data ?? []).filter((e) => e.employmentStatus === "active").map((e) => ({ id: e.id, name: fullName(e), userId: e.userId ?? undefined })), [employeesQ.data]);
+  const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
+  const locName = (id?: string | null) => locations.find((l) => l.id === id)?.name;
 
-  const logs = useMemo(() => data ?? [], [data]);
+  const eventsFor = (itemId: string) => events.filter((e) => e.itemId === itemId).sort((a, b) => (b.eventDate ?? b.createdDate).localeCompare(a.eventDate ?? a.createdDate));
+  const openItem = items.find((i) => i.id === openId) ?? null;
 
-  const sorted = useMemo(() => [...logs].sort(byNewest), [logs]);
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items.filter((i) => !q || i.substanceName.toLowerCase().includes(q) || (i.containerLabel ?? "").toLowerCase().includes(q) || (i.lotNumber ?? "").toLowerCase().includes(q) || (i.custodianName ?? "").toLowerCase().includes(q));
+  }, [items, search]);
 
-  /** Distinct substance names (preserving a stable, sorted order). */
-  const substances = useMemo(() => {
-    const set = new Set(logs.map((l) => l.substanceName));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [logs]);
-
-  /** Current balance + last-counted date per substance, from its newest tx. */
-  const inventory = useMemo(() => {
-    const map = new Map<string, ControlledSubstanceLog>();
-    for (const l of logs) {
-      const existing = map.get(l.substanceName);
-      if (!existing || byNewest(l, existing) < 0) map.set(l.substanceName, l);
-    }
-    return Array.from(map.values())
-      .map((l) => ({
-        substanceName: l.substanceName,
-        scheduleClass: l.scheduleClass,
-        currentBalance: l.balanceAfter,
-        lastCounted: effectiveDate(l),
-      }))
-      .sort((a, b) => a.substanceName.localeCompare(b.substanceName));
-  }, [logs]);
-
-  const filteredLog = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return sorted.filter((e) => {
-      if (filterSubstance !== "all" && e.substanceName !== filterSubstance) return false;
-      if (filterType !== "all" && e.transactionType !== filterType) return false;
-      if (q && !e.substanceName.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [sorted, filterSubstance, filterType, search]);
+  // Active bottles (not closed) first, then discrepancies float up.
+  const ordered = useMemo(() => [...filtered].sort((a, b) => Number(CLOSED_STATES.includes(a.state)) - Number(CLOSED_STATES.includes(b.state)) || Number(b.hasDiscrepancy) - Number(a.hasDiscrepancy)), [filtered]);
+  const { sorted, sort, toggle } = useSort(ordered, {
+    substance: (i) => i.substanceName,
+    label: (i) => i.containerLabel ?? "",
+    balance: (i) => i.currentQuantity,
+    state: (i) => i.state,
+    custodian: (i) => i.custodianName ?? "",
+  });
 
   const stats = useMemo(() => ({
-    distinct: substances.length,
-    total: logs.length,
-    dispenses: logs.filter((l) => l.transactionType === "dispense").length,
-    atOrBelowZero: inventory.filter((i) => i.currentBalance <= 0).length,
-  }), [substances, logs, inventory]);
+    active: items.filter((i) => !CLOSED_STATES.includes(i.state)).length,
+    inCustody: items.filter((i) => i.state === "assigned_to_staff" || i.state === "in_use").length,
+    discrepancies: items.filter((i) => i.hasDiscrepancy).length,
+    expiring: items.filter((i) => !CLOSED_STATES.includes(i.state) && i.expirationDate && isExpired(i.expirationDate)).length,
+  }), [items]);
 
-  const { sorted: invSorted, sort: invSort, toggle: invToggle } = useSort(inventory, {
-    substance: (i) => i.substanceName,
-    schedule: (i) => i.scheduleClass,
-    balance: (i) => i.currentBalance,
-    lastCounted: (i) => i.lastCounted,
-  });
-
-  const { sorted: logSorted, sort: logSort, toggle: logToggle } = useSort(filteredLog, {
-    date: (e) => effectiveDate(e),
-    substance: (e) => e.substanceName,
-    schedule: (e) => e.scheduleClass,
-    type: (e) => TX_LABEL[e.transactionType],
-    quantity: (e) => (SUBTRACTS.includes(e.transactionType) ? -e.quantity : e.quantity),
-    balance: (e) => e.balanceAfter,
-    prescriber: (e) => e.prescriberName,
-    witness: (e) => e.witnessName,
-    patientRef: (e) => e.patientRef,
-  });
-
-  /** Most recent prior balance for a substance (newest tx's balanceAfter, else 0). */
-  function priorBalance(substanceName: string): number {
-    const prior = logs
-      .filter((l) => l.substanceName === substanceName)
-      .sort(byNewest)[0];
-    return prior ? prior.balanceAfter : 0;
-  }
-
-  function computeBalance(
-    substanceName: string,
-    type: TransactionType,
-    qty: number,
-  ): number {
-    if (type === "adjustment") return qty; // absolute corrected count
-    const prior = priorBalance(substanceName);
-    if (ADDS.includes(type)) return prior + qty;
-    return prior - qty; // dispense / dispose
-  }
-
-  async function save() {
-    const name = form.substanceName.trim();
-    const qty = Number(form.quantity);
-    if (!name) {
-      toast.error("Substance name is required.");
-      return;
-    }
-    if (!Number.isFinite(qty) || qty <= 0) {
-      toast.error("Quantity must be a number greater than 0.");
-      return;
-    }
-
-    const balanceAfter = computeBalance(name, form.transactionType, qty);
-    const negative =
-      SUBTRACTS.includes(form.transactionType) && balanceAfter < 0;
-
+  async function receive(d: ReceiveForm, file: File | null) {
     setSaving(true);
     try {
-      await createMut.mutateAsync({
-        substanceName: name,
-        scheduleClass: form.scheduleClass,
-        transactionType: form.transactionType,
-        quantity: qty,
-        balanceAfter,
-        patientRef: form.patientRef.trim() || undefined,
-        prescriberName: form.prescriberName.trim() || undefined,
-        witnessName: form.witnessName.trim() || undefined,
-        transactionDate: form.transactionDate || today(),
-        notes: form.notes.trim() || undefined,
+      let documentUrl: string | null = null;
+      if (file) { try { documentUrl = await uploadFile(file, "controlled-substances"); } catch { toast.error("Couldn't upload the document — logging without it."); } }
+      const qty = Number(d.quantity) || 0;
+      const receivedDate = d.receivedDate ? dateInputToISO(d.receivedDate) : new Date().toISOString();
+      const item = await createItem.mutateAsync({
+        substanceName: d.substanceName.trim(), scheduleClass: d.scheduleClass, strength: d.strength.trim() || undefined,
+        ndc: d.ndc.trim() || undefined, lotNumber: d.lotNumber.trim() || undefined,
+        expirationDate: d.expirationDate ? dateInputToISO(d.expirationDate) : null,
+        containerLabel: d.containerLabel.trim() || undefined, quantityUnit: d.quantityUnit.trim() || "units",
+        initialQuantity: qty, currentQuantity: qty, state: "received",
+        locationId: d.locationId || null, receivedDate,
+        orderReference: d.orderReference.trim() || undefined, supplierName: d.supplierName.trim() || undefined,
+        hasDiscrepancy: false,
       });
-      if (negative) {
-        toast.warning(
-          `Recorded — but ${name} is now at ${balanceAfter}. Negative balance flagged; verify physical count.`,
-        );
-      } else {
-        toast.success("Transaction recorded.");
-      }
-      setShowForm(false);
-      setForm(emptyForm(myName));
-    } catch {
-      toast.error("Failed to record transaction.");
-    } finally {
-      setSaving(false);
-    }
+      await createEvent.mutateAsync({
+        itemId: item.id, eventType: "receive", eventDate: receivedDate, quantity: qty, balanceAfter: qty,
+        performedByName: profile?.fullName || undefined, performedByUserId: profile?.userId || null, documentUrl,
+        discrepancy: false,
+      });
+      toast.success("Delivery logged");
+      setReceiving(false);
+      setOpenId(item.id);
+    } catch { toast.error("Couldn't log the delivery."); }
+    finally { setSaving(false); }
   }
 
-  const set = (k: keyof FormState) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  async function addEvent(d: EventForm, file: File | null) {
+    if (!openItem) return;
+    setSaving(true);
+    try {
+      let documentUrl: string | null = null;
+      if (file) { try { documentUrl = await uploadFile(file, "controlled-substances"); } catch { toast.error("Couldn't upload the document — logging without it."); } }
+      const qty = Number(d.quantity) || 0;
+      const cur = openItem.currentQuantity;
+      // Compute the new balance + item state from the event type.
+      let balance = cur;
+      const patch: Partial<ControlledSubstanceItem> = {};
+      switch (d.eventType) {
+        case "administer": balance = Math.max(0, cur - qty); patch.state = balance === 0 ? "depleted" : "in_use"; break;
+        case "waste": balance = Math.max(0, cur - qty); patch.state = balance === 0 ? "wasted" : openItem.state; break;
+        case "destroy": balance = 0; patch.state = "destroyed"; break;
+        case "adjust": balance = qty; break; // corrected balance
+        case "count": balance = cur; break; // no change; discrepancy captured separately
+        case "assign_to_staff": patch.state = "assigned_to_staff"; patch.custodianName = d.toCustodian.trim(); patch.custodianUserId = staff.find((s) => s.name === d.toCustodian.trim())?.userId ?? null; break;
+        case "transfer_to_safe": patch.state = "in_primary_safe"; break;
+        case "return_to_safe": patch.state = "in_primary_safe"; patch.custodianName = undefined; patch.custodianUserId = null; break;
+      }
+      patch.currentQuantity = balance;
+      if (d.discrepancy) patch.hasDiscrepancy = true;
+      await createEvent.mutateAsync({
+        itemId: openItem.id, eventType: d.eventType, eventDate: d.eventDate ? dateInputToISO(d.eventDate) : new Date().toISOString(),
+        quantity: qty, balanceAfter: balance,
+        fromCustodianName: openItem.custodianName || undefined,
+        toCustodianName: d.eventType === "assign_to_staff" ? d.toCustodian.trim() : undefined,
+        toCustodianUserId: d.eventType === "assign_to_staff" ? (staff.find((s) => s.name === d.toCustodian.trim())?.userId ?? null) : null,
+        performedByName: profile?.fullName || undefined, performedByUserId: profile?.userId || null,
+        witnessName: d.witnessName.trim() || undefined, patientRef: d.patientRef.trim() || undefined, documentUrl,
+        discrepancy: d.discrepancy, discrepancyNote: d.discrepancyNote.trim() || undefined,
+      });
+      await updateItem.mutateAsync({ id: openItem.id, patch });
+      toast.success("Event recorded");
+      setAddingEvent(false);
+    } catch { toast.error("Couldn't record the event."); }
+    finally { setSaving(false); }
+  }
 
-  // Live preview of the computed balance in the modal.
-  const previewQty = Number(form.quantity);
-  const previewValid = Number.isFinite(previewQty) && previewQty > 0 && !!form.substanceName.trim();
-  const previewBalance = previewValid
-    ? computeBalance(form.substanceName.trim(), form.transactionType, previewQty)
-    : null;
+  if (itemsQ.isError) return <div className="space-y-6"><PageHeader title="Controlled Substances" /><ErrorState message="We couldn't load controlled-substance records." onRetry={() => void itemsQ.refetch()} /></div>;
+  const loading = itemsQ.isLoading || eventsQ.isLoading;
 
-  if (isError) {
+  /* ── bottle detail: chain of custody ── */
+  if (openItem) {
+    const chain = eventsFor(openItem.id);
     return (
       <div className="space-y-6">
-        <PageHeader title="Controlled Substances" />
-        <ErrorState message="We couldn't load the controlled substance log." onRetry={() => void refetch()} />
+        {addingEvent && <EventDialog item={openItem} staff={staff} onClose={() => setAddingEvent(false)} onSave={addEvent} saving={saving} />}
+        <PageHeader
+          title={openItem.substanceName}
+          description={`${openItem.strength ? openItem.strength + " · " : ""}Schedule ${openItem.scheduleClass}${openItem.containerLabel ? " · " + openItem.containerLabel : ""}${openItem.lotNumber ? " · Lot " + openItem.lotNumber : ""}`}
+          actions={<div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setOpenId(null)}><ArrowLeft className="size-4" /> All bottles</Button>
+            {!CLOSED_STATES.includes(openItem.state) && <Button onClick={() => setAddingEvent(true)}><Plus className="size-4" /> Record event</Button>}
+          </div>}
+        />
+        <div className="grid gap-4 sm:grid-cols-4">
+          <StatCard label="Current balance" value={`${openItem.currentQuantity} ${openItem.quantityUnit}`} icon={FlaskConical} tone={openItem.currentQuantity === 0 ? "default" : "success"} />
+          <StatCard label="State" value={STATE_LABEL[openItem.state]} icon={Package} tone={openItem.state === "quarantined" ? "destructive" : "default"} />
+          <StatCard label="Custodian" value={openItem.custodianName || locName(openItem.locationId) || "—"} icon={UserCheck} />
+          <StatCard label="Received" value={openItem.initialQuantity} hint={`${openItem.receivedDate ? formatDate(openItem.receivedDate) : ""}${openItem.orderReference ? " · " + openItem.orderReference : ""}`} icon={Package} />
+        </div>
+        {openItem.hasDiscrepancy && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertTriangle className="size-4 shrink-0" /> This container has a flagged discrepancy — review the chain below and ensure a corrective action is documented.
+          </div>
+        )}
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Chain of custody</CardTitle></CardHeader>
+          <CardContent>
+            {chain.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No events yet.</p>
+            ) : (
+              <ol className="relative space-y-4 border-l border-border pl-5">
+                {chain.map((ev) => (
+                  <li key={ev.id} className="relative">
+                    <span className={`absolute -left-[23px] top-1 size-3 rounded-full ring-2 ring-card ${ev.discrepancy ? "bg-destructive" : "bg-primary"}`} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={ev.discrepancy ? "destructive" : "secondary"}>{EVENT_LABEL[ev.eventType]}</Badge>
+                      {QTY_EVENTS.includes(ev.eventType) && <span className="text-sm font-medium">{ev.quantity} {openItem.quantityUnit}</span>}
+                      {ev.balanceAfter != null && <span className="text-xs text-muted-foreground">→ balance {ev.balanceAfter} {openItem.quantityUnit}</span>}
+                      <span className="text-xs text-muted-foreground">· {ev.eventDate ? formatDate(ev.eventDate) : formatDate(ev.createdDate)}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {ev.toCustodianName && <span>To: {ev.toCustodianName}</span>}
+                      {ev.performedByName && <span>By: {ev.performedByName}</span>}
+                      {ev.witnessName && <span>Witness: {ev.witnessName}</span>}
+                      {ev.patientRef && <span>Patient: {ev.patientRef}</span>}
+                      {ev.documentUrl && <FileLink path={ev.documentUrl} label="Scanned record" className="text-primary hover:underline" />}
+                    </div>
+                    {ev.discrepancy && ev.discrepancyNote && <p className="mt-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{ev.discrepancyNote}</p>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  /* ── bottle list ── */
   return (
     <div className="space-y-6">
-      {showForm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={(e) => e.target === e.currentTarget && setShowForm(false)}
-        >
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="font-semibold">Record transaction</h2>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
-            </div>
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-sm font-medium">Substance *</label>
-                <input
-                  className="input w-full"
-                  list="cs-substances"
-                  value={form.substanceName}
-                  onChange={set("substanceName")}
-                  placeholder="Name, strength, form"
-                />
-                <datalist id="cs-substances">
-                  {substances.map((s) => <option key={s} value={s} />)}
-                </datalist>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">DEA Schedule</label>
-                <select className="input w-full" value={form.scheduleClass} onChange={set("scheduleClass")}>
-                  {SCHEDULES.map((s) => <option key={s} value={s}>Schedule {s}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Transaction type</label>
-                <select className="input w-full" value={form.transactionType} onChange={set("transactionType")}>
-                  {TX_TYPES.map((t) => <option key={t} value={t}>{TX_LABEL[t]}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">
-                  Quantity *{form.transactionType === "adjustment" ? " (corrected total)" : ""}
-                </label>
-                <input type="number" min="0" step="any" className="input w-full" value={form.quantity} onChange={set("quantity")} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Date</label>
-                <input type="date" className="input w-full" value={form.transactionDate} onChange={set("transactionDate")} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Prescriber</label>
-                <input className="input w-full" value={form.prescriberName} onChange={set("prescriberName")} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Witness</label>
-                <input className="input w-full" value={form.witnessName} onChange={set("witnessName")} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-sm font-medium">Patient reference (de-identified)</label>
-                <input className="input w-full" value={form.patientRef} onChange={set("patientRef")} placeholder="De-identified ID only" />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-sm font-medium">Notes</label>
-                <textarea className="input w-full min-h-[60px] resize-y" value={form.notes} onChange={set("notes")} />
-              </div>
-              {previewBalance !== null && (
-                <p className={`sm:col-span-2 rounded-md px-3 py-2 text-sm ${previewBalance < 0 ? "bg-destructive/10 text-destructive" : "bg-secondary/40 text-muted-foreground"}`}>
-                  New balance after this transaction: <span className="font-medium tabular-nums">{previewBalance}</span>
-                  {previewBalance < 0 && " — negative balance will be flagged."}
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-              <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? "Saving…" : <><Check className="size-3" /> Record</>}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {receiving && <ReceiveDialog locations={locations} onClose={() => setReceiving(false)} onSave={receive} saving={saving} />}
       <PageHeader
         title="Controlled Substances"
-        description="DEA Schedule II–V transaction log. DEA requires a biennial (every 2 years) physical inventory, and all records must be retained for at least 2 years. Disposals and losses may require DEA Form 41 (destruction) or Form 106 (theft/loss)."
-        actions={<Button onClick={() => { setForm(emptyForm(myName)); setShowForm(true); }}><Plus className="size-4" /> Record transaction</Button>}
+        description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Lone Peak administers on-site only — every container is tracked with scanned DEA records."
+        actions={<Button onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive delivery</Button>}
       />
-
-      <div className="grid gap-4 sm:grid-cols-4">
-        <StatCard label="Substances tracked" value={stats.distinct} icon={ShieldAlert} loading={isLoading} />
-        <StatCard label="Total transactions" value={stats.total} icon={ShieldAlert} loading={isLoading} />
-        <StatCard label="Dispenses" value={stats.dispenses} icon={ShieldAlert} loading={isLoading} />
-        <StatCard label="At / below zero" value={stats.atOrBelowZero} icon={ShieldAlert} tone={stats.atOrBelowZero ? "destructive" : "default"} loading={isLoading} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Active bottles" value={stats.active} icon={Package} loading={loading} />
+        <StatCard label="In staff custody" value={stats.inCustody} icon={UserCheck} loading={loading} />
+        <StatCard label="Discrepancies" value={stats.discrepancies} icon={AlertTriangle} tone={stats.discrepancies ? "destructive" : "success"} loading={loading} />
+        <StatCard label="Expired on hand" value={stats.expiring} icon={ShieldAlert} tone={stats.expiring ? "warning" : "default"} loading={loading} />
       </div>
-
-      {/* Current inventory */}
-      <Card>
-        <CardHeader><CardTitle>Current inventory</CardTitle></CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : inventory.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No substances tracked yet. Record a transaction to begin building inventory.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm rtable">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <SortHeader label="Substance" sortKey="substance" sort={invSort} onToggle={invToggle} />
-                    <SortHeader label="Schedule" sortKey="schedule" sort={invSort} onToggle={invToggle} />
-                    <SortHeader label="Current balance" sortKey="balance" sort={invSort} onToggle={invToggle} className="text-right" align="right" />
-                    <SortHeader label="Last counted" sortKey="lastCounted" sort={invSort} onToggle={invToggle} className="pr-0" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {invSorted.map((i) => (
-                    <tr key={i.substanceName} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Substance" className="py-3 pr-4 font-medium">{i.substanceName}</td>
-                      <td data-label="Schedule" className="py-3 pr-4"><Badge variant={SCHED_VARIANT[i.scheduleClass]}>Schedule {i.scheduleClass}</Badge></td>
-                      <td data-label="Current balance" className={`py-3 pr-4 tabular-nums text-right font-medium ${i.currentBalance <= 0 ? "text-destructive" : ""}`}>{i.currentBalance}</td>
-                      <td data-label="Last counted" className="py-3 text-muted-foreground">{i.lastCounted ? formatDate(i.lastCounted) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Transaction log */}
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center gap-3">
-            <CardTitle className="mr-auto">Transaction log</CardTitle>
-            <div className="relative min-w-[180px]">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input className="input w-full pl-9" placeholder="Search substance…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search substance" />
-            </div>
-            <select className="input" value={filterSubstance} onChange={(e) => setFilterSubstance(e.target.value)} aria-label="Filter by substance">
-              <option value="all">All substances</option>
-              {substances.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select className="input" value={filterType} onChange={(e) => setFilterType(e.target.value as TransactionType | "all")} aria-label="Filter by transaction type">
-              <option value="all">All types</option>
-              {TX_TYPES.map((t) => <option key={t} value={t}>{TX_LABEL[t]}</option>)}
-            </select>
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input className="input w-full pl-9" placeholder="Search substance, label, lot, custodian…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : filteredLog.length === 0 ? (
-            <EmptyState
-              icon={ShieldAlert}
-              title={logs.length === 0 ? "No transactions yet" : "No matching transactions"}
-              description={logs.length === 0 ? "Record your first controlled substance transaction." : "Try adjusting your filters."}
-              action={logs.length === 0 ? <Button onClick={() => { setForm(emptyForm(myName)); setShowForm(true); }}><Plus className="size-4" /> Record transaction</Button> : undefined}
-            />
+          {loading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : sorted.length === 0 ? (
+            <EmptyState icon={Package} title={search ? "No bottles found" : "No controlled substances tracked yet"} description={search ? "Try adjusting your search." : "Log a delivery to start a bottle's chain of custody."} action={<Button onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive delivery</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <SortHeader label="Date" sortKey="date" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Substance" sortKey="substance" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Schedule" sortKey="schedule" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Type" sortKey="type" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Quantity" sortKey="quantity" sort={logSort} onToggle={logToggle} className="text-right" align="right" />
-                    <SortHeader label="Balance" sortKey="balance" sort={logSort} onToggle={logToggle} className="text-right" align="right" />
-                    <SortHeader label="Prescriber" sortKey="prescriber" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Witness" sortKey="witness" sort={logSort} onToggle={logToggle} />
-                    <SortHeader label="Patient ref" sortKey="patientRef" sort={logSort} onToggle={logToggle} className="pr-0" />
+                    <SortHeader label="Substance" sortKey="substance" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Label / lot" sortKey="label" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Balance" sortKey="balance" sort={sort} onToggle={toggle} />
+                    <SortHeader label="State" sortKey="state" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Custodian" sortKey="custodian" sort={sort} onToggle={toggle} className="pr-0" />
                   </tr>
                 </thead>
                 <tbody>
-                  {logSorted.map((e) => (
-                    <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Date" className="whitespace-nowrap py-2.5 pr-4 text-muted-foreground">{formatDate(effectiveDate(e))}</td>
-                      <td data-label="Substance" className="py-2.5 pr-4 font-medium">{e.substanceName}</td>
-                      <td data-label="Schedule" className="py-2.5 pr-4"><Badge variant={SCHED_VARIANT[e.scheduleClass]}>{e.scheduleClass}</Badge></td>
-                      <td data-label="Type" className="py-2.5 pr-4"><Badge variant={TX_VARIANT[e.transactionType]}>{TX_LABEL[e.transactionType]}</Badge></td>
-                      <td data-label="Quantity" className={`py-2.5 pr-4 tabular-nums text-right ${ADDS.includes(e.transactionType) ? "text-success" : SUBTRACTS.includes(e.transactionType) ? "text-destructive" : ""}`}>{signedQuantity(e)}</td>
-                      <td data-label="Balance" className={`py-2.5 pr-4 tabular-nums text-right font-medium ${e.balanceAfter < 0 ? "text-destructive" : ""}`}>{e.balanceAfter}</td>
-                      <td data-label="Prescriber" className="py-2.5 pr-4 text-muted-foreground">{e.prescriberName ?? "—"}</td>
-                      <td data-label="Witness" className="py-2.5 pr-4 text-muted-foreground">{e.witnessName ?? "—"}</td>
-                      <td data-label="Patient ref" className="py-2.5 font-mono text-xs text-muted-foreground">{e.patientRef ?? "—"}</td>
+                  {sorted.map((i) => (
+                    <tr key={i.id} className="cursor-pointer border-b border-border/50 hover:bg-secondary/20" onClick={() => setOpenId(i.id)}>
+                      <td data-label="Substance" className="py-3 pr-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{i.substanceName}</span>
+                          <Badge variant={SCHED_VARIANT[i.scheduleClass]}>C-{i.scheduleClass}</Badge>
+                          {i.hasDiscrepancy && <AlertTriangle className="size-3.5 text-destructive" />}
+                        </div>
+                        {i.strength && <span className="text-xs text-muted-foreground">{i.strength}</span>}
+                      </td>
+                      <td data-label="Label / lot" className="py-3 pr-4 text-muted-foreground">
+                        {i.containerLabel && <span className="font-mono text-xs">{i.containerLabel}</span>}
+                        {i.lotNumber && <span className="block text-xs">Lot {i.lotNumber}</span>}
+                        {!i.containerLabel && !i.lotNumber && "—"}
+                      </td>
+                      <td data-label="Balance" className="py-3 pr-4 tabular-nums">{i.currentQuantity} {i.quantityUnit}</td>
+                      <td data-label="State" className="py-3 pr-4"><Badge variant={STATE_VARIANT[i.state]}>{STATE_LABEL[i.state]}</Badge></td>
+                      <td data-label="Custodian" className="py-3 text-muted-foreground">{i.custodianName || locName(i.locationId) || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
