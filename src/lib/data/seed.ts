@@ -177,6 +177,7 @@ export function buildSeed(): SeedData {
     controlledSubstanceLogs: [],
     controlledSubstanceItems: [],
     controlledSubstanceEvents: [],
+    deaRecords: [],
     notifications: [],
     organizationSettings: [],
     chatMessages: [],

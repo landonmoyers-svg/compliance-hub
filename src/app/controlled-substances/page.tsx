@@ -15,8 +15,15 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
-import type { ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction } from "@/lib/data/schema";
+import type { ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
+import { deaRecordTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
+
+const DEA_RECORD_LABEL: Record<DeaRecordType, string> = {
+  order_222: "DEA Form 222 order", csos_order: "CSOS electronic order", biennial_inventory: "Biennial inventory",
+  form_41_destruction: "Form 41 — destruction", form_106_loss: "Form 106 — theft / loss",
+  power_of_attorney: "Power of attorney (222)", registration: "DEA registration", other: "Other DEA record",
+};
 
 const CAPA_STATUS_VARIANT: Record<CorrectiveAction["status"], "warning" | "outline" | "success" | "secondary"> = {
   open: "warning", in_progress: "warning", verifying: "outline", complete: "success", cancelled: "secondary",
@@ -97,7 +104,7 @@ function ReceiveDialog({ locations, onClose, onSave, saving }: {
     setExtracting(true);
     try {
       const fileBase64 = await fileToBase64(fileToRead);
-      const res = await fetch("/api/ai/cs-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileBase64, mediaType: fileToRead.type }) });
+      const res = await fetch("/api/ai/cs-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileBase64, mediaType: fileToRead.type, mode: "receive" }) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Extraction failed");
       setF((p) => ({
@@ -225,7 +232,33 @@ function EventDialog({ item, staff, onClose, onSave, saving }: {
     toCustodian: "", witnessName: "", patientRef: "", discrepancy: false, discrepancyNote: "", notes: "",
   });
   const [file, setFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const set = (k: keyof EventForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+  // CS-2: OCR/AI extract event fields from a scanned paper log.
+  async function extract(fileToRead: File) {
+    if (!isAnalyzable(fileToRead)) return;
+    setExtracting(true);
+    try {
+      const fileBase64 = await fileToBase64(fileToRead);
+      const res = await fetch("/api/ai/cs-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileBase64, mediaType: fileToRead.type, mode: "event" }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Extraction failed");
+      const evTypes: CSEventType[] = ADD_EVENT_TYPES;
+      setF((p) => ({
+        ...p,
+        eventType: (d.eventType && evTypes.includes(d.eventType) ? d.eventType : p.eventType),
+        eventDate: d.eventDate ?? p.eventDate,
+        quantity: d.quantity != null ? String(d.quantity) : p.quantity,
+        toCustodian: d.toCustodianName ?? p.toCustodian,
+        witnessName: d.witnessName ?? p.witnessName,
+        patientRef: d.patientRef ?? p.patientRef,
+      }));
+      toast.success("Fields extracted — verify before saving.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read the document.");
+    } finally { setExtracting(false); }
+  }
 
   const needsQty = QTY_EVENTS.includes(f.eventType);
   const needsCustodian = f.eventType === "assign_to_staff";
@@ -287,10 +320,11 @@ function EventDialog({ item, staff, onClose, onSave, saving }: {
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Scanned record (paper log / waste form / 41)</label>
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
-              <Upload className="size-4" />
-              {file ? file.name : "Upload the scanned document"}
-              <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              {extracting ? <Sparkles className="size-4 animate-pulse text-primary" /> : <Upload className="size-4" />}
+              {extracting ? "Reading document…" : file ? file.name : "Upload the scanned document"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" disabled={extracting} onChange={(e) => { const nf = e.target.files?.[0] ?? null; setFile(nf); if (nf && isAnalyzable(nf)) void extract(nf); }} />
             </label>
+            <p className="flex items-center gap-1 text-[11px] text-primary"><Sparkles className="size-3" /> AI reads the scan and prefills the fields above — verify before saving.</p>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="size-4" checked={f.discrepancy} onChange={(e) => setF((p) => ({ ...p, discrepancy: e.target.checked }))} />
@@ -361,6 +395,101 @@ function CapaDialog({ item, event, owners, onClose, onSave, saving }: {
   );
 }
 
+/* ─────────────────────────── DEA regulatory record ─────────────────────────── */
+
+interface DeaForm { recordType: DeaRecordType; recordDate: string; referenceNumber: string; periodStart: string; periodEnd: string; notes: string; }
+
+function DeaDialog({ locations, onClose, onSave, saving }: {
+  locations: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (d: DeaForm & { locationId: string }, file: File | null) => void;
+  saving: boolean;
+}) {
+  const [f, setF] = useState<DeaForm>({ recordType: "order_222", recordDate: new Date().toISOString().slice(0, 10), referenceNumber: "", periodStart: "", periodEnd: "", notes: "" });
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
+  const [file, setFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const set = (k: keyof DeaForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const isInventory = f.recordType === "biennial_inventory";
+
+  async function extract(fileToRead: File) {
+    if (!isAnalyzable(fileToRead)) return;
+    setExtracting(true);
+    try {
+      const fileBase64 = await fileToBase64(fileToRead);
+      const res = await fetch("/api/ai/cs-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileBase64, mediaType: fileToRead.type, mode: "receive" }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Extraction failed");
+      setF((p) => ({ ...p, referenceNumber: d.orderReference ?? p.referenceNumber, recordDate: d.receivedDate ?? p.recordDate }));
+      toast.success("Reference extracted — verify before saving.");
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Couldn't read the document."); }
+    finally { setExtracting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Add DEA record</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Record type</label>
+            <select className="input w-full" value={f.recordType} onChange={set("recordType")}>
+              {deaRecordTypes.map((t) => <option key={t} value={t}>{DEA_RECORD_LABEL[t]}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">{isInventory ? "Inventory date" : "Record date"}</label>
+              <input type="date" className="input w-full" value={f.recordDate} onChange={set("recordDate")} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Reference #</label>
+              <input className="input w-full" value={f.referenceNumber} onChange={set("referenceNumber")} placeholder="222 serial / CSOS / DEA #" />
+            </div>
+          </div>
+          {isInventory && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Period start</label>
+                <input type="date" className="input w-full" value={f.periodStart} onChange={set("periodStart")} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Period end</label>
+                <input type="date" className="input w-full" value={f.periodEnd} onChange={set("periodEnd")} />
+              </div>
+            </div>
+          )}
+          {locations.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Clinic</label>
+              <select className="input w-full" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+                <option value="">Not specified</option>
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Scanned official form</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              {extracting ? <Sparkles className="size-4 animate-pulse text-primary" /> : <Upload className="size-4" />}
+              {extracting ? "Reading document…" : file ? file.name : "Upload the scanned DEA form"}
+              <input type="file" accept="application/pdf,image/*" className="hidden" disabled={extracting} onChange={(e) => { const nf = e.target.files?.[0] ?? null; setFile(nf); if (nf && isAnalyzable(nf)) void extract(nf); }} />
+            </label>
+          </div>
+          <textarea className="input w-full resize-none" rows={2} value={f.notes} onChange={set("notes")} placeholder="Notes (retain ≥2 years per DEA)" />
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSave({ ...f, locationId }, file)} disabled={saving}>{saving ? "Saving…" : "Save record"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ──────────────────────────────── page ──────────────────────────────── */
 
 export default function ControlledSubstancesPage() {
@@ -370,6 +499,8 @@ export default function ControlledSubstancesPage() {
   const employeesQ = useCollection("employees");
   const locationsQ = useCollection("locations");
   const capasQ = useCollection("correctiveActions");
+  const deaQ = useCollection("deaRecords");
+  const createDea = useCreate("deaRecords");
   const createItem = useCreate("controlledSubstanceItems");
   const updateItem = useUpdate("controlledSubstanceItems");
   const createEvent = useCreate("controlledSubstanceEvents");
@@ -378,6 +509,7 @@ export default function ControlledSubstancesPage() {
 
   const [search, setSearch] = useState("");
   const [receiving, setReceiving] = useState(false);
+  const [addingDea, setAddingDea] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [addingEvent, setAddingEvent] = useState(false);
   const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
@@ -392,6 +524,7 @@ export default function ControlledSubstancesPage() {
   const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
   const locName = (id?: string | null) => locations.find((l) => l.id === id)?.name;
   const capaById = useMemo(() => new Map((capasQ.data ?? []).map((c) => [c.id, c])), [capasQ.data]);
+  const deaRecords = useMemo(() => [...(deaQ.data ?? [])].sort((a, b) => (b.recordDate ?? b.createdDate).localeCompare(a.recordDate ?? a.createdDate)), [deaQ.data]);
 
   const eventsFor = (itemId: string) => events.filter((e) => e.itemId === itemId).sort((a, b) => (b.eventDate ?? b.createdDate).localeCompare(a.eventDate ?? a.createdDate));
   const openItem = items.find((i) => i.id === openId) ?? null;
@@ -505,6 +638,28 @@ export default function ControlledSubstancesPage() {
       toast.success("Corrective action created and linked");
       setResolving(null);
     } catch { toast.error("Couldn't create the corrective action."); }
+    finally { setSaving(false); }
+  }
+
+  async function saveDea(d: DeaForm & { locationId: string }, file: File | null) {
+    setSaving(true);
+    try {
+      let documentUrl: string | null = null;
+      if (file) { try { documentUrl = await uploadFile(file, "dea-records"); } catch { toast.error("Couldn't upload the document — saving without it."); } }
+      await createDea.mutateAsync({
+        recordType: d.recordType,
+        recordDate: d.recordDate ? dateInputToISO(d.recordDate) : null,
+        referenceNumber: d.referenceNumber.trim() || undefined,
+        periodStart: d.periodStart ? dateInputToISO(d.periodStart) : null,
+        periodEnd: d.periodEnd ? dateInputToISO(d.periodEnd) : null,
+        locationId: d.locationId || null,
+        filedByName: profile?.fullName || undefined,
+        documentUrl,
+        notes: d.notes.trim() || undefined,
+      });
+      toast.success("DEA record saved");
+      setAddingDea(false);
+    } catch { toast.error("Couldn't save the DEA record."); }
     finally { setSaving(false); }
   }
 
@@ -644,10 +799,14 @@ export default function ControlledSubstancesPage() {
   return (
     <div className="space-y-6">
       {receiving && <ReceiveDialog locations={locations} onClose={() => setReceiving(false)} onSave={receive} saving={saving} />}
+      {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
       <PageHeader
         title="Controlled Substances"
         description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Lone Peak administers on-site only — every container is tracked with scanned DEA records."
-        actions={<Button onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive delivery</Button>}
+        actions={<div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setAddingDea(true)}><Plus className="size-4" /> DEA record</Button>
+          <Button onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive delivery</Button>
+        </div>}
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active bottles" value={stats.active} icon={Package} loading={loading} />
@@ -698,6 +857,49 @@ export default function ControlledSubstancesPage() {
                       <td data-label="Balance" className="py-3 pr-4 tabular-nums">{i.currentQuantity} {i.quantityUnit}</td>
                       <td data-label="State" className="py-3 pr-4"><Badge variant={STATE_VARIANT[i.state]}>{STATE_LABEL[i.state]}</Badge></td>
                       <td data-label="Custodian" className="py-3 text-muted-foreground">{i.custodianName || locName(i.locationId) || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* CS-3: DEA regulatory records register (222/CSOS, biennial inventory, Form 41/106). */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-sm">DEA regulatory records</CardTitle>
+            <p className="text-xs text-muted-foreground">222/CSOS orders, biennial inventory, Form 41 destruction, Form 106 theft/loss — retain ≥2 years</p>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {deaRecords.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No DEA records logged yet. Add a scanned 222, biennial inventory, or Form 41/106.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm rtable">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Type</th>
+                    <th className="pb-2 pr-4 font-medium">Date</th>
+                    <th className="pb-2 pr-4 font-medium">Reference</th>
+                    <th className="pb-2 pr-4 font-medium">Filed by</th>
+                    <th className="pb-2 font-medium">Document</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deaRecords.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50">
+                      <td data-label="Type" className="py-2.5 pr-4 font-medium">{DEA_RECORD_LABEL[r.recordType]}</td>
+                      <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">
+                        {r.recordDate ? formatDate(r.recordDate) : "—"}
+                        {r.recordType === "biennial_inventory" && r.periodStart && r.periodEnd && <span className="block text-xs">{formatDate(r.periodStart)}–{formatDate(r.periodEnd)}</span>}
+                      </td>
+                      <td data-label="Reference" className="py-2.5 pr-4 text-muted-foreground">{r.referenceNumber ?? "—"}</td>
+                      <td data-label="Filed by" className="py-2.5 pr-4 text-muted-foreground">{r.filedByName ?? "—"}</td>
+                      <td data-label="Document" className="py-2.5">{r.documentUrl ? <FileLink path={r.documentUrl} label="View" className="text-primary hover:underline" /> : <span className="text-muted-foreground">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>

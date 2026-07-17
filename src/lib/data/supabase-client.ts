@@ -23,6 +23,7 @@ import type {
   ControlledSubstanceLog,
   ControlledSubstanceItem,
   ControlledSubstanceEvent,
+  DeaRecord,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -1573,6 +1574,34 @@ function csEventTo(d: Partial<ControlledSubstanceEvent>) {
   };
 }
 
+function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    recordType: r.record_type as DeaRecord["recordType"],
+    recordDate: toISO(r.record_date as string),
+    referenceNumber: r.reference_number as string | undefined,
+    periodStart: toISO(r.period_start as string),
+    periodEnd: toISO(r.period_end as string),
+    locationId: (r.location_id as string | null) ?? undefined,
+    filedByName: r.filed_by_name as string | undefined,
+    documentUrl: (r.document_url as string | null) ?? undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function deaRecordTo(d: Partial<DeaRecord>) {
+  return {
+    ...(d.recordType !== undefined && { record_type: d.recordType }),
+    ...(d.recordDate !== undefined && { record_date: d.recordDate }),
+    ...(d.referenceNumber !== undefined && { reference_number: d.referenceNumber }),
+    ...(d.periodStart !== undefined && { period_start: d.periodStart }),
+    ...(d.periodEnd !== undefined && { period_end: d.periodEnd }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.filedByName !== undefined && { filed_by_name: d.filedByName }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 function notificationFrom(r: Record<string, unknown>): Notification {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -1738,6 +1767,7 @@ export function createSupabaseDataClient(): DataClient {
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
     controlledSubstanceItems: makeCollection(supabase, "controlled_substance_items", csItemFrom, csItemTo),
     controlledSubstanceEvents: makeCollection(supabase, "controlled_substance_events", csEventFrom, csEventTo),
+    deaRecords:          makeCollection(supabase, "dea_records",          deaRecordFrom,          deaRecordTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
     chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),

@@ -1171,3 +1171,26 @@ export const ControlledSubstanceEvent = z.object({
   notes: z.string().optional(),
 });
 export type ControlledSubstanceEvent = z.infer<typeof ControlledSubstanceEvent>;
+
+// CS-3: practice-level DEA regulatory records/filings, retained ≥2 years.
+export const deaRecordTypes = [
+  "order_222", "csos_order", "biennial_inventory", "form_41_destruction",
+  "form_106_loss", "power_of_attorney", "registration", "other",
+] as const;
+export const DeaRecordType = z.enum(deaRecordTypes);
+export type DeaRecordType = z.infer<typeof DeaRecordType>;
+
+export const DeaRecord = z.object({
+  ...base,
+  recordType: DeaRecordType.default("other"),
+  recordDate: z.string().nullable().optional(),
+  referenceNumber: z.string().optional(),   // 222 serial / CSOS id / DEA reg # / Form 41 or 106 ref
+  // Biennial inventory covers a period; other forms leave these null.
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  filedByName: z.string().optional(),
+  documentUrl: z.string().nullable().optional(), // scanned official form
+  notes: z.string().optional(),
+});
+export type DeaRecord = z.infer<typeof DeaRecord>;
