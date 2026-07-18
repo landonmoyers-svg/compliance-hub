@@ -67,6 +67,58 @@ const CRED_TYPE_LABEL: Record<string, string> = {
 };
 const credTypeLabel = (t: string) => CRED_TYPE_LABEL[t] ?? t;
 
+/* ------------- clinical credential classification (provider file view) -------------
+ * The stored credential_type is unreliable (APRN licenses saved as "dea", payer
+ * docs saved as "license"), so the provider-file view classifies each credential
+ * from its NAME into the clinical taxonomy the practice actually tracks:
+ *   RN · APRN · APRN-controlled-substance · PA license · DEA (one per location)
+ *   · Board certification (one per board type: FNP / PMHNP / PA).
+ * Anything that isn't a license/cert (CVs, diplomas, payer agreements, forms)
+ * falls to "Other / supporting documents". */
+
+type CredClass = "rn" | "aprn" | "aprn_cs" | "pa" | "dea" | "board_cert" | "other";
+const CLASS_ORDER: CredClass[] = ["rn", "aprn", "aprn_cs", "pa", "dea", "board_cert", "other"];
+const CLASS_LABEL: Record<CredClass, string> = {
+  rn: "RN License",
+  aprn: "APRN License",
+  aprn_cs: "APRN — Controlled Substance License",
+  pa: "PA License",
+  dea: "DEA Registration",
+  board_cert: "Board Certification",
+  other: "Other / supporting documents",
+};
+
+function classifyCredential(c: CredentialRecord): { klass: CredClass; boardType: string | null } {
+  const n = (c.credentialName || "").toLowerCase();
+  const isLicense = /licen[sc]e|licensure/.test(n);
+  const isAprn = /aprn|a\.p\.r\.n\.|advanced practice registered nurse/.test(n);
+  const isPa = /physician assistant|\bpa-c\b/.test(n);
+  const isRn = /registered nurse|\brn\b/.test(n);
+  const hasCs = /controlled substance|schedule\s*2|schedule\s*ii|\bcsr\b/.test(n);
+  const isDea = /\bdea\b/.test(n);
+  const isBoard = /board[ -]?cert|pmhnp-bc|\bancc\b|\bnccpa\b|certification verification|board certification/.test(n);
+
+  if (isDea) return { klass: "dea", boardType: null };
+  if (isBoard) {
+    let bt: string | null = null;
+    if (/pmhnp|psychiatric[- ]mental health/.test(n)) bt = "PMHNP";
+    else if (/\bfnp\b|family nurse/.test(n)) bt = "FNP";
+    else if (/nccpa|physician assistant|\bpa-c\b|\bpa\b/.test(n)) bt = "PA";
+    return { klass: "board_cert", boardType: bt };
+  }
+  if (isLicense && isAprn && hasCs) return { klass: "aprn_cs", boardType: null };
+  if (isLicense && isAprn) return { klass: "aprn", boardType: null };
+  if (isLicense && isPa) return { klass: "pa", boardType: null };
+  if (isLicense && isRn) return { klass: "rn", boardType: null };
+  return { klass: "other", boardType: null };
+}
+
+/** Recency for current→oldest ordering: expiration, else issue, else created. */
+function credRecency(c: CredentialRecord): number {
+  const d = parseDate(c.expirationDate) ?? parseDate(c.issueDate) ?? parseDate(c.createdDate);
+  return d ? d.getTime() : 0;
+}
+
 /* --------------------------- duplicate detection --------------------------- */
 
 const norm = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -92,7 +144,7 @@ function completeness(c: CredentialRecord): number {
   return s;
 }
 
-type GroupBy = "none" | "type" | "employee";
+type GroupBy = "provider_file" | "none" | "type" | "employee";
 
 /** Best-effort media type from a stored file path/extension. */
 function mediaFromName(name: string): string {
@@ -412,17 +464,135 @@ function HolderResolver({ items, employees, onClose, onApply }: {
   );
 }
 
+/* -------------------- provider credential-file (grouped) view -------------------- */
+
+interface Leaf { key: string; klass: CredClass; boardType: string | null; locationId: string | null; items: CredentialRecord[]; }
+interface ProviderFile { key: string; userId: string | null; name: string; former: boolean; leaves: Leaf[]; }
+
+function buildProviderFiles(
+  creds: CredentialRecord[],
+  isFormer: (c: CredentialRecord) => boolean,
+): ProviderFile[] {
+  const byProvider = new Map<string, CredentialRecord[]>();
+  for (const c of creds) {
+    const key = c.employeeUserId || c.employeeName?.trim() || "Unassigned";
+    const arr = byProvider.get(key) ?? [];
+    arr.push(c);
+    byProvider.set(key, arr);
+  }
+  const files: ProviderFile[] = [];
+  for (const [key, items] of byProvider) {
+    const leafMap = new Map<string, Leaf>();
+    for (const c of items) {
+      const { klass, boardType } = classifyCredential(c);
+      const leafKey =
+        klass === "dea" ? `dea|${c.locationId ?? ""}` :
+        klass === "board_cert" ? `board|${boardType ?? ""}` :
+        klass;
+      const leaf = leafMap.get(leafKey) ?? { key: leafKey, klass, boardType, locationId: klass === "dea" ? (c.locationId ?? null) : null, items: [] };
+      leaf.items.push(c);
+      leafMap.set(leafKey, leaf);
+    }
+    // Current at the top, then superseded/expired most-recent → oldest.
+    const leaves = [...leafMap.values()]
+      .map((l) => ({ ...l, items: [...l.items].sort((a, b) => credRecency(b) - credRecency(a)) }))
+      .sort((a, b) => CLASS_ORDER.indexOf(a.klass) - CLASS_ORDER.indexOf(b.klass) || a.key.localeCompare(b.key));
+    const first = items[0];
+    files.push({ key, userId: first.employeeUserId ?? null, name: first.employeeName?.trim() || "Unassigned", former: isFormer(first), leaves });
+  }
+  // Active providers first, then alphabetical.
+  return files.sort((a, b) => Number(a.former) - Number(b.former) || a.name.localeCompare(b.name));
+}
+
+function CredentialFileView({ files, locName, onEdit, onDeleted }: {
+  files: ProviderFile[];
+  locName: (id: string | null) => string;
+  onEdit: (c: CredentialRecord) => void;
+  onDeleted: () => void;
+}) {
+  if (files.length === 0) {
+    return <EmptyState icon={BadgeCheck} title="No credentials found" description="Add a credential or clear the search." />;
+  }
+  return (
+    <div className="space-y-5">
+      {files.map((f) => (
+        <div key={f.key} className="rounded-lg border border-border">
+          <div className="flex items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
+            <PersonLink userId={f.userId} name={f.name} />
+            {f.former && <Badge variant="secondary">Former</Badge>}
+            <span className="ml-auto text-xs text-muted-foreground">{f.leaves.reduce((n, l) => n + l.items.length, 0)} on file</span>
+          </div>
+          <div className="divide-y divide-border/60">
+            {f.leaves.map((leaf) => {
+              const suffix =
+                leaf.klass === "dea" ? ` — ${locName(leaf.locationId)}` :
+                leaf.klass === "board_cert" ? (leaf.boardType ? ` — ${leaf.boardType}` : "") : "";
+              const [current, ...history] = leaf.items;
+              const st = credentialStatus(current);
+              const days = daysUntil(current.expirationDate);
+              return (
+                <div key={leaf.key} className="px-4 py-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {CLASS_LABEL[leaf.klass]}{suffix}
+                  </div>
+                  {/* Current */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
+                    <span className="font-medium">{current.credentialName}</span>
+                    {current.credentialNumber && <span className="text-xs text-muted-foreground">#{current.credentialNumber}</span>}
+                    <button type="button" onClick={() => onEdit(current)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                      <Badge variant={f.former ? "secondary" : STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
+                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      {current.expirationDate ? <>exp {formatDate(current.expirationDate)}{days !== null && st !== "no_expiry" && <> · {days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? "today" : `${days}d left`}</>}</> : "no expiry"}
+                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => onEdit(current)}>Edit</Button>
+                      {current.documentUrl && <FileLink path={current.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />}
+                      <VersionHistoryButton entityType="credentials" entityId={current.id} title={`${current.credentialName} — ${current.employeeName}`} />
+                      <AdminDeleteButton collection="credentials" id={current.id} label={current.credentialName} noun="credential" onDeleted={onDeleted} />
+                    </div>
+                  </div>
+                  {/* Superseded / expired history, most recent → oldest */}
+                  {history.length > 0 && (
+                    <ul className="mt-2 space-y-1 border-l-2 border-border/60 pl-3">
+                      {history.map((h) => (
+                        <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">Superseded</span>
+                          <span>{h.credentialName}</span>
+                          {h.credentialNumber && <span className="text-xs">#{h.credentialNumber}</span>}
+                          <span className="text-xs">{h.expirationDate ? `exp ${formatDate(h.expirationDate)}` : h.issueDate ? `issued ${formatDate(h.issueDate)}` : ""}</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => onEdit(h)}>Edit</Button>
+                            {h.documentUrl && <FileLink path={h.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-primary hover:underline" />}
+                            <AdminDeleteButton collection="credentials" id={h.id} label={h.credentialName} noun="credential" onDeleted={onDeleted} />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
   const profilesQ = useCollection("profiles");
   const employeesQ = useCollection("employees");
+  const locationsQ = useCollection("locations");
   const createMut = useCreate("credentials");
   const updateMut = useUpdate("credentials");
   const createEmployee = useCreate("employees");
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [groupBy, setGroupBy] = useState<GroupBy>("provider_file");
   const [editing, setEditing] = useState<CredentialRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -579,6 +749,19 @@ export default function CredentialsPage() {
   const holderIdx = useMemo(() => buildHolderIndex(employeesQ.data ?? []), [employeesQ.data]);
   const isFormerHolder = useMemo(() => (c: CredentialRecord) => holderStatus(c, holderIdx) === "former", [holderIdx]);
 
+  // Provider-file view: search only (status filter would hide the expired history
+  // the file view is meant to show). Location names for the DEA sub-grouping.
+  const locName = useMemo(() => {
+    const m = new Map((locationsQ.data ?? []).map((l) => [l.id, l.name] as const));
+    return (id: string | null) => (id && m.get(id)) || "No location set";
+  }, [locationsQ.data]);
+  const searchFiltered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return credentials;
+    return credentials.filter((c) => c.credentialName.toLowerCase().includes(q) || c.employeeName.toLowerCase().includes(q));
+  }, [credentials, search]);
+  const providerFiles = useMemo(() => buildProviderFiles(searchFiltered, isFormerHolder), [searchFiltered, isFormerHolder]);
+
   const counts = useMemo(() => {
     const out = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
     for (const c of credentials) {
@@ -716,18 +899,18 @@ export default function CredentialsPage() {
               ),
             )}
             <div className="ml-auto flex items-center gap-1.5">
-              <span className="text-sm text-muted-foreground">Group by</span>
-              {(["none", "type", "employee"] as const).map((g) => (
+              <span className="text-sm text-muted-foreground">View</span>
+              {([["provider_file", "Provider file"], ["none", "Flat list"], ["type", "By type"], ["employee", "By employee"]] as const).map(([g, label]) => (
                 <button
                   key={g}
                   onClick={() => setGroupBy(g)}
-                  className={`rounded-full px-3 py-1 text-sm font-medium capitalize transition-colors ${
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                     groupBy === g
                       ? "bg-primary text-primary-foreground"
                       : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }`}
                 >
-                  {g}
+                  {label}
                 </button>
               ))}
             </div>
@@ -740,6 +923,8 @@ export default function CredentialsPage() {
                 <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
+          ) : groupBy === "provider_file" ? (
+            <CredentialFileView files={providerFiles} locName={locName} onEdit={setEditing} onDeleted={() => void refetch()} />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={BadgeCheck}
