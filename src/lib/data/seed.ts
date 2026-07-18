@@ -166,6 +166,8 @@ export function buildSeed(): SeedData {
     disciplinaryActions: [],
     benefits: [],
     vendors: [],
+    payerContracts: [],
+    payerEnrollments: [],
     competencyRecords: [],
     auditLogs: [],
     trainingQuestions: [],

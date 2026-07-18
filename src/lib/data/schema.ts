@@ -842,6 +842,75 @@ export const VendorRecord = z.object({
 });
 export type VendorRecord = z.infer<typeof VendorRecord>;
 
+/* ---------------------- payer enrollment --------------------------- *
+ * Two-level model, distinct from a provider's CREDENTIALS: a payer is an
+ * insurance carrier the practice contracts with, and a provider is paneled
+ * (enrolled/par) under that contract.
+ *   PayerContract   = practice ↔ payer (group/TIN level): the executed
+ *                     agreement + fee schedule + renewal date.
+ *   PayerEnrollment = provider ↔ payer (paneling): each provider's enrollment
+ *                     status, par date, re-credential date, and payer-assigned
+ *                     IDs, optionally linked to the group contract.
+ */
+
+export const payerContractStatuses = [
+  "prospective",
+  "in_negotiation",
+  "active",
+  "terminated",
+  "expired",
+] as const;
+
+export const PayerContract = z.object({
+  ...base,
+  payerName: z.string(),
+  planNetwork: z.string().optional(), // e.g. "Commercial PPO", "Medicaid", "BH carve-out"
+  contractLevel: z.enum(["group", "individual"]).default("group"),
+  taxId: z.string().optional(), // TIN the contract is written under
+  groupNpi: z.string().optional(),
+  contractStatus: z.enum(payerContractStatuses).default("active"),
+  effectiveDate: z.string().nullable().optional(),
+  renewalDate: z.string().nullable().optional(), // feeds calendar + notifications
+  terminationDate: z.string().nullable().optional(),
+  payerContactName: z.string().optional(),
+  payerContactEmail: z.string().optional(),
+  payerContactPhone: z.string().optional(),
+  contractDocumentUrl: z.string().nullable().optional(), // executed agreement
+  feeScheduleUrl: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  notes: z.string().optional(),
+});
+export type PayerContract = z.infer<typeof PayerContract>;
+
+export const enrollmentStatuses = [
+  "not_started",
+  "application_submitted",
+  "in_process",
+  "paneled",
+  "denied",
+  "recred_due",
+  "terminated",
+] as const;
+
+export const PayerEnrollment = z.object({
+  ...base,
+  providerUserId: z.string().nullable().optional(),
+  providerName: z.string(),
+  payerContractId: z.string().nullable().optional(), // link to the group contract
+  payerName: z.string(), // denormalized so paneling reads standalone
+  enrollmentStatus: z.enum(enrollmentStatuses).default("not_started"),
+  submittedDate: z.string().nullable().optional(),
+  effectiveDate: z.string().nullable().optional(), // par / effective date
+  recredentialDate: z.string().nullable().optional(), // feeds calendar + notifications
+  terminationDate: z.string().nullable().optional(),
+  providerPayerId: z.string().optional(), // payer-assigned provider ID / PTAN / Medicaid #
+  caqhId: z.string().optional(),
+  individualNpi: z.string().optional(),
+  applicationDocumentUrl: z.string().nullable().optional(), // enrollment app / CAQH attestation
+  notes: z.string().optional(),
+});
+export type PayerEnrollment = z.infer<typeof PayerEnrollment>;
+
 /* ------------------------- competency ------------------------------ */
 
 export const CompetencyRecord = z.object({
@@ -1073,7 +1142,7 @@ export const Notification = z.object({
   title: z.string(),
   body: z.string().optional(),
   category: z
-    .enum(["credential", "training", "document", "insurance", "vendor", "system"])
+    .enum(["credential", "training", "document", "insurance", "vendor", "payer", "system"])
     .default("system"),
   severity: z.enum(["info", "warning", "critical"]).default("info"),
   entityType: z.string().optional(),

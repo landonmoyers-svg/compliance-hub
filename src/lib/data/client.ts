@@ -52,6 +52,8 @@ import type {
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
+  PayerContract,
+  PayerEnrollment,
   WorkLocation,
 } from "./schema";
 
@@ -109,6 +111,8 @@ export interface DataClient {
   disciplinaryActions: Collection<DisciplinaryAction>;
   benefits: Collection<Benefit>;
   vendors: Collection<VendorRecord>;
+  payerContracts: Collection<PayerContract>;
+  payerEnrollments: Collection<PayerEnrollment>;
   competencyRecords: Collection<CompetencyRecord>;
   auditLogs: Collection<AuditLog>;
   trainingQuestions: Collection<TrainingQuestion>;

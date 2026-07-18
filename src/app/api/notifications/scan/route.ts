@@ -108,6 +108,27 @@ async function runScan(): Promise<{ created: number }> {
     if (v.baa_required && v.baa_status !== "signed") candidates.push({ title: `BAA missing: ${v.vendor_name}`, body: `${v.vendor_name} requires a signed BAA (currently ${v.baa_status}).`, category: "vendor", severity: "critical", entity_type: "vendors", entity_id: v.id, link: "/vendor-management" });
   }
 
+  // Provider re-credentialing due within the credential window or overdue (active providers only)
+  const { data: enrollments } = await admin.from("payer_enrollments").select("id, provider_user_id, provider_name, payer_name, enrollment_status, recredential_date");
+  for (const e of enrollments ?? []) {
+    if (e.enrollment_status === "terminated" || e.enrollment_status === "denied") continue;
+    if (!personIsActive(e.provider_user_id, e.provider_name)) continue;
+    const d = daysUntil(e.recredential_date);
+    if (d === null) continue;
+    if (d < 0) candidates.push({ title: `Re-credentialing overdue: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling was due for re-credentialing ${Math.abs(d)} day(s) ago.`, category: "payer", severity: "critical", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment" });
+    else if (d <= credWindow) candidates.push({ title: `Re-credentialing due: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling is due for re-credentialing in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment" });
+  }
+
+  // Payer contract renewals within the insurance window or lapsed
+  const { data: payerContracts } = await admin.from("payer_contracts").select("id, payer_name, contract_status, renewal_date");
+  for (const c of payerContracts ?? []) {
+    if (c.contract_status === "terminated" || c.contract_status === "expired") continue;
+    const d = daysUntil(c.renewal_date);
+    if (d === null) continue;
+    if (d < 0) candidates.push({ title: `Payer contract renewal overdue: ${c.payer_name}`, body: `The ${c.payer_name} contract renewal was due ${Math.abs(d)} day(s) ago.`, category: "payer", severity: "critical", entity_type: "payer_contracts", entity_id: c.id, link: "/payer-enrollment" });
+    else if (d <= insWindow) candidates.push({ title: `Payer contract renewal: ${c.payer_name}`, body: `The ${c.payer_name} contract renews in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_contracts", entity_id: c.id, link: "/payer-enrollment" });
+  }
+
   if (candidates.length === 0) return { created: 0 };
 
   // Dedupe against existing UNREAD notifications for the same entity+category.

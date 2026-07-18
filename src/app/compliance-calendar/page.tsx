@@ -27,7 +27,7 @@ type CalEvent = {
   id: string;
   date: Date;
   label: string;
-  type: "credential" | "training" | "document" | "insurance" | "drill" | "regulatory";
+  type: "credential" | "training" | "document" | "insurance" | "drill" | "payer" | "regulatory";
   urgent: boolean;
 };
 
@@ -37,6 +37,7 @@ const TYPE_COLOR: Record<CalEvent["type"], string> = {
   document: "bg-secondary text-secondary-foreground",
   insurance: "bg-chart-5/80 text-white",
   drill: "bg-success/80 text-success-foreground",
+  payer: "bg-chart-2/80 text-white",
   regulatory: "bg-chart-4/80 text-white",
 };
 
@@ -89,6 +90,8 @@ export default function ComplianceCalendarPage() {
   const docsQ = useCollection("documents");
   const insQ = useCollection("insurancePolicies");
   const drillsQ = useCollection("emergencyDrills");
+  const payerEnrollQ = useCollection("payerEnrollments");
+  const payerContractQ = useCollection("payerContracts");
 
   const [current, setCurrent] = useState(() => new Date());
 
@@ -133,6 +136,16 @@ export default function ComplianceCalendarPage() {
         push(`drill-${dr.id}`, dr.scheduledDate, dr.drillTitle, "drill");
       }
     }
+    for (const e of payerEnrollQ.data ?? []) {
+      if (e.enrollmentStatus !== "terminated" && e.enrollmentStatus !== "denied") {
+        push(`payer-recred-${e.id}`, e.recredentialDate, `Re-credential: ${e.providerName} — ${e.payerName}`, "payer");
+      }
+    }
+    for (const c of payerContractQ.data ?? []) {
+      if (c.contractStatus !== "terminated" && c.contractStatus !== "expired") {
+        push(`payer-renew-${c.id}`, c.renewalDate, `Payer contract renewal: ${c.payerName}`, "payer");
+      }
+    }
 
     // Fixed recurring regulatory deadlines, expanded for the displayed year.
     const year = current.getFullYear();
@@ -148,7 +161,7 @@ export default function ComplianceCalendarPage() {
     }
 
     return out;
-  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data, current]);
+  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data, payerEnrollQ.data, payerContractQ.data, current]);
 
   // Build grid for current month: weeks × days, with leading/trailing empty cells
   const monthStart = startOfMonth(current);

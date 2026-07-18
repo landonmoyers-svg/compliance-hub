@@ -67,6 +67,8 @@ import type {
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
+  PayerContract,
+  PayerEnrollment,
   WorkLocation,
 } from "./schema";
 
@@ -1238,6 +1240,86 @@ function vendorTo(d: Partial<VendorRecord>) {
   };
 }
 
+function payerContractFrom(r: Record<string, unknown>): PayerContract {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    payerName: r.payer_name as string,
+    planNetwork: (r.plan_network as string | null) ?? undefined,
+    contractLevel: (r.contract_level as PayerContract["contractLevel"]) ?? "group",
+    taxId: (r.tax_id as string | null) ?? undefined,
+    groupNpi: (r.group_npi as string | null) ?? undefined,
+    contractStatus: (r.contract_status as PayerContract["contractStatus"]) ?? "active",
+    effectiveDate: toISO(r.effective_date as string),
+    renewalDate: toISO(r.renewal_date as string),
+    terminationDate: toISO(r.termination_date as string),
+    payerContactName: (r.payer_contact_name as string | null) ?? undefined,
+    payerContactEmail: (r.payer_contact_email as string | null) ?? undefined,
+    payerContactPhone: (r.payer_contact_phone as string | null) ?? undefined,
+    contractDocumentUrl: (r.contract_document_url as string | null) ?? undefined,
+    feeScheduleUrl: (r.fee_schedule_url as string | null) ?? undefined,
+    locationId: (r.location_id as string | null) ?? undefined,
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function payerContractTo(d: Partial<PayerContract>) {
+  return {
+    ...(d.payerName !== undefined && { payer_name: d.payerName }),
+    ...(d.planNetwork !== undefined && { plan_network: d.planNetwork }),
+    ...(d.contractLevel !== undefined && { contract_level: d.contractLevel }),
+    ...(d.taxId !== undefined && { tax_id: d.taxId }),
+    ...(d.groupNpi !== undefined && { group_npi: d.groupNpi }),
+    ...(d.contractStatus !== undefined && { contract_status: d.contractStatus }),
+    ...(d.effectiveDate !== undefined && { effective_date: d.effectiveDate }),
+    ...(d.renewalDate !== undefined && { renewal_date: d.renewalDate }),
+    ...(d.terminationDate !== undefined && { termination_date: d.terminationDate }),
+    ...(d.payerContactName !== undefined && { payer_contact_name: d.payerContactName }),
+    ...(d.payerContactEmail !== undefined && { payer_contact_email: d.payerContactEmail }),
+    ...(d.payerContactPhone !== undefined && { payer_contact_phone: d.payerContactPhone }),
+    ...(d.contractDocumentUrl !== undefined && { contract_document_url: d.contractDocumentUrl }),
+    ...(d.feeScheduleUrl !== undefined && { fee_schedule_url: d.feeScheduleUrl }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function payerEnrollmentFrom(r: Record<string, unknown>): PayerEnrollment {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    providerUserId: (r.provider_user_id as string | null) ?? undefined,
+    providerName: r.provider_name as string,
+    payerContractId: (r.payer_contract_id as string | null) ?? undefined,
+    payerName: r.payer_name as string,
+    enrollmentStatus: (r.enrollment_status as PayerEnrollment["enrollmentStatus"]) ?? "not_started",
+    submittedDate: toISO(r.submitted_date as string),
+    effectiveDate: toISO(r.effective_date as string),
+    recredentialDate: toISO(r.recredential_date as string),
+    terminationDate: toISO(r.termination_date as string),
+    providerPayerId: (r.provider_payer_id as string | null) ?? undefined,
+    caqhId: (r.caqh_id as string | null) ?? undefined,
+    individualNpi: (r.individual_npi as string | null) ?? undefined,
+    applicationDocumentUrl: (r.application_document_url as string | null) ?? undefined,
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function payerEnrollmentTo(d: Partial<PayerEnrollment>) {
+  return {
+    ...(d.providerUserId !== undefined && { provider_user_id: d.providerUserId }),
+    ...(d.providerName !== undefined && { provider_name: d.providerName }),
+    ...(d.payerContractId !== undefined && { payer_contract_id: d.payerContractId }),
+    ...(d.payerName !== undefined && { payer_name: d.payerName }),
+    ...(d.enrollmentStatus !== undefined && { enrollment_status: d.enrollmentStatus }),
+    ...(d.submittedDate !== undefined && { submitted_date: d.submittedDate }),
+    ...(d.effectiveDate !== undefined && { effective_date: d.effectiveDate }),
+    ...(d.recredentialDate !== undefined && { recredential_date: d.recredentialDate }),
+    ...(d.terminationDate !== undefined && { termination_date: d.terminationDate }),
+    ...(d.providerPayerId !== undefined && { provider_payer_id: d.providerPayerId }),
+    ...(d.caqhId !== undefined && { caqh_id: d.caqhId }),
+    ...(d.individualNpi !== undefined && { individual_npi: d.individualNpi }),
+    ...(d.applicationDocumentUrl !== undefined && { application_document_url: d.applicationDocumentUrl }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 function competencyFrom(r: Record<string, unknown>): CompetencyRecord {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -1756,6 +1838,8 @@ export function createSupabaseDataClient(): DataClient {
     disciplinaryActions:makeCollection(supabase, "disciplinary_actions",disciplinaryFrom,       disciplinaryTo),
     benefits:           makeCollection(supabase, "benefits",            benefitFrom,            benefitTo),
     vendors:            makeCollection(supabase, "vendors",             vendorFrom,             vendorTo),
+    payerContracts:     makeCollection(supabase, "payer_contracts",     payerContractFrom,      payerContractTo),
+    payerEnrollments:   makeCollection(supabase, "payer_enrollments",   payerEnrollmentFrom,    payerEnrollmentTo),
     competencyRecords:  makeCollection(supabase, "competency_records",  competencyFrom,         competencyTo),
     auditLogs:          makeCollection(supabase, "audit_logs",          auditFrom,              auditTo),
     trainingQuestions:  makeCollection(supabase, "training_questions",  questionFrom,           questionTo),
