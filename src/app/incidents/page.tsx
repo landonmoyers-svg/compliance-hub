@@ -428,7 +428,7 @@ export default function IncidentsPage() {
         try { evidenceUrl = await uploadFile(d.file, "incidents"); }
         catch { toast.error("Couldn't upload the evidence file — submitting without it."); }
       }
-      await createIncident.mutateAsync({
+      const created = await createIncident.mutateAsync({
         title: d.title.trim(),
         reportType: d.reportType,
         category: REPORT_TYPES[d.reportType].category,
@@ -444,12 +444,17 @@ export default function IncidentsPage() {
         evidenceUrl,
       });
       setReporting(false);
-      // INC-2: route HIPAA → Breach Assessment, injury → OSHA record.
+      // INC-2: route HIPAA → Breach Assessment, injury → OSHA record. Carry the
+      // new incident's id (opaque UUID only — no PHI in the URL) so the breach
+      // assessment can pre-fill title/date/what-happened from it.
       const route = REPORT_TYPES[d.reportType].route;
       if (route) {
+        const href = route.href === "/breach-assessment"
+          ? `${route.href}?fromIncident=${created.id}`
+          : route.href;
         toast.success("Report submitted. Next step recommended:", {
           description: route.label,
-          action: { label: "Go", onClick: () => router.push(route.href) },
+          action: { label: "Go", onClick: () => router.push(href) },
           duration: 8000,
         });
       } else {

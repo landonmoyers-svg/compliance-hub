@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ShieldAlert, Plus, X, Sparkles, Clock } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
@@ -52,8 +52,8 @@ function emptyForm(): Form {
   return { title: "", discoveredDate: "", description: "", factor1Nature: "", factor1Rating: "medium", factor2Recipient: "", factor2Rating: "medium", factor3Acquired: "", factor3Rating: "medium", factor4Mitigation: "", factor4Rating: "medium", probability: "medium", determination: "undetermined", notes: "", status: "draft" };
 }
 
-function AssessmentDialog({ initial, onClose, onSave, saving }: {
-  initial?: BreachAssessment; onClose: () => void; onSave: (f: Form) => void; saving: boolean;
+function AssessmentDialog({ initial, prefill, onClose, onSave, saving }: {
+  initial?: BreachAssessment; prefill?: Partial<Form>; onClose: () => void; onSave: (f: Form) => void; saving: boolean;
 }) {
   const [form, setForm] = useState<Form>(initial ? {
     title: initial.title, discoveredDate: initial.discoveredDate?.slice(0, 10) ?? "", description: initial.description ?? "",
@@ -62,7 +62,7 @@ function AssessmentDialog({ initial, onClose, onSave, saving }: {
     factor3Acquired: initial.factor3Acquired ?? "", factor3Rating: initial.factor3Rating,
     factor4Mitigation: initial.factor4Mitigation ?? "", factor4Rating: initial.factor4Rating,
     probability: initial.probability, determination: initial.determination, notes: initial.notes ?? "", status: initial.status,
-  } : emptyForm());
+  } : { ...emptyForm(), ...prefill });
   const [analyzing, setAnalyzing] = useState(false);
 
   const upd = (p: Partial<Form>) => setForm((f) => ({ ...f, ...p }));
@@ -173,12 +173,34 @@ function AssessmentDialog({ initial, onClose, onSave, saving }: {
 export default function BreachAssessmentPage() {
   const { profile } = useAuth();
   const q = useCollection("breachAssessments");
+  const incidentsQ = useCollection("incidents");
   const createMut = useCreate("breachAssessments");
   const updateMut = useUpdate("breachAssessments");
   const [editing, setEditing] = useState<BreachAssessment | null | "new">(null);
+  const [prefill, setPrefill] = useState<Partial<Form> | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const items = useMemo(() => q.data ?? [], [q.data]);
+
+  // Guided handoff from the Incidents module: /breach-assessment?fromIncident=<id>
+  // pre-fills a new assessment from the reported incident so the reporter doesn't
+  // re-key the title/date/what-happened. Only the opaque incident id travels in
+  // the URL — never the PHI-adjacent details.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URLSearchParams(window.location.search).get("fromIncident");
+    if (!id) return;
+    const inc = (incidentsQ.data ?? []).find((i) => i.id === id);
+    if (!inc) return;
+    setPrefill({
+      title: inc.title,
+      discoveredDate: (inc.createdDate ?? "").slice(0, 10),
+      description: inc.description ?? "",
+    });
+    setEditing("new");
+    // Clear the param so a refresh or refetch doesn't reopen the dialog.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [incidentsQ.data]);
 
   const { sorted, sort, toggle } = useSort(items, {
     incident: (a) => a.title,
@@ -218,7 +240,7 @@ export default function BreachAssessmentPage() {
   return (
     <div className="space-y-6">
       <PageTabs tabs={INCIDENT_TABS} />
-      {editing && <AssessmentDialog initial={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} onSave={save} saving={saving} />}
+      {editing && <AssessmentDialog initial={editing === "new" ? undefined : editing} prefill={editing === "new" ? prefill : undefined} onClose={() => { setEditing(null); setPrefill(undefined); }} onSave={save} saving={saving} />}
 
       <PageHeader
         title="Breach Risk Assessment"
