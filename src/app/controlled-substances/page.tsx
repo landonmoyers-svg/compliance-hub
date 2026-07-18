@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
-import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
+import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
 import { deaRecordTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -91,7 +91,7 @@ function ReceiveDialog({ locations, onClose, onSave, saving }: {
   const [f, setF] = useState<ReceiveForm>({
     substanceName: "", scheduleClass: "II", strength: "", ndc: "", lotNumber: "", expirationDate: "",
     containerLabel: "", quantity: "", quantityUnit: "mL", supplierName: "", orderReference: "",
-    locationId: locations[0]?.id ?? "", receivedDate: new Date().toISOString().slice(0, 10),
+    locationId: locations[0]?.id ?? "", receivedDate: todayInput(),
   });
   const [file, setFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
@@ -228,7 +228,7 @@ function EventDialog({ item, staff, onClose, onSave, saving }: {
   saving: boolean;
 }) {
   const [f, setF] = useState<EventForm>({
-    eventType: "administer", eventDate: new Date().toISOString().slice(0, 10), quantity: "",
+    eventType: "administer", eventDate: todayInput(), quantity: "",
     toCustodian: "", witnessName: "", patientRef: "", discrepancy: false, discrepancyNote: "", notes: "",
   });
   const [file, setFile] = useState<File | null>(null);
@@ -405,7 +405,7 @@ function DeaDialog({ locations, onClose, onSave, saving }: {
   onSave: (d: DeaForm & { locationId: string }, file: File | null) => void;
   saving: boolean;
 }) {
-  const [f, setF] = useState<DeaForm>({ recordType: "order_222", recordDate: new Date().toISOString().slice(0, 10), referenceNumber: "", periodStart: "", periodEnd: "", notes: "" });
+  const [f, setF] = useState<DeaForm>({ recordType: "order_222", recordDate: todayInput(), referenceNumber: "", periodStart: "", periodEnd: "", notes: "" });
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);

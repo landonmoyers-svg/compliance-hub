@@ -15,7 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
-import { formatDate, dateInputToISO, daysUntil } from "@/lib/dates";
+import { formatDate, dateInputToISO, daysUntil, todayInput } from "@/lib/dates";
 import type { ExclusionScreening } from "@/lib/data/schema";
 import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
@@ -46,7 +46,7 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
   const [subjectKey, setSubjectKey] = useState(initialSubject?.key ?? (subjects[0]?.key ?? "__other__"));
   const [freeName, setFreeName] = useState("");
   const [sources, setSources] = useState<string[]>(["OIG-LEIE", "SAM.gov"]);
-  const [screenedDate, setScreenedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [screenedDate, setScreenedDate] = useState(todayInput());
   const [result, setResult] = useState<ExclusionScreening["result"]>("clear");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);

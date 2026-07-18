@@ -49,9 +49,22 @@ export function isExpiringSoon(
   return days !== null && days >= 0 && days <= within;
 }
 
-/** Convert a date-only input (yyyy-MM-dd) to a UTC ISO string to avoid TZ drift. */
+/**
+ * Convert a date-only input (yyyy-MM-dd) to an ISO string, anchored to LOCAL
+ * midnight. This is deliberate: `formatDate` renders with date-fns `format`,
+ * which uses local time. Anchoring to UTC midnight (the old behavior) made a
+ * date picked as the 18th display as the 17th in any negative-UTC-offset zone
+ * (e.g. Mountain Time). Local midnight round-trips correctly with local display.
+ */
 export function dateInputToISO(input: string): string | null {
   if (!input) return null;
-  const d = parseISO(`${input}T00:00:00Z`);
+  const d = parseISO(`${input}T00:00:00`); // no "Z" → parsed as local time
   return isValid(d) ? d.toISOString() : null;
+}
+
+/** Today's date as a yyyy-MM-dd string in LOCAL time — for date-input defaults.
+ *  (`new Date().toISOString().slice(0,10)` returns the UTC date, which is
+ *  already "tomorrow" late in the day in western US timezones.) */
+export function todayInput(): string {
+  return format(new Date(), "yyyy-MM-dd");
 }
