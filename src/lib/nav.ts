@@ -24,6 +24,7 @@ import {
   Shield,
   Sparkles,
   Star,
+  Upload,
   UserCircle,
   Users,
   type LucideIcon,
@@ -86,6 +87,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Missing Forms", href: "/form-gap-matrix", icon: ClipboardCheck, adminOnly: true },
       { label: "Policy Attestation", href: "/policy-attestation", icon: CheckCircle2, adminOnly: true },
       { label: "Document Intake", href: "/document-intake", icon: Inbox, adminOnly: true },
+      { label: "Bulk Upload", href: "/bulk-upload", icon: Upload, adminOnly: true },
     ],
   },
   // 5. Compliance-officer risk functions: incidents, assessments, audits, third-party.
