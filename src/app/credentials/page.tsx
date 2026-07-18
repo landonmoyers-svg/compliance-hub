@@ -617,7 +617,6 @@ function CredentialFileView({ files, locName, onEdit, onDeleted }: {
 
 export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
-  const profilesQ = useCollection("profiles");
   const employeesQ = useCollection("employees");
   const locationsQ = useCollection("locations");
   const createMut = useCreate("credentials");
@@ -679,8 +678,26 @@ export default function CredentialsPage() {
       return;
     }
     if (!window.confirm(`Analyze ${withDocs.length} attached document${withDocs.length === 1 ? "" : "s"} with AI? This can update each credential's type and fill in missing details (issuer, number, dates, holder). Existing values are never overwritten.`)) return;
-    const roster = (profilesQ.data ?? []).map((p) => ({ userId: p.userId, name: p.fullName }));
-    const profileName = new Map(roster.map((p) => [p.userId, p.name]));
+    // Match holders against the full EMPLOYEE directory (not just the ~3 login
+    // profiles) — otherwise almost every credential falls to the manual picker.
+    // The AI is given each employee's id as the match token; we also run a local
+    // normalized-name fallback so a clearly-named holder is auto-assigned even
+    // when the model doesn't return a match.
+    const emps = employeesQ.data ?? [];
+    const roster = emps.map((e) => ({ userId: e.id, name: `${e.firstName} ${e.lastName}`.trim() }));
+    const empById = new Map(emps.map((e) => [e.id, e] as const));
+    const normN = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const matchEmployeeByName = (name: string): Employee | null => {
+      const n = normN(name);
+      if (!n) return null;
+      const exact = emps.filter((e) => { const a = normN(`${e.firstName} ${e.lastName}`), b = normN(`${e.lastName} ${e.firstName}`); return a === n || b === n; });
+      if (exact.length === 1) return exact[0];
+      const bothTokens = emps.filter((e) => { const fn = normN(e.firstName), ln = normN(e.lastName); return fn.length >= 2 && ln.length >= 2 && n.includes(fn) && n.includes(ln); });
+      if (bothTokens.length === 1) return bothTokens[0];
+      const byLast = emps.filter((e) => { const ln = normN(e.lastName); return ln.length >= 3 && n.includes(ln); });
+      if (byLast.length === 1) return byLast[0];
+      return null;
+    };
     const isUnassigned = (c: CredentialRecord) => !c.employeeUserId && (!c.employeeName?.trim() || c.employeeName === "Unassigned — set employee");
     setReanalyzing(true);
     const tId = toast.loading(`Analyzing 0/${withDocs.length} credential documents…`);
@@ -725,13 +742,19 @@ export default function CredentialsPage() {
             if (!c.credentialNumber && d.credentialNumber) patch.credentialNumber = d.credentialNumber;
             if (!c.issueDate && d.issueDate) patch.issueDate = dateInputToISO(d.issueDate);
             if (!c.expirationDate && d.expirationDate) patch.expirationDate = dateInputToISO(d.expirationDate);
-            // Assign the holder when the record is still unassigned.
+            // Assign the holder when the record is still unassigned. Prefer the
+            // AI's match; fall back to a local name match; only queue for manual
+            // picking when the holder genuinely can't be resolved.
             if (isUnassigned(c)) {
-              if (d.matchedUserId && profileName.has(d.matchedUserId)) {
-                patch.employeeUserId = d.matchedUserId;
-                patch.employeeName = profileName.get(d.matchedUserId) as string;
+              const emp =
+                (d.matchedUserId ? empById.get(d.matchedUserId) : undefined) ??
+                (d.holderName ? matchEmployeeByName(d.holderName) : null) ??
+                (c.employeeName && c.employeeName !== "Unassigned — set employee" ? matchEmployeeByName(c.employeeName) : null);
+              if (emp) {
+                patch.employeeName = `${emp.firstName} ${emp.lastName}`.trim();
+                patch.employeeUserId = emp.userId ?? null;
               } else if (d.holderName && d.holderName.trim()) {
-                // No directory match — queue it so the user can confirm.
+                // Truly unresolved — queue it so the user can confirm.
                 unresolved.push({ id: c.id, credentialName: c.credentialName, holderName: d.holderName.trim() });
               }
             }

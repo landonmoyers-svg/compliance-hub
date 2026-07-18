@@ -29,7 +29,7 @@ Rules:
 - "credentialNumber": the license/registration/certificate number, or null.
 - "issueDate" / "expirationDate": YYYY-MM-DD, or null if not shown. NEVER invent a date or number — use null when it isn't clearly present.
 - "holderName": the full name of the person this credential belongs to, as read from the document (or its title), or null if you truly cannot tell.
-- "matchedUserId": if the holder clearly corresponds to exactly one person in the PEOPLE roster (match on name; a last name or first name is enough when unambiguous), return THAT person's exact userId string. If there is no clear single match, return null. Never guess between two similar names.
+- "matchedUserId": if the holder clearly corresponds to exactly one person in the PEOPLE roster, return THAT person's exact userId string. The document's holder name often includes a MIDDLE name, a hyphenated or maiden last name, or a credential SUFFIX (NP, NP-P, PMHNP, APRN, PA, PA-C, MD, DO) — ignore those and match on the core first + last name (e.g. "Landon Robert Moyers, NP-P" matches "Landon Moyers"; "Vanessa E. Martinez-Quezada, PA" matches "Vanessa Martinez"). A last name alone is enough when it's unambiguous in the roster. Return null only when there is genuinely no single clear match; never guess between two similar names.
 - "summary": one short sentence describing what the document is.
 Return only the JSON object.`;
 
