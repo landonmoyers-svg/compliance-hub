@@ -10,10 +10,20 @@ const SYSTEM = `You analyze a professional CREDENTIAL for a behavioral-health pr
 You are given the credential's existing fields, a PEOPLE roster of app users (each with userId + name), and — when available — the ACTUAL DOCUMENT (PDF/image). When the document is attached, READ IT and prefer what it says over the existing fields.
 
 Return ONLY valid JSON:
-{"credentialType":"license"|"certification"|"dea"|"cpr_bls_acls"|"immunization"|"background_check"|"other","credentialName":string,"issuingBody":string|null,"credentialNumber":string|null,"issueDate":string|null,"expirationDate":string|null,"holderName":string|null,"matchedUserId":string|null,"summary":string}
+{"credentialType":"license"|"certification"|"dea"|"cpr_bls_acls"|"immunization"|"background_check"|"other","credentialClass":"rn"|"aprn"|"aprn_cs"|"pa"|"dea"|"board_cert"|"other","boardType":"FNP"|"PMHNP"|"PA"|null,"credentialName":string,"issuingBody":string|null,"credentialNumber":string|null,"issueDate":string|null,"expirationDate":string|null,"holderName":string|null,"matchedUserId":string|null,"summary":string}
 
 Rules:
 - "credentialType": license = a professional license to practice (MD/DO/APRN/PMHNP/PA/RN/LCSW/DOPL professional license); dea = a DEA registration/certificate specifically; certification = board certifications and specialty certs; cpr_bls_acls = CPR/BLS/ACLS cards; immunization = vaccination/immunization records; background_check = background checks / BCI/FBI / OIG-SAM / fingerprint clearances; other = anything that isn't a clinician credential (e.g. a conflict-of-interest declaration or an HR form).
+- "credentialClass": the CLINICAL taxonomy, decided by READING THE DOCUMENT ITSELF (not its filename or title). Determine what the document actually is:
+    rn = a Registered Nurse license with NO advanced-practice scope.
+    aprn = an Advanced Practice Registered Nurse license WITHOUT controlled-substance authority stated on it.
+    aprn_cs = an APRN license that GRANTS controlled-substance authority/prescribing (look for "controlled substance", "CSR", schedules II–V on the license itself), OR a separate APRN controlled-substance license.
+    pa = a Physician Assistant license.
+    dea = a DEA registration/controlled-substance registration certificate.
+    board_cert = a board certification (e.g. ANCC PMHNP-BC, AANP FNP, NCCPA PA-C).
+    other = anything that is not one of the above (CPR/BLS card, immunization, background check, CV, diploma, payer/insurance agreement, HR form, etc.).
+  Base this ONLY on the document contents; if no document is attached, use the existing fields as a weak hint and prefer "other" when genuinely unsure.
+- "boardType": for board_cert only, the certification's practice focus read from the document — "FNP" (Family NP), "PMHNP" (Psychiatric-Mental Health NP), or "PA" (physician assistant / NCCPA). null for everything else.
 - "credentialName": a clean, specific name (e.g. "Utah Physician & Surgeon License", "DEA Registration", "BLS Provider Card").
 - "issuingBody": the issuing authority (state board/DOPL, ANCC, AHA, DEA…), or null.
 - "credentialNumber": the license/registration/certificate number, or null.
@@ -52,7 +62,7 @@ export async function POST(request: NextRequest) {
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 400,
+      max_tokens: 500,
       system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content }],
     });

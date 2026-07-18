@@ -113,6 +113,13 @@ function classifyCredential(c: CredentialRecord): { klass: CredClass; boardType:
   return { klass: "other", boardType: null };
 }
 
+/** Class for the file view: prefer the AI's DOCUMENT-derived class, and only
+ *  fall back to the name heuristic for records not yet analyzed. */
+function resolveCredClass(c: CredentialRecord): { klass: CredClass; boardType: string | null } {
+  if (c.credentialClass) return { klass: c.credentialClass, boardType: c.boardType ?? null };
+  return classifyCredential(c);
+}
+
 /** Recency for current→oldest ordering: expiration, else issue, else created. */
 function credRecency(c: CredentialRecord): number {
   const d = parseDate(c.expirationDate) ?? parseDate(c.issueDate) ?? parseDate(c.createdDate);
@@ -174,6 +181,8 @@ interface FormState {
   credentialNumber: string;
   issueDate: string;
   expirationDate: string;
+  credentialClass: CredClass | null;
+  boardType: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -185,6 +194,8 @@ const EMPTY_FORM: FormState = {
   credentialNumber: "",
   issueDate: "",
   expirationDate: "",
+  credentialClass: null,
+  boardType: "",
 };
 
 /* ----------------------------- dialog ------------------------------- */
@@ -230,6 +241,8 @@ function CredentialDialog({
           credentialNumber: initial.credentialNumber ?? "",
           issueDate: initial.issueDate ?? "",
           expirationDate: initial.expirationDate ?? "",
+          credentialClass: initial.credentialClass ?? null,
+          boardType: initial.boardType ?? "",
         }
       : EMPTY_FORM,
   );
@@ -251,12 +264,15 @@ function CredentialDialog({
         body: JSON.stringify({ fileBase64, mediaType: media }),
       });
       if (res.status === 429) { toast.error("Daily AI limit reached — enter the details manually."); return; }
-      const d = await res.json() as { credentialType?: string; credentialName?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null };
+      const d = await res.json() as { credentialType?: string; credentialClass?: string; boardType?: string | null; credentialName?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null };
       if (res.ok) {
+        const validClass = d.credentialClass && (CLASS_ORDER as readonly string[]).includes(d.credentialClass) ? (d.credentialClass as CredClass) : null;
         setForm((p) => ({
           ...p,
           credentialName: p.credentialName || d.credentialName || "",
           credentialType: d.credentialType && (CRED_TYPES as readonly string[]).includes(d.credentialType) ? d.credentialType : p.credentialType,
+          credentialClass: validClass ?? p.credentialClass,
+          boardType: d.boardType ?? p.boardType,
           issuingBody: p.issuingBody || d.issuingBody || "",
           credentialNumber: p.credentialNumber || d.credentialNumber || "",
           issueDate: p.issueDate || (d.issueDate ?? ""),
@@ -341,6 +357,24 @@ function CredentialDialog({
               ))}
             </select>
           </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Credential class</label>
+            <select
+              className="input w-full"
+              value={form.credentialClass ?? ""}
+              onChange={(e) => setForm((p) => ({ ...p, credentialClass: (e.target.value || null) as CredClass | null }))}
+            >
+              <option value="">— Unclassified —</option>
+              {CLASS_ORDER.map((k) => <option key={k} value={k}>{CLASS_LABEL[k]}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">Set automatically from the uploaded document; override if needed.</p>
+          </div>
+          {form.credentialClass === "board_cert" && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium">Board type</label>
+              <input className="input w-full" value={form.boardType} onChange={set("boardType")} placeholder="FNP / PMHNP / PA" />
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Issuing body</label>
             <input className="input w-full" value={form.issuingBody} onChange={set("issuingBody")} placeholder="e.g. State Board of Nursing" />
@@ -484,7 +518,7 @@ function buildProviderFiles(
   for (const [key, items] of byProvider) {
     const leafMap = new Map<string, Leaf>();
     for (const c of items) {
-      const { klass, boardType } = classifyCredential(c);
+      const { klass, boardType } = resolveCredClass(c);
       const leafKey =
         klass === "dea" ? `dea|${c.locationId ?? ""}` :
         klass === "board_cert" ? `board|${boardType ?? ""}` :
@@ -680,10 +714,13 @@ export default function CredentialsPage() {
             }),
           });
           if (res.status === 429) { toast.error("Daily AI limit reached — stopping reanalysis.", { id: tId }); break; }
-          const d = await res.json() as { credentialType?: string; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null; matchedUserId?: string | null; holderName?: string | null };
+          const d = await res.json() as { credentialType?: string; credentialClass?: string; boardType?: string | null; issuingBody?: string | null; credentialNumber?: string | null; issueDate?: string | null; expirationDate?: string | null; matchedUserId?: string | null; holderName?: string | null };
           if (res.ok) {
             const patch: Partial<CredentialRecord> = {};
             if (d.credentialType && CRED_TYPE_SET.has(d.credentialType) && d.credentialType !== c.credentialType) patch.credentialType = d.credentialType as CredentialRecord["credentialType"];
+            // The document is authoritative for the clinical class — (re)set it from what the AI read.
+            if (d.credentialClass && (CLASS_ORDER as readonly string[]).includes(d.credentialClass) && d.credentialClass !== c.credentialClass) patch.credentialClass = d.credentialClass as CredClass;
+            if (d.boardType !== undefined && (d.boardType ?? null) !== (c.boardType ?? null)) patch.boardType = d.boardType ?? null;
             if (!c.issuingBody && d.issuingBody) patch.issuingBody = d.issuingBody;
             if (!c.credentialNumber && d.credentialNumber) patch.credentialNumber = d.credentialNumber;
             if (!c.issueDate && d.issueDate) patch.issueDate = dateInputToISO(d.issueDate);
@@ -788,6 +825,8 @@ export default function CredentialsPage() {
         credentialNumber: form.credentialNumber.trim() || undefined,
         issueDate: form.issueDate ? dateInputToISO(form.issueDate) : undefined,
         expirationDate: form.expirationDate ? dateInputToISO(form.expirationDate) : undefined,
+        credentialClass: form.credentialClass,
+        boardType: form.boardType.trim() || null,
         ...(documentUrl && { documentUrl }),
       };
       if (editing && editing !== "new") {

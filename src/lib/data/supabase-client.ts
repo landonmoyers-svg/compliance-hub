@@ -232,6 +232,8 @@ function credentialFrom(r: Record<string, unknown>): CredentialRecord {
     expirationDate: r.expiration_date as string | undefined,
     locationId: r.location_id as string | undefined,
     documentUrl: r.document_url as string | undefined,
+    credentialClass: (r.credential_class as CredentialRecord["credentialClass"]) ?? undefined,
+    boardType: (r.board_type as string | null) ?? undefined,
   };
 }
 function credentialTo(d: Partial<CredentialRecord>) {
@@ -246,6 +248,8 @@ function credentialTo(d: Partial<CredentialRecord>) {
     ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
     ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+    ...(d.credentialClass !== undefined && { credential_class: d.credentialClass }),
+    ...(d.boardType !== undefined && { board_type: d.boardType }),
   };
 }
 

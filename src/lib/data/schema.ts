@@ -132,6 +132,10 @@ export const CredentialRecord = z.object({
   expirationDate: z.string().nullable().optional(),
   locationId: z.string().nullable().optional(),
   documentUrl: z.string().nullable().optional(),
+  // Clinical-taxonomy class for the provider credential-file grouping, set by
+  // the AI from reading the DOCUMENT (not the name). Null until analyzed.
+  credentialClass: z.enum(["rn", "aprn", "aprn_cs", "pa", "dea", "board_cert", "other"]).nullable().optional(),
+  boardType: z.string().nullable().optional(), // FNP / PMHNP / PA, for board certs
 });
 export type CredentialRecord = z.infer<typeof CredentialRecord>;
 
