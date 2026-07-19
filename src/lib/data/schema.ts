@@ -1013,6 +1013,14 @@ export const AuditLog = z.object({
   riskLevel: z.enum(["low", "medium", "high", "critical"]).default("low"),
   flagged: z.boolean().default(false),
   flagReason: z.string().nullable().optional(),
+  // Where/how the access happened — captured server-side for client-initiated
+  // access + auth events (change entries from DB triggers have no request context).
+  ipAddress: z.string().nullable().optional(),
+  userAgent: z.string().nullable().optional(),
+  deviceType: z.string().nullable().optional(),
+  geoCity: z.string().nullable().optional(),
+  geoRegion: z.string().nullable().optional(),
+  geoCountry: z.string().nullable().optional(),
 });
 export type AuditLog = z.infer<typeof AuditLog>;
 

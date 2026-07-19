@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Shield, Search, Download, Flag, AlertTriangle, Activity, LogIn } from "lucide-react";
-import { useCollection } from "@/lib/data/hooks";
+import { useState, useMemo, useEffect } from "react";
+import { Shield, Search, Download, Flag, AlertTriangle, Activity, LogIn, MapPin, Monitor } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,8 +75,38 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+const DEVICE_OPTIONS = ["Desktop", "Mobile", "Tablet", "Bot"] as const;
+
+/** A place string like "Murray, UT, US" from the captured geo columns. */
+function geoLabel(e: AuditLog): string {
+  return [e.geoCity, e.geoRegion, e.geoCountry].filter(Boolean).join(", ");
+}
+
+/** Map a raw audit_logs row (snake_case) to the AuditLog shape. */
+function mapAudit(r: Record<string, unknown>): AuditLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    actorName: (r.actor_name as string) ?? "Unknown",
+    actorEmail: (r.actor_email as string) ?? undefined,
+    action: r.action as AuditLog["action"],
+    entityType: (r.entity_type as string) ?? undefined,
+    entityId: (r.entity_id as string) ?? undefined,
+    entityLabel: (r.entity_label as string) ?? undefined,
+    details: (r.details as string) ?? undefined,
+    riskLevel: r.risk_level as AuditLog["riskLevel"],
+    flagged: r.flagged as boolean,
+    flagReason: (r.flag_reason as string) ?? undefined,
+    ipAddress: (r.ip_address as string) ?? undefined,
+    userAgent: (r.user_agent as string) ?? undefined,
+    deviceType: (r.device_type as string) ?? undefined,
+    geoCity: (r.geo_city as string) ?? undefined,
+    geoRegion: (r.geo_region as string) ?? undefined,
+    geoCountry: (r.geo_country as string) ?? undefined,
+  };
+}
+
 export default function AuditTrailPage() {
-  const logQ = useCollection("auditLogs");
+  const supabase = useMemo(() => createClient(), []);
 
   const [tab, setTab] = useState<TabKey>("timeline");
   const [search, setSearch] = useState("");
@@ -84,50 +114,70 @@ export default function AuditTrailPage() {
   const [filterAction, setFilterAction] = useState<ActionType | "all">("all");
   const [filterRisk, setFilterRisk] = useState<RiskLevel | "all">("all");
   const [filterUser, setFilterUser] = useState<string>("all");
+  const [filterDevice, setFilterDevice] = useState<string>("all");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  const logs = useMemo(() => logQ.data ?? [], [logQ.data]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Distinct users who appear in the log — powers the per-user filter.
+  // Load only a BOUNDED window from the server (default last 30 days) so the
+  // table never pulls the whole audit table into the browser. Widening the
+  // preset or setting a From/To range re-queries; a 5,000-row cap guards huge
+  // windows (surfaced as a truncation notice).
+  const LOAD_LIMIT = 5000;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setLoadError(false);
+    (async () => {
+      let query = supabase.from("audit_logs").select("*").order("created_date", { ascending: false }).limit(LOAD_LIMIT);
+      const fromISO = fromDate ? new Date(`${fromDate}T00:00:00`).toISOString() : null;
+      const toISO = toDate ? new Date(`${toDate}T23:59:59`).toISOString() : null;
+      if (fromISO || toISO) {
+        if (fromISO) query = query.gte("created_date", fromISO);
+        if (toISO) query = query.lte("created_date", toISO);
+      } else if (rangeDays > 0) {
+        query = query.gte("created_date", new Date(Date.now() - rangeDays * 86_400_000).toISOString());
+      }
+      const { data, error } = await query;
+      if (cancelled) return;
+      if (error) { setLoadError(true); setLoading(false); return; }
+      setTruncated((data?.length ?? 0) >= LOAD_LIMIT);
+      setLogs((data ?? []).map(mapAudit));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [supabase, rangeDays, fromDate, toDate, reloadKey]);
+
+  // Distinct users who appear in the loaded window — powers the per-user filter.
   const actors = useMemo(
     () => Array.from(new Set(logs.map((l) => l.actorName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [logs],
   );
 
   // Newest first, then apply all active filters.
+  // The date window is applied server-side (bounded load); these are the
+  // in-memory refinements over that window.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // An explicit From/To date range takes precedence over the quick preset.
-    const fromT = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
-    const toT = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
-    const custom = fromT !== null || toT !== null;
-    const cutoff = !custom && rangeDays > 0 ? Date.now() - rangeDays * 86_400_000 : null;
-
-    return [...logs]
-      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
-      .filter((e) => {
-        const t = new Date(e.createdDate).getTime();
-        if (custom) {
-          if (fromT !== null && t < fromT) return false;
-          if (toT !== null && t > toT) return false;
-        } else if (cutoff !== null && (Number.isNaN(t) || t < cutoff)) return false;
-        if (filterUser !== "all" && e.actorName !== filterUser) return false;
-        if (filterAction !== "all" && e.action !== filterAction) return false;
-        if (filterRisk !== "all" && e.riskLevel !== filterRisk) return false;
-        if (q) {
-          const haystack = [
-            e.actorName,
-            e.actorEmail ?? "",
-            e.entityType ?? "",
-            e.entityLabel ?? "",
-            e.details ?? "",
-          ].join(" ").toLowerCase();
-          if (!haystack.includes(q)) return false;
-        }
-        return true;
-      });
-  }, [logs, search, rangeDays, filterAction, filterRisk, filterUser, fromDate, toDate]);
+    return logs.filter((e) => {
+      if (filterUser !== "all" && e.actorName !== filterUser) return false;
+      if (filterAction !== "all" && e.action !== filterAction) return false;
+      if (filterRisk !== "all" && e.riskLevel !== filterRisk) return false;
+      if (filterDevice !== "all" && (e.deviceType ?? "") !== filterDevice) return false;
+      if (q) {
+        const haystack = [
+          e.actorName, e.actorEmail ?? "", e.entityType ?? "", e.entityLabel ?? "",
+          e.details ?? "", e.ipAddress ?? "", geoLabel(e), e.deviceType ?? "",
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [logs, search, filterAction, filterRisk, filterUser, filterDevice]);
 
   const flaggedRows = useMemo(() => filtered.filter((e) => e.flagged), [filtered]);
 
@@ -165,6 +215,7 @@ export default function AuditTrailPage() {
     const header = [
       "timestamp", "actor", "email", "action",
       "entityType", "entityLabel", "details", "riskLevel", "flagged",
+      "ipAddress", "location", "deviceType", "userAgent",
     ];
     const body = rows.map((e) => [
       e.createdDate,
@@ -176,6 +227,10 @@ export default function AuditTrailPage() {
       e.details ?? "",
       e.riskLevel,
       e.flagged ? "true" : "false",
+      e.ipAddress ?? "",
+      geoLabel(e),
+      e.deviceType ?? "",
+      e.userAgent ?? "",
     ]);
     const csv = [header, ...body].map((r) => r.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -187,16 +242,15 @@ export default function AuditTrailPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (logQ.isError) {
+  if (loadError) {
     return (
       <div className="space-y-6">
         <PageHeader title="Audit Trail" />
-        <ErrorState message="We couldn't load the audit log." onRetry={() => void logQ.refetch()} />
+        <ErrorState message="We couldn't load the audit log." onRetry={() => setReloadKey((k) => k + 1)} />
       </div>
     );
   }
 
-  const loading = logQ.isLoading;
   const noData = !loading && logs.length === 0;
 
   return (
@@ -311,11 +365,22 @@ export default function AuditTrailPage() {
                     <option key={r} value={r} className="capitalize">{humanizeLabel(r)}</option>
                   ))}
                 </select>
+                <select className="input" value={filterDevice} onChange={(e) => setFilterDevice(e.target.value)} aria-label="Filter by device">
+                  <option value="all">All devices</option>
+                  {DEVICE_OPTIONS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
               </div>
             )}
           </CardHeader>
 
           <CardContent>
+            {truncated && (
+              <div className="mb-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                Showing the most recent {LOAD_LIMIT.toLocaleString()} events in this window — narrow the date range to see older entries.
+              </div>
+            )}
             {loading ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -354,7 +419,8 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
     actor: (e) => e.actorName,
     action: (e) => ACTION_LABEL[e.action],
     entity: (e) => e.entityLabel,
-    details: (e) => e.details,
+    from: (e) => e.ipAddress,
+    device: (e) => e.deviceType,
     risk: (e) => RISK_RANK[e.riskLevel],
     flag: (e) => (e.flagged ? 1 : 0),
   });
@@ -366,14 +432,17 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
             <SortHeader label="Timestamp" sortKey="timestamp" sort={sort} onToggle={toggle} />
             <SortHeader label="Actor" sortKey="actor" sort={sort} onToggle={toggle} />
             <SortHeader label="Action" sortKey="action" sort={sort} onToggle={toggle} />
-            <SortHeader label="Entity" sortKey="entity" sort={sort} onToggle={toggle} />
-            <SortHeader label="Details" sortKey="details" sort={sort} onToggle={toggle} />
+            <SortHeader label="Accessed" sortKey="entity" sort={sort} onToggle={toggle} />
+            <SortHeader label="From (IP / location)" sortKey="from" sort={sort} onToggle={toggle} />
+            <SortHeader label="Device" sortKey="device" sort={sort} onToggle={toggle} />
             <SortHeader label="Risk" sortKey="risk" sort={sort} onToggle={toggle} />
             <SortHeader label="Flag" sortKey="flag" sort={sort} onToggle={toggle} className="pr-0" />
           </tr>
         </thead>
         <tbody>
-          {sorted.map((e) => (
+          {sorted.map((e) => {
+            const geo = geoLabel(e);
+            return (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
               <td data-label="Timestamp" className="whitespace-nowrap py-2.5 pr-4 tabular-nums text-muted-foreground">{formatTs(e.createdDate)}</td>
               <td data-label="Actor" className="py-2.5 pr-4">
@@ -381,11 +450,17 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
                 {e.actorEmail && <div className="text-xs text-muted-foreground">{e.actorEmail}</div>}
               </td>
               <td data-label="Action" className="py-2.5 pr-4"><ActionBadge action={e.action} /></td>
-              <td data-label="Entity" className="py-2.5 pr-4">
+              <td data-label="Accessed" className="py-2.5 pr-4">
                 {e.entityType && <div className="text-xs text-muted-foreground">{e.entityType}</div>}
-                <div>{e.entityLabel || "—"}</div>
+                <div>{e.entityLabel || e.details || "—"}</div>
               </td>
-              <td data-label="Details" className="py-2.5 pr-4 text-muted-foreground">{e.details || "—"}</td>
+              <td data-label="From" className="py-2.5 pr-4">
+                <div className="font-mono text-xs">{e.ipAddress || "—"}</div>
+                {geo && <div className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="size-3" />{geo}</div>}
+              </td>
+              <td data-label="Device" className="py-2.5 pr-4">
+                {e.deviceType ? <span className="inline-flex items-center gap-1 text-xs"><Monitor className="size-3 text-muted-foreground" />{e.deviceType}</span> : <span className="text-muted-foreground">—</span>}
+              </td>
               <td data-label="Risk" className="py-2.5 pr-4"><RiskBadge level={e.riskLevel} /></td>
               <td data-label="Flag" className="py-2.5">
                 {e.flagged ? (
@@ -397,7 +472,8 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

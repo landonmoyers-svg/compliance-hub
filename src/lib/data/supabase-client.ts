@@ -1402,6 +1402,12 @@ function auditFrom(r: Record<string, unknown>): AuditLog {
     riskLevel: r.risk_level as AuditLog["riskLevel"],
     flagged: r.flagged as boolean,
     flagReason: r.flag_reason as string | undefined,
+    ipAddress: r.ip_address as string | undefined,
+    userAgent: r.user_agent as string | undefined,
+    deviceType: r.device_type as string | undefined,
+    geoCity: r.geo_city as string | undefined,
+    geoRegion: r.geo_region as string | undefined,
+    geoCountry: r.geo_country as string | undefined,
   };
 }
 function auditTo(d: Partial<AuditLog>) {
@@ -1416,6 +1422,12 @@ function auditTo(d: Partial<AuditLog>) {
     ...(d.riskLevel !== undefined && { risk_level: d.riskLevel }),
     ...(d.flagged !== undefined && { flagged: d.flagged }),
     ...(d.flagReason !== undefined && { flag_reason: d.flagReason }),
+    ...(d.ipAddress !== undefined && { ip_address: d.ipAddress }),
+    ...(d.userAgent !== undefined && { user_agent: d.userAgent }),
+    ...(d.deviceType !== undefined && { device_type: d.deviceType }),
+    ...(d.geoCity !== undefined && { geo_city: d.geoCity }),
+    ...(d.geoRegion !== undefined && { geo_region: d.geoRegion }),
+    ...(d.geoCountry !== undefined && { geo_country: d.geoCountry }),
   };
 }
 
