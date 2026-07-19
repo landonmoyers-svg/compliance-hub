@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, ShieldCheck, X, Lock } from "lucide-react";
 import { Sidebar } from "./sidebar";
@@ -8,7 +8,8 @@ import { NotificationBell } from "./notification-bell";
 import { AssistantWidget } from "@/components/ai/assistant-widget";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
-import { canAccessPath } from "@/lib/nav";
+import { canAccessPath, findNavItem } from "@/lib/nav";
+import { logAccess } from "@/lib/audit-client";
 import { cn } from "@/lib/cn";
 
 /** Authenticated app frame: fixed sidebar on desktop, slide-over drawer on mobile. */
@@ -28,6 +29,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (loaded && profile && !allowed) router.replace("/");
   }, [loaded, allowed, profile, router]);
   const blocked = loaded && !!profile && !allowed;
+
+  // Access audit trail: log every page the user actually views (deduped per
+  // path, only pages they were allowed to open). Read-only, fire-and-forget.
+  const lastLogged = useRef<string | null>(null);
+  useEffect(() => {
+    if (!profile || !loaded || !allowed) return;
+    if (lastLogged.current === pathname) return;
+    lastLogged.current = pathname;
+    logAccess({
+      action: "view",
+      entityType: "page",
+      entityId: pathname,
+      entityLabel: findNavItem(pathname)?.label ?? pathname,
+      details: `Viewed ${pathname}`,
+      riskLevel: "low",
+    });
+  }, [pathname, profile, loaded, allowed]);
 
   return (
     <div className="min-h-screen bg-background">

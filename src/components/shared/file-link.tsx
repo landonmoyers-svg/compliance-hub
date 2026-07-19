@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { getSignedUrl } from "@/lib/storage";
+import { logAccess } from "@/lib/audit-client";
 import { toast } from "sonner";
 
 /**
@@ -32,11 +33,11 @@ export function FileLink({
     try {
       const url = await getSignedUrl(path);
       if (url) {
-        // Log the access (fire-and-forget) before handing over the file.
-        if (audit) void fetch("/api/audit/view", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(audit),
-        }).catch(() => {});
+        // Log every file open. Restricted records pass richer context + a higher
+        // risk level via `audit`; everything else logs a generic file access.
+        logAccess(audit
+          ? { action: "view", riskLevel: "medium", ...audit }
+          : { action: "view", entityType: "file", entityId: path, entityLabel: label, details: "Opened file", riskLevel: "low" });
         window.open(url, "_blank", "noopener,noreferrer");
       } else toast.error("Couldn't open file.");
     } catch {
