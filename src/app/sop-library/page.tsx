@@ -337,8 +337,43 @@ export default function SOPLibraryPage() {
   const [filterStatus, setFilterStatus] = useState<ComplianceDocument["status"] | "all">("all");
   const [editing, setEditing] = useState<ComplianceDocument | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const docs = useMemo(() => data ?? [], [data]);
+
+  // Documents with a file but no usable text — invisible to Policy Q&A until read.
+  const needText = useMemo(
+    () => docs.filter((d) => d.fileUrl && (!d.content || d.content.trim().length <= 40)),
+    [docs],
+  );
+
+  // One-click backfill: read every file-only policy into `content` so the
+  // assistant can ground answers in them.
+  async function backfillText() {
+    if (needText.length === 0) return;
+    if (!window.confirm(`Extract text from ${needText.length} policy file${needText.length === 1 ? "" : "s"} so Policy Q&A can read them? Uses AI for PDFs/images.`)) return;
+    setBackfilling(true);
+    const tId = toast.loading(`Reading 0/${needText.length} documents…`);
+    let done = 0, updated = 0;
+    try {
+      for (const d of needText) {
+        try {
+          const url = await getSignedUrl(d.fileUrl as string);
+          if (url) {
+            const blob = await (await fetch(url)).blob();
+            const text = await extractDocumentText(blob, d.fileUrl as string);
+            if (text) { await updateMut.mutateAsync({ id: d.id, patch: { content: text } }); updated++; }
+          }
+        } catch { /* skip this one */ }
+        done++;
+        toast.loading(`Reading ${done}/${needText.length} documents…`, { id: tId });
+      }
+      toast.success(`Read ${done} document${done === 1 ? "" : "s"} — filled text for ${updated}.`, { id: tId });
+      void refetch();
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -430,6 +465,11 @@ export default function SOPLibraryPage() {
               describe={(d) => ({ title: d.title, subtitle: [d.documentType, d.version ? `v${d.version}` : ""].filter(Boolean).join(" · "), hasFile: !!d.fileUrl })}
               score={(d) => (d.fileUrl ? 3 : 0) + (d.content ? 1 : 0) + (d.reviewDate ? 1 : 0)}
             />
+            {needText.length > 0 && (
+              <Button variant="outline" onClick={backfillText} disabled={backfilling}>
+                <Sparkles className="size-4" /> {backfilling ? "Reading…" : `Extract text (${needText.length})`}
+              </Button>
+            )}
             <Button onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add document
             </Button>
