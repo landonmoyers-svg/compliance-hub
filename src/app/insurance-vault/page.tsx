@@ -11,12 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
-import { formatDate, daysUntil, isExpired, dateInputToISO } from "@/lib/dates";
+import { formatDate, daysUntil, isExpired, isExpiringSoon, parseDate, dateInputToISO } from "@/lib/dates";
+import { buildHolderIndex, holderStatus } from "@/lib/compliance";
 import { humanizeLabel } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
+import { VersionHistoryButton } from "@/components/shared/version-history";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import type { InsurancePolicyRecord } from "@/lib/data/schema";
@@ -25,6 +27,78 @@ import { toast } from "sonner";
 function formatCents(cents: number | null | undefined): string {
   if (cents == null) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+}
+
+/* --------------------------- policy status --------------------------- */
+
+type PolicyStatus = "active" | "expiring_soon" | "expired" | "no_expiry";
+const POLICY_STATUS_LABEL: Record<PolicyStatus, string> = {
+  active: "Active", expiring_soon: "Renewing soon", expired: "Expired", no_expiry: "No renewal date",
+};
+const POLICY_STATUS_VARIANT: Record<PolicyStatus, "success" | "warning" | "destructive" | "secondary"> = {
+  active: "success", expiring_soon: "warning", expired: "destructive", no_expiry: "secondary",
+};
+/** Insurance uses a 60-day renewal window (matches the stat cards). */
+function policyStatus(p: Pick<InsurancePolicyRecord, "renewalDate">): PolicyStatus {
+  if (!p.renewalDate) return "no_expiry";
+  if (isExpired(p.renewalDate)) return "expired";
+  if (isExpiringSoon(p.renewalDate, 60)) return "expiring_soon";
+  return "active";
+}
+
+/* -------------------- provider policy-file (grouped) view --------------------
+ * Same organization as the Credentials page: policies grouped by holder, then by
+ * coverage line (malpractice, cyber, general…). Within a line the newest renewal
+ * is the ACTIVE policy and prior terms nest as superseded history — a policy of
+ * one type never supersedes a policy of another type. */
+
+interface PolicyLeaf { key: string; label: string; rank: number; items: InsurancePolicyRecord[]; }
+interface PolicyFile { key: string; userId: string | null; name: string; org: boolean; former: boolean; leaves: PolicyLeaf[]; }
+
+/** Recency for active→oldest ordering: renewal date, else created. */
+function policyRecency(p: InsurancePolicyRecord): number {
+  const d = parseDate(p.renewalDate) ?? parseDate(p.createdDate);
+  return d ? d.getTime() : 0;
+}
+
+function buildPolicyFiles(
+  policies: InsurancePolicyRecord[],
+  isFormer: (p: InsurancePolicyRecord) => boolean,
+): PolicyFile[] {
+  const byHolder = new Map<string, InsurancePolicyRecord[]>();
+  for (const p of policies) {
+    const key = p.holderUserId || p.holderName?.trim() || "__org__";
+    const arr = byHolder.get(key) ?? [];
+    arr.push(p);
+    byHolder.set(key, arr);
+  }
+  const files: PolicyFile[] = [];
+  for (const [key, items] of byHolder) {
+    const org = key === "__org__";
+    const leafMap = new Map<string, PolicyLeaf>();
+    for (const p of items) {
+      const type = (p.policyType || "other").toLowerCase().trim();
+      const leaf = leafMap.get(type) ?? { key: type, label: humanizeLabel(type), rank: type === "malpractice" ? 0 : 1, items: [] };
+      leaf.items.push(p);
+      leafMap.set(type, leaf);
+    }
+    // Active (newest renewal) at the top, then superseded most-recent → oldest.
+    const leaves = [...leafMap.values()]
+      .map((l) => ({ ...l, items: [...l.items].sort((a, b) => policyRecency(b) - policyRecency(a)) }))
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label));
+    const first = items[0];
+    files.push({
+      key,
+      userId: first.holderUserId ?? null,
+      name: org ? "Organization-wide policies" : (first.holderName?.trim() || "Unassigned"),
+      org,
+      former: !org && isFormer(first),
+      leaves,
+    });
+  }
+  // Org-wide first, then active individual holders, then former — each alphabetical.
+  const rank = (f: PolicyFile) => (f.org ? 0 : f.former ? 2 : 1);
+  return files.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
 const MAX_MB = 15;
@@ -236,18 +310,106 @@ function PolicyDialog({
   );
 }
 
+/* ----------------------- provider policy-file view ----------------------- */
+
+function PolicyFileView({ files, onEdit, onDeleted }: {
+  files: PolicyFile[];
+  onEdit: (p: InsurancePolicyRecord) => void;
+  onDeleted: () => void;
+}) {
+  if (files.length === 0) {
+    return <EmptyState icon={Shield} title="No policies found" description="Add a policy or clear the search." />;
+  }
+  return (
+    <div className="space-y-5">
+      {files.map((f) => (
+        <div key={f.key} className="rounded-lg border border-border">
+          <div className="flex items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
+            {f.org ? <span className="inline-flex items-center gap-1.5 font-medium"><Shield className="size-4 text-muted-foreground" />{f.name}</span> : <PersonLink userId={f.userId} name={f.name} />}
+            {f.former && <Badge variant="secondary">Former</Badge>}
+            <span className="ml-auto text-xs text-muted-foreground">{f.leaves.reduce((n, l) => n + l.items.length, 0)} on file</span>
+          </div>
+          <div className="divide-y divide-border/60">
+            {f.leaves.map((leaf) => {
+              const [current, ...history] = leaf.items;
+              const st = policyStatus(current);
+              const days = daysUntil(current.renewalDate);
+              return (
+                <div key={leaf.key} className="px-4 py-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{leaf.label}</div>
+                  {/* Active / current term */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
+                    <span className="font-medium">{current.policyName}</span>
+                    {current.carrierName && <span className="text-xs text-muted-foreground">{current.carrierName}</span>}
+                    {current.policyNumber && <span className="text-xs text-muted-foreground">#{current.policyNumber}</span>}
+                    {current.coverageAmountCents != null && <span className="text-xs text-muted-foreground">{formatCents(current.coverageAmountCents)} coverage</span>}
+                    <button type="button" onClick={() => onEdit(current)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                      <Badge variant={f.former ? "secondary" : POLICY_STATUS_VARIANT[st]}>{POLICY_STATUS_LABEL[st]}</Badge>
+                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      {current.renewalDate ? <>renews {formatDate(current.renewalDate)}{days !== null && st !== "no_expiry" && <> · {days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? "today" : `${days}d left`}</>}</> : "no renewal date"}
+                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => onEdit(current)}>Edit</Button>
+                      {current.documentUrl && <FileLink path={current.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />}
+                      <VersionHistoryButton entityType="insurancePolicies" entityId={current.id} title={`${current.policyName}${current.holderName ? ` — ${current.holderName}` : ""}`} />
+                      <AdminDeleteButton collection="insurancePolicies" id={current.id} label={current.policyName} noun="policy" onDeleted={onDeleted} />
+                    </div>
+                  </div>
+                  {/* Superseded prior terms, most recent → oldest */}
+                  {history.length > 0 && (
+                    <ul className="mt-2 space-y-1 border-l-2 border-border/60 pl-3">
+                      {history.map((h) => (
+                        <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">Superseded</span>
+                          <span>{h.policyName}</span>
+                          {h.carrierName && <span className="text-xs">{h.carrierName}</span>}
+                          {h.policyNumber && <span className="text-xs">#{h.policyNumber}</span>}
+                          <span className="text-xs">{h.renewalDate ? `renewed ${formatDate(h.renewalDate)}` : ""}</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => onEdit(h)}>Edit</Button>
+                            {h.documentUrl && <FileLink path={h.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-primary hover:underline" />}
+                            <AdminDeleteButton collection="insurancePolicies" id={h.id} label={h.policyName} noun="policy" onDeleted={onDeleted} />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ----------------------------- page --------------------------------- */
+
+type PolicyGroupBy = "provider_file" | "list";
 
 export default function InsuranceVaultPage() {
   const { data, isLoading, isError, refetch } = useCollection("insurancePolicies");
+  const employeesQ = useCollection("employees");
   const createMut = useCreate("insurancePolicies");
   const updateMut = useUpdate("insurancePolicies");
 
   const [search, setSearch] = useState("");
+  const [groupBy, setGroupBy] = useState<PolicyGroupBy>("provider_file");
   const [editing, setEditing] = useState<InsurancePolicyRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
 
   const policies = useMemo(() => data ?? [], [data]);
+
+  // A policy whose individual holder has left the practice is history, not an
+  // alarm — mark those files "Former" (mirrors the Credentials page).
+  const holderIdx = useMemo(() => buildHolderIndex(employeesQ.data ?? []), [employeesQ.data]);
+  const isFormerHolder = useMemo(
+    () => (p: InsurancePolicyRecord) => holderStatus({ employeeUserId: p.holderUserId, employeeName: p.holderName }, holderIdx) === "former",
+    [holderIdx],
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -255,9 +417,12 @@ export default function InsuranceVaultPage() {
       (p) =>
         !q ||
         p.policyName.toLowerCase().includes(q) ||
-        (p.carrierName ?? "").toLowerCase().includes(q),
+        (p.carrierName ?? "").toLowerCase().includes(q) ||
+        (p.holderName ?? "").toLowerCase().includes(q),
     );
   }, [policies, search]);
+
+  const policyFiles = useMemo(() => buildPolicyFiles(filtered, isFormerHolder), [filtered, isFormerHolder]);
 
   const { sorted, sort, toggle } = useSort(filtered, {
     policyName: (p) => p.policyName,
@@ -363,15 +528,29 @@ export default function InsuranceVaultPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 className="input w-full pl-9"
-                placeholder="Search by name or carrier…"
+                placeholder="Search by name, carrier, or holder…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-sm text-muted-foreground">View</span>
+              {([["provider_file", "Provider file"], ["list", "Flat list"]] as const).map(([g, label]) => (
+                <button
+                  key={g}
+                  onClick={() => setGroupBy(g)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    groupBy === g ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </CardHeader>
@@ -380,6 +559,8 @@ export default function InsuranceVaultPage() {
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
+          ) : groupBy === "provider_file" ? (
+            <PolicyFileView files={policyFiles} onEdit={setEditing} onDeleted={() => void refetch()} />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Shield}

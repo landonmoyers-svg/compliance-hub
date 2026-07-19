@@ -500,8 +500,51 @@ function HolderResolver({ items, employees, onClose, onApply }: {
 
 /* -------------------- provider credential-file (grouped) view -------------------- */
 
-interface Leaf { key: string; klass: CredClass; boardType: string | null; locationId: string | null; items: CredentialRecord[]; }
+interface Leaf { key: string; klass: CredClass; label: string; rank: number; boardType: string | null; locationId: string | null; items: CredentialRecord[]; }
 interface ProviderFile { key: string; userId: string | null; name: string; former: boolean; leaves: Leaf[]; }
+
+/**
+ * A "leaf" is one renewable slot in a provider's file — the thing whose newest
+ * copy is the active credential and whose older copies are superseded history.
+ * Licenses/DEA/board-certs renew and legitimately supersede; but a CV, diploma,
+ * ACLS card, BLS card, immunization, and background check are DIFFERENT documents
+ * that must never supersede one another. So each distinct KIND gets its own leaf:
+ * renewals of the same kind nest (newest = current), unrelated documents stay
+ * side by side.
+ */
+function leafFor(c: CredentialRecord, klass: CredClass, boardType: string | null): { key: string; label: string; rank: number; locationId: string | null } {
+  switch (klass) {
+    case "rn": return { key: "rn", label: CLASS_LABEL.rn, rank: 0, locationId: null };
+    // APRN and APRN-controlled-substance are the SAME license line — CS authority
+    // is an endorsement on the APRN license, not a separate license. So both fold
+    // into one leaf: renewals nest, and the newest term (which may have gained CS
+    // authority) becomes the active one. Label is set from the current term below.
+    case "aprn":
+    case "aprn_cs": return { key: "aprn_license", label: klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn, rank: 1, locationId: null };
+    case "pa": return { key: "pa", label: CLASS_LABEL.pa, rank: 3, locationId: null };
+    case "dea": return { key: `dea|${c.locationId ?? ""}`, label: CLASS_LABEL.dea, rank: 4, locationId: c.locationId ?? null };
+    case "board_cert": return { key: `board|${boardType ?? ""}`, label: CLASS_LABEL.board_cert, rank: 5, locationId: null };
+    default: {
+      // "Other / supporting documents": split by the actual kind so nothing is
+      // wrongly nested. Life-support cards distinguish ACLS/BLS/PALS/CPR; each
+      // other supporting doc stands alone (identical-named copies renew).
+      const n = (c.credentialName || "").toLowerCase();
+      const t = c.credentialType;
+      if (/\bacls\b|advanced cardiovascular/.test(n)) return { key: "other|acls", label: "ACLS", rank: 10, locationId: null };
+      if (/\bbls\b|basic life support/.test(n)) return { key: "other|bls", label: "BLS", rank: 11, locationId: null };
+      if (/\bpals\b|pediatric advanced/.test(n)) return { key: "other|pals", label: "PALS", rank: 12, locationId: null };
+      if (/\bcpr\b/.test(n)) return { key: "other|cpr", label: "CPR", rank: 13, locationId: null };
+      if (/curriculum|resume|\bcv\b/.test(n)) return { key: "other|cv", label: "Curriculum Vitae", rank: 20, locationId: null };
+      if (/diploma|degree|doctor of|master of|bachelor of/.test(n)) return { key: `other|diploma|${norm(n)}`, label: "Diploma / Degree", rank: 21, locationId: null };
+      if (/\bnpi\b/.test(n)) return { key: "other|npi", label: "NPI Registration", rank: 22, locationId: null };
+      if (t === "immunization" || /immuniz|vaccin|hepatitis|\btb\b|\bppd\b|\bmmr\b|influenza|tdap|titer/.test(n)) return { key: `other|imm|${norm(n)}`, label: "Immunization", rank: 23, locationId: null };
+      if (t === "background_check" || /background|\bbci\b|\bfbi\b|\boig\b|\bsam\b|fingerprint|clearance/.test(n)) return { key: `other|bg|${norm(n)}`, label: "Background Check", rank: 24, locationId: null };
+      // Anything else: one leaf per distinct document (so a CV never supersedes a
+      // W-9, etc.), while two same-named copies still fold into one history.
+      return { key: `other|${norm(n)}`, label: "Supporting document", rank: 30, locationId: null };
+    }
+  }
+}
 
 function buildProviderFiles(
   creds: CredentialRecord[],
@@ -519,18 +562,23 @@ function buildProviderFiles(
     const leafMap = new Map<string, Leaf>();
     for (const c of items) {
       const { klass, boardType } = resolveCredClass(c);
-      const leafKey =
-        klass === "dea" ? `dea|${c.locationId ?? ""}` :
-        klass === "board_cert" ? `board|${boardType ?? ""}` :
-        klass;
-      const leaf = leafMap.get(leafKey) ?? { key: leafKey, klass, boardType, locationId: klass === "dea" ? (c.locationId ?? null) : null, items: [] };
+      const lf = leafFor(c, klass, boardType);
+      const leaf = leafMap.get(lf.key) ?? { key: lf.key, klass, label: lf.label, rank: lf.rank, boardType, locationId: lf.locationId, items: [] };
       leaf.items.push(c);
-      leafMap.set(leafKey, leaf);
+      leafMap.set(lf.key, leaf);
     }
-    // Current at the top, then superseded/expired most-recent → oldest.
+    // Current (newest) at the top, then superseded/expired most-recent → oldest.
     const leaves = [...leafMap.values()]
-      .map((l) => ({ ...l, items: [...l.items].sort((a, b) => credRecency(b) - credRecency(a)) }))
-      .sort((a, b) => CLASS_ORDER.indexOf(a.klass) - CLASS_ORDER.indexOf(b.klass) || a.key.localeCompare(b.key));
+      .map((l) => {
+        const sorted = [...l.items].sort((a, b) => credRecency(b) - credRecency(a));
+        // The merged APRN leaf takes its label from the CURRENT term (it may have
+        // gained controlled-substance authority on the latest renewal).
+        const label = l.key === "aprn_license"
+          ? (resolveCredClass(sorted[0]).klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn)
+          : l.label;
+        return { ...l, items: sorted, label };
+      })
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
     const first = items[0];
     files.push({ key, userId: first.employeeUserId ?? null, name: first.employeeName?.trim() || "Unassigned", former: isFormer(first), leaves });
   }
@@ -567,7 +615,7 @@ function CredentialFileView({ files, locName, onEdit, onDeleted }: {
               return (
                 <div key={leaf.key} className="px-4 py-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {CLASS_LABEL[leaf.klass]}{suffix}
+                    {leaf.label}{suffix}
                   </div>
                   {/* Current */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
