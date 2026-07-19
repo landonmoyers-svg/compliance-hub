@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { supersededCredentialIds, type CredClass } from "@/lib/credentials";
 
 const PRIVILEGED = ["owner", "admin", "hr", "clinical_leadership"];
 
@@ -66,9 +67,24 @@ async function runScan(): Promise<{ created: number }> {
   };
 
   // Credentials expiring within the configured window or expired (active staff only)
-  const { data: creds } = await admin.from("credentials").select("id, employee_user_id, employee_name, credential_name, expiration_date");
+  const { data: creds } = await admin.from("credentials").select("id, employee_user_id, employee_name, credential_name, credential_type, credential_class, board_type, credential_number, expiration_date, issue_date, created_date, location_id");
+  // Superseded copies (an old license replaced by a current one) are history — a
+  // provider with a current license must not get "expired" alerts for the old one.
+  const supersededIds = supersededCredentialIds((creds ?? []).map((c) => ({
+    id: c.id, employeeUserId: c.employee_user_id, employeeName: c.employee_name,
+    credentialName: c.credential_name, credentialType: c.credential_type,
+    credentialClass: c.credential_class as CredClass | null, boardType: c.board_type,
+    credentialNumber: c.credential_number, expirationDate: c.expiration_date,
+    issueDate: c.issue_date, createdDate: c.created_date, locationId: c.location_id,
+  })));
+  // Clear any existing unread credential alerts that were raised for a copy that
+  // is now superseded (the provider has since filed a current replacement).
+  if (supersededIds.size > 0) {
+    await admin.from("notifications").delete().eq("category", "credential").eq("read", false).in("entity_id", [...supersededIds]);
+  }
   for (const c of creds ?? []) {
     if (!personIsActive(c.employee_user_id, c.employee_name)) continue;
+    if (supersededIds.has(c.id)) continue;
     const d = daysUntil(c.expiration_date);
     if (d === null) continue;
     if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: "/credentials" });

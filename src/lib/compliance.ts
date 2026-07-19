@@ -1,4 +1,5 @@
 import { daysUntil, isExpired, isExpiringSoon } from "./dates";
+import { supersededCredentialIds } from "./credentials";
 import type {
   ComplianceDocument,
   ComplianceTask,
@@ -173,9 +174,13 @@ export function exclusionScreeningOverdue(
 export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   // Context: only current staff's credentials/training count against the score.
   const index = input.employees ? buildHolderIndex(input.employees) : null;
-  const creds = index
+  const activeCreds = index
     ? input.credentials.filter((c) => holderIsActive(c, index))
     : input.credentials;
+  // Superseded copies (an old license a current one replaced) are history, not
+  // risk — exclude them so they don't drag the score or show as action items.
+  const supersededIds = supersededCredentialIds(input.credentials);
+  const creds = activeCreds.filter((c) => !supersededIds.has(c.id));
   const training = index
     ? input.trainingAssignments.filter((a) =>
         holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, index))

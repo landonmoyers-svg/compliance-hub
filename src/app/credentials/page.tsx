@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, bySoonest, buildHolderIndex, holderStatus } from "@/lib/compliance";
 import { summarizeRequirements, inferProviderType, type RequirementSummary } from "@/lib/credential-requirements";
+import { CLASS_ORDER, CLASS_LABEL, resolveCredClass, credRecency, leafFor, supersededCredentialIds, type CredClass } from "@/lib/credentials";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
 import { formatName } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
@@ -69,74 +70,8 @@ const CRED_TYPE_LABEL: Record<string, string> = {
 };
 const credTypeLabel = (t: string) => CRED_TYPE_LABEL[t] ?? t;
 
-/* ------------- clinical credential classification (provider file view) -------------
- * The stored credential_type is unreliable (APRN licenses saved as "dea", payer
- * docs saved as "license"), so the provider-file view classifies each credential
- * from its NAME into the clinical taxonomy the practice actually tracks:
- *   RN · APRN · APRN-controlled-substance · PA license · DEA (one per location)
- *   · Board certification (one per board type: FNP / PMHNP / PA).
- * Anything that isn't a license/cert (CVs, diplomas, payer agreements, forms)
- * falls to "Other / supporting documents". */
-
-type CredClass = "rn" | "aprn" | "aprn_cs" | "pa" | "dea" | "board_cert" | "other";
-const CLASS_ORDER: CredClass[] = ["rn", "aprn", "aprn_cs", "pa", "dea", "board_cert", "other"];
-const CLASS_LABEL: Record<CredClass, string> = {
-  rn: "RN License",
-  aprn: "APRN License",
-  aprn_cs: "APRN — Controlled Substance License",
-  pa: "PA License",
-  dea: "DEA Registration",
-  board_cert: "Board Certification",
-  other: "Other / supporting documents",
-};
-
-function classifyCredential(c: CredentialRecord): { klass: CredClass; boardType: string | null } {
-  const n = (c.credentialName || "").toLowerCase();
-  const isLicense = /licen[sc]e|licensure/.test(n);
-  const isAprn = /aprn|a\.p\.r\.n\.|advanced practice registered nurse/.test(n);
-  const isPa = /physician assistant|\bpa-c\b/.test(n);
-  const isRn = /registered nurse|\brn\b/.test(n);
-  const hasCs = /controlled substance|schedule\s*2|schedule\s*ii|\bcsr\b/.test(n);
-  const isDea = /\bdea\b/.test(n);
-  const isBoard = /board[ -]?cert|pmhnp-bc|\bancc\b|\bnccpa\b|certification verification|board certification/.test(n);
-
-  if (isDea) return { klass: "dea", boardType: null };
-  if (isBoard) {
-    let bt: string | null = null;
-    if (/pmhnp|psychiatric[- ]mental health/.test(n)) bt = "PMHNP";
-    else if (/\bfnp\b|family nurse/.test(n)) bt = "FNP";
-    else if (/nccpa|physician assistant|\bpa-c\b|\bpa\b/.test(n)) bt = "PA";
-    return { klass: "board_cert", boardType: bt };
-  }
-  if (isLicense && isAprn && hasCs) return { klass: "aprn_cs", boardType: null };
-  if (isLicense && isAprn) return { klass: "aprn", boardType: null };
-  if (isLicense && isPa) return { klass: "pa", boardType: null };
-  if (isLicense && isRn) return { klass: "rn", boardType: null };
-  return { klass: "other", boardType: null };
-}
-
-/** Class for the file view: prefer the AI's DOCUMENT-derived class, and only
- *  fall back to the name heuristic for records not yet analyzed. */
-function resolveCredClass(c: CredentialRecord): { klass: CredClass; boardType: string | null } {
-  if (c.credentialClass) return { klass: c.credentialClass, boardType: c.boardType ?? null };
-  return classifyCredential(c);
-}
-
-/** Recency for current→oldest ordering: expiration, else issue, else created. */
-function credRecency(c: CredentialRecord): number {
-  const d = parseDate(c.expirationDate) ?? parseDate(c.issueDate) ?? parseDate(c.createdDate);
-  return d ? d.getTime() : 0;
-}
-
-/** Root of a license number (the part before the suffix), e.g. "203474-4405 /
- *  203474-8900" → "203474". Used to tell whether an APRN and an APRN-CS entry
- *  are the SAME license (controlled-substance authority on one document, or its
- *  renewal) versus two genuinely separate licenses. */
-function licenseNumberRoot(c: CredentialRecord): string | null {
-  const raw = (c.credentialNumber || "").trim();
-  const m = raw.match(/[a-z0-9]+/i);
-  return m ? m[0].toLowerCase() : null;
-}
+/* Clinical credential classification + superseded detection now live in
+ * @/lib/credentials so the UI and the alerting/scoring surfaces agree. */
 
 /* --------------------------- duplicate detection --------------------------- */
 
@@ -514,54 +449,6 @@ function HolderResolver({ items, employees, onClose, onApply }: {
 
 interface Leaf { key: string; klass: CredClass; label: string; rank: number; boardType: string | null; locationId: string | null; items: CredentialRecord[]; }
 interface ProviderFile { key: string; userId: string | null; name: string; former: boolean; leaves: Leaf[]; }
-
-/**
- * A "leaf" is one renewable slot in a provider's file — the thing whose newest
- * copy is the active credential and whose older copies are superseded history.
- * Licenses/DEA/board-certs renew and legitimately supersede; but a CV, diploma,
- * ACLS card, BLS card, immunization, and background check are DIFFERENT documents
- * that must never supersede one another. So each distinct KIND gets its own leaf:
- * renewals of the same kind nest (newest = current), unrelated documents stay
- * side by side.
- */
-function leafFor(c: CredentialRecord, klass: CredClass, boardType: string | null): { key: string; label: string; rank: number; locationId: string | null } {
-  switch (klass) {
-    case "rn": return { key: "rn", label: CLASS_LABEL.rn, rank: 0, locationId: null };
-    // APRN and APRN-controlled-substance are OFTEN the same license (CS authority
-    // endorsed on one document) but NOT ALWAYS. Group by license number: same
-    // number → one line (combined doc + its renewals nest, newest active);
-    // different numbers → separate lines (a genuinely separate CS license shows
-    // on its own). No number → fall back to a shared APRN line. Label from the
-    // current term below.
-    case "aprn":
-    case "aprn_cs": {
-      const root = licenseNumberRoot(c);
-      return { key: root ? `aprn|${root}` : "aprn|combined", label: klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn, rank: 1, locationId: null };
-    }
-    case "pa": return { key: "pa", label: CLASS_LABEL.pa, rank: 3, locationId: null };
-    case "dea": return { key: `dea|${c.locationId ?? ""}`, label: CLASS_LABEL.dea, rank: 4, locationId: c.locationId ?? null };
-    case "board_cert": return { key: `board|${boardType ?? ""}`, label: CLASS_LABEL.board_cert, rank: 5, locationId: null };
-    default: {
-      // "Other / supporting documents": split by the actual kind so nothing is
-      // wrongly nested. Life-support cards distinguish ACLS/BLS/PALS/CPR; each
-      // other supporting doc stands alone (identical-named copies renew).
-      const n = (c.credentialName || "").toLowerCase();
-      const t = c.credentialType;
-      if (/\bacls\b|advanced cardiovascular/.test(n)) return { key: "other|acls", label: "ACLS", rank: 10, locationId: null };
-      if (/\bbls\b|basic life support/.test(n)) return { key: "other|bls", label: "BLS", rank: 11, locationId: null };
-      if (/\bpals\b|pediatric advanced/.test(n)) return { key: "other|pals", label: "PALS", rank: 12, locationId: null };
-      if (/\bcpr\b/.test(n)) return { key: "other|cpr", label: "CPR", rank: 13, locationId: null };
-      if (/curriculum|resume|\bcv\b/.test(n)) return { key: "other|cv", label: "Curriculum Vitae", rank: 20, locationId: null };
-      if (/diploma|degree|doctor of|master of|bachelor of/.test(n)) return { key: `other|diploma|${norm(n)}`, label: "Diploma / Degree", rank: 21, locationId: null };
-      if (/\bnpi\b/.test(n)) return { key: "other|npi", label: "NPI Registration", rank: 22, locationId: null };
-      if (t === "immunization" || /immuniz|vaccin|hepatitis|\btb\b|\bppd\b|\bmmr\b|influenza|tdap|titer/.test(n)) return { key: `other|imm|${norm(n)}`, label: "Immunization", rank: 23, locationId: null };
-      if (t === "background_check" || /background|\bbci\b|\bfbi\b|\boig\b|\bsam\b|fingerprint|clearance/.test(n)) return { key: `other|bg|${norm(n)}`, label: "Background Check", rank: 24, locationId: null };
-      // Anything else: one leaf per distinct document (so a CV never supersedes a
-      // W-9, etc.), while two same-named copies still fold into one history.
-      return { key: `other|${norm(n)}`, label: "Supporting document", rank: 30, locationId: null };
-    }
-  }
-}
 
 function buildProviderFiles(
   creds: CredentialRecord[],
@@ -941,8 +828,11 @@ export default function CredentialsPage() {
 
   const counts = useMemo(() => {
     const out = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
+    // Superseded copies (an older license replaced by a current one) are history,
+    // not action items — don't count them as expired/expiring.
+    const superseded = supersededCredentialIds(credentials);
     for (const c of credentials) {
-      if (isFormerHolder(c)) continue;
+      if (isFormerHolder(c) || superseded.has(c.id)) continue;
       out[credentialStatus(c)]++;
     }
     return out;
