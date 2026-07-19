@@ -127,6 +127,16 @@ function credRecency(c: CredentialRecord): number {
   return d ? d.getTime() : 0;
 }
 
+/** Root of a license number (the part before the suffix), e.g. "203474-4405 /
+ *  203474-8900" → "203474". Used to tell whether an APRN and an APRN-CS entry
+ *  are the SAME license (controlled-substance authority on one document, or its
+ *  renewal) versus two genuinely separate licenses. */
+function licenseNumberRoot(c: CredentialRecord): string | null {
+  const raw = (c.credentialNumber || "").trim();
+  const m = raw.match(/[a-z0-9]+/i);
+  return m ? m[0].toLowerCase() : null;
+}
+
 /* --------------------------- duplicate detection --------------------------- */
 
 const norm = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -516,12 +526,17 @@ interface ProviderFile { key: string; userId: string | null; name: string; forme
 function leafFor(c: CredentialRecord, klass: CredClass, boardType: string | null): { key: string; label: string; rank: number; locationId: string | null } {
   switch (klass) {
     case "rn": return { key: "rn", label: CLASS_LABEL.rn, rank: 0, locationId: null };
-    // APRN and APRN-controlled-substance are the SAME license line — CS authority
-    // is an endorsement on the APRN license, not a separate license. So both fold
-    // into one leaf: renewals nest, and the newest term (which may have gained CS
-    // authority) becomes the active one. Label is set from the current term below.
+    // APRN and APRN-controlled-substance are OFTEN the same license (CS authority
+    // endorsed on one document) but NOT ALWAYS. Group by license number: same
+    // number → one line (combined doc + its renewals nest, newest active);
+    // different numbers → separate lines (a genuinely separate CS license shows
+    // on its own). No number → fall back to a shared APRN line. Label from the
+    // current term below.
     case "aprn":
-    case "aprn_cs": return { key: "aprn_license", label: klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn, rank: 1, locationId: null };
+    case "aprn_cs": {
+      const root = licenseNumberRoot(c);
+      return { key: root ? `aprn|${root}` : "aprn|combined", label: klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn, rank: 1, locationId: null };
+    }
     case "pa": return { key: "pa", label: CLASS_LABEL.pa, rank: 3, locationId: null };
     case "dea": return { key: `dea|${c.locationId ?? ""}`, label: CLASS_LABEL.dea, rank: 4, locationId: c.locationId ?? null };
     case "board_cert": return { key: `board|${boardType ?? ""}`, label: CLASS_LABEL.board_cert, rank: 5, locationId: null };
@@ -572,9 +587,9 @@ function buildProviderFiles(
     const leaves = [...leafMap.values()]
       .map((l) => {
         const sorted = [...l.items].sort((a, b) => credRecency(b) - credRecency(a));
-        // The merged APRN leaf takes its label from the CURRENT term (it may have
-        // gained controlled-substance authority on the latest renewal).
-        const label = l.key === "aprn_license"
+        // An APRN license leaf takes its label from the CURRENT term (it may carry
+        // controlled-substance authority on the latest document).
+        const label = l.key.startsWith("aprn|")
           ? (resolveCredClass(sorted[0]).klass === "aprn_cs" ? CLASS_LABEL.aprn_cs : CLASS_LABEL.aprn)
           : l.label;
         return { ...l, items: sorted, label };

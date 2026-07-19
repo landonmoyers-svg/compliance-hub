@@ -44,9 +44,14 @@ export function inferProviderType(jobRole?: string | null, title?: string | null
 const lc = (s?: string | null): string => (s ?? "").toLowerCase();
 const clsIn = (c: CredentialRecord, ...ks: string[]) => ks.includes(c.credentialClass ?? "");
 
+const hasControlledSubstance = (c: CredentialRecord) =>
+  /controlled substance|\bcsr\b|\bcs\b|schedule\s*2|schedule\s*ii|-8900/.test(lc(c.credentialName));
 const isRnLicense = (c: CredentialRecord) => clsIn(c, "rn");
 const isAprnLicense = (c: CredentialRecord) => clsIn(c, "aprn", "aprn_cs");
-const isAprnCsLicense = (c: CredentialRecord) => clsIn(c, "aprn_cs");
+// The controlled-substance authority is often ON the APRN license (same document),
+// sometimes a separate one. Count either: an aprn_cs record, or an APRN license
+// whose text shows controlled-substance / schedule authority.
+const isAprnCsLicense = (c: CredentialRecord) => clsIn(c, "aprn_cs") || (clsIn(c, "aprn") && hasControlledSubstance(c));
 const isPaLicense = (c: CredentialRecord) => clsIn(c, "pa");
 const isAnyStateLicense = (c: CredentialRecord) =>
   clsIn(c, "rn", "aprn", "aprn_cs", "pa") ||
