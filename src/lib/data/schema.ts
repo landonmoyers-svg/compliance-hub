@@ -507,6 +507,55 @@ export const InsurancePolicyRecord = z.object({
 });
 export type InsurancePolicyRecord = z.infer<typeof InsurancePolicyRecord>;
 
+/* ------------------------- business (entity) records -------------------------
+ * The practice AS A LEGAL ENTITY has its own documents — business licenses,
+ * contracts, entity insurance, BAAs, leases, group payer contracts, audits,
+ * formation/tax records. This is their single home, organized like the
+ * Credentials/Insurance file views: grouped by category, newest term active,
+ * prior/expired terms nested as superseded history. */
+
+export const businessRecordCategories = [
+  "license",         // business license / operating permit
+  "contract",        // general business contract / agreement
+  "insurance",       // entity-level insurance policy
+  "baa",             // Business Associate Agreement
+  "lease",           // rental / lease agreement
+  "payer_contract",  // group payer / network contract
+  "audit",           // audit / accreditation / survey record
+  "vendor",          // vendor / service agreement
+  "formation",       // formation / governance (articles, operating agreement)
+  "tax",             // tax / financial identity (W-9, EIN/CP-575, filings)
+  "other",
+] as const;
+export type BusinessRecordCategory = (typeof businessRecordCategories)[number];
+
+export const businessRecordStatuses = ["active", "pending", "expired", "terminated"] as const;
+
+export const BusinessRecord = z.object({
+  ...base,
+  title: z.string(),
+  category: z.enum(businessRecordCategories).default("other"),
+  // The other party: vendor, landlord, payer, carrier, agency, auditor…
+  counterparty: z.string().nullable().optional(),
+  // Contract / license / policy / audit number.
+  identifier: z.string().nullable().optional(),
+  // Issuing authority for licenses/permits (city, state agency, accreditor…).
+  issuingAuthority: z.string().nullable().optional(),
+  // Manual status for records without an expiration date (a perpetual BAA, a
+  // terminated contract). When an expirationDate is set, the derived date
+  // status wins in the UI.
+  status: z.enum(businessRecordStatuses).nullable().optional(),
+  effectiveDate: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  // Contract value / annual rent / coverage amount, in cents.
+  amountCents: z.number().nullable().optional(),
+  // Optional tie to a specific location (a per-site lease or license).
+  locationId: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  documentUrl: z.string().nullable().optional(),
+});
+export type BusinessRecord = z.infer<typeof BusinessRecord>;
+
 /* --------------------------- emergency ----------------------------- */
 
 export const EmergencyDrill = z.object({

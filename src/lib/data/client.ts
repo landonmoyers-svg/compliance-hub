@@ -19,6 +19,7 @@ import type {
   FillableFormTemplate,
   FormAssignment,
   InsurancePolicyRecord,
+  BusinessRecord,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -100,6 +101,7 @@ export interface DataClient {
   regulatorySources: Collection<RegulatorySource>;
   recordVersions: Collection<RecordVersion>;
   insurancePolicies: Collection<InsurancePolicyRecord>;
+  businessRecords: Collection<BusinessRecord>;
   emergencyDrills: Collection<EmergencyDrill>;
   employees: Collection<Employee>;
   inventory: Collection<InventoryItem>;

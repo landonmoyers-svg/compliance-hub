@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import {
   Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight, Folder, FileArchive,
-  BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock, Layers,
+  BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock, Layers, Landmark,
 } from "lucide-react";
 import JSZip from "jszip";
 import { useAuth } from "@/lib/auth/context";
@@ -114,6 +114,7 @@ type DestinationKey =
   | "sop_library"
   | "credentialing"
   | "employee_vault"
+  | "business_records"
   | "forms"
   | "sds_library"
   | "osha"
@@ -125,6 +126,7 @@ const DESTINATIONS: Record<DestinationKey, { label: string; icon: LucideIcon; ro
   sop_library: { label: "SOP Library", icon: FileText, route: "/sop-library", storesFile: true },
   credentialing: { label: "Credentials", icon: BadgeCheck, route: "/credentials", storesFile: true },
   employee_vault: { label: "Employee Vault", icon: FolderLock, route: "/employee-vault", storesFile: true },
+  business_records: { label: "Business Records", icon: Landmark, route: "/business-records", storesFile: true },
   forms: { label: "Forms", icon: Layers, route: "/fillable-documents", storesFile: true },
   sds_library: { label: "SDS Library", icon: FlaskConical, route: "/sds-library", storesFile: false },
   osha: { label: "OSHA Tracker", icon: ClipboardCheck, route: "/osha-tracker", storesFile: false },
@@ -140,6 +142,7 @@ const DEST_COLLECTION: Record<DestinationKey, CollectionName> = {
   sop_library: "documents",
   credentialing: "credentials",
   employee_vault: "employeeDocuments",
+  business_records: "businessRecords",
   forms: "formTemplates",
   sds_library: "sdsRecords",
   osha: "oshaRecords",
@@ -199,6 +202,7 @@ export default function DocumentIntakePage() {
   const createRegulatory = useCreate("regulatorySources");
   const createTraining = useCreate("trainingModules");
   const createForm = useCreate("formTemplates");
+  const createBusinessRecord = useCreate("businessRecords");
 
   // Matching remove hooks so a mis-filed record can be un-filed (deleted) again.
   const removeDocument = useRemove("documents");
@@ -210,6 +214,7 @@ export default function DocumentIntakePage() {
   const removeRegulatory = useRemove("regulatorySources");
   const removeTraining = useRemove("trainingModules");
   const removeForm = useRemove("formTemplates");
+  const removeBusinessRecord = useRemove("businessRecords");
 
   async function processFile(file: File): Promise<IntakeResult> {
     let fileUrl: string | null = null;
@@ -340,6 +345,13 @@ export default function DocumentIntakePage() {
             uploadedByName: actorName, notes: r.summary || undefined,
           });
           break;
+        case "business_records":
+          // Entity documents land in "other"; the Business Records page's own
+          // "Auto-fill from files" refines category/counterparty/dates from the doc.
+          created = await createBusinessRecord.mutateAsync({
+            title, category: "other", notes: r.summary || null, documentUrl: r.fileUrl,
+          });
+          break;
         case "forms":
           // Uploaded form templates come in as a draft (no fields extracted yet)
           // so HR reviews/builds them out before the form goes live.
@@ -408,6 +420,7 @@ export default function DocumentIntakePage() {
         case "regulatorySources": await removeRegulatory.mutateAsync(r.filedRecordId); break;
         case "trainingModules": await removeTraining.mutateAsync(r.filedRecordId); break;
         case "formTemplates": await removeForm.mutateAsync(r.filedRecordId); break;
+        case "businessRecords": await removeBusinessRecord.mutateAsync(r.filedRecordId); break;
         default: throw new Error("Unknown collection");
       }
     } catch {

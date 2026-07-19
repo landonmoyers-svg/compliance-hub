@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Heart,
   Inbox,
+  Landmark,
   Layers,
   LayoutDashboard,
   MessageSquare,
@@ -100,6 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
       { label: "Vendor Management", href: "/vendor-management", icon: Building2, adminOnly: true },
       { label: "Insurance Vault", href: "/insurance-vault", icon: Shield, adminOnly: true },
+      { label: "Business Records", href: "/business-records", icon: Landmark, adminOnly: true },
     ],
   },
   // 6. Physical / clinical safety and assets.

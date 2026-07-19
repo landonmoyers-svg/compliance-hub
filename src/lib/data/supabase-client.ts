@@ -33,6 +33,7 @@ import type {
   FormAssignment,
   FormField,
   InsurancePolicyRecord,
+  BusinessRecord,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -796,6 +797,40 @@ function insuranceTo(d: Partial<InsurancePolicyRecord>) {
     ...(d.renewalDate !== undefined && { renewal_date: d.renewalDate }),
     ...(d.holderUserId !== undefined && { holder_user_id: d.holderUserId }),
     ...(d.holderName !== undefined && { holder_name: d.holderName }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+  };
+}
+
+function businessRecordFrom(r: Record<string, unknown>): BusinessRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    category: (r.category as BusinessRecord["category"]) ?? "other",
+    counterparty: r.counterparty as string | undefined,
+    identifier: r.identifier as string | undefined,
+    issuingAuthority: r.issuing_authority as string | undefined,
+    status: r.status as BusinessRecord["status"] | undefined,
+    effectiveDate: r.effective_date as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    amountCents: r.amount_cents as number | undefined,
+    locationId: r.location_id as string | undefined,
+    notes: r.notes as string | undefined,
+    documentUrl: r.document_url as string | undefined,
+  };
+}
+function businessRecordTo(d: Partial<BusinessRecord>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.counterparty !== undefined && { counterparty: d.counterparty }),
+    ...(d.identifier !== undefined && { identifier: d.identifier }),
+    ...(d.issuingAuthority !== undefined && { issuing_authority: d.issuingAuthority }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.effectiveDate !== undefined && { effective_date: d.effectiveDate }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.amountCents !== undefined && { amount_cents: d.amountCents }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.notes !== undefined && { notes: d.notes }),
     ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
   };
 }
@@ -1831,6 +1866,7 @@ export function createSupabaseDataClient(): DataClient {
     regulatorySources:  makeCollection(supabase, "regulatory_sources",  regFrom,                regTo),
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),
     insurancePolicies:  makeCollection(supabase, "insurance_policies",  insuranceFrom,          insuranceTo),
+    businessRecords:    makeCollection(supabase, "business_records",     businessRecordFrom,     businessRecordTo),
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),
     inventory:          makeCollection(supabase, "inventory",           inventoryFrom,          inventoryTo),
