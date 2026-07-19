@@ -83,21 +83,36 @@ export default function AuditTrailPage() {
   const [rangeDays, setRangeDays] = useState<number>(30);
   const [filterAction, setFilterAction] = useState<ActionType | "all">("all");
   const [filterRisk, setFilterRisk] = useState<RiskLevel | "all">("all");
+  const [filterUser, setFilterUser] = useState<string>("all");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
 
   const logs = useMemo(() => logQ.data ?? [], [logQ.data]);
+
+  // Distinct users who appear in the log — powers the per-user filter.
+  const actors = useMemo(
+    () => Array.from(new Set(logs.map((l) => l.actorName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [logs],
+  );
 
   // Newest first, then apply all active filters.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const cutoff = rangeDays > 0 ? Date.now() - rangeDays * 86_400_000 : null;
+    // An explicit From/To date range takes precedence over the quick preset.
+    const fromT = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+    const toT = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
+    const custom = fromT !== null || toT !== null;
+    const cutoff = !custom && rangeDays > 0 ? Date.now() - rangeDays * 86_400_000 : null;
 
     return [...logs]
       .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
       .filter((e) => {
-        if (cutoff !== null) {
-          const t = new Date(e.createdDate).getTime();
-          if (Number.isNaN(t) || t < cutoff) return false;
-        }
+        const t = new Date(e.createdDate).getTime();
+        if (custom) {
+          if (fromT !== null && t < fromT) return false;
+          if (toT !== null && t > toT) return false;
+        } else if (cutoff !== null && (Number.isNaN(t) || t < cutoff)) return false;
+        if (filterUser !== "all" && e.actorName !== filterUser) return false;
         if (filterAction !== "all" && e.action !== filterAction) return false;
         if (filterRisk !== "all" && e.riskLevel !== filterRisk) return false;
         if (q) {
@@ -112,7 +127,7 @@ export default function AuditTrailPage() {
         }
         return true;
       });
-  }, [logs, search, rangeDays, filterAction, filterRisk]);
+  }, [logs, search, rangeDays, filterAction, filterRisk, filterUser, fromDate, toDate]);
 
   const flaggedRows = useMemo(() => filtered.filter((e) => e.flagged), [filtered]);
 
@@ -188,7 +203,7 @@ export default function AuditTrailPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit Trail"
-        description="Tamper-resistant log of changes to sensitive records (payroll, HR files, discipline, reviews, risk, user roles), data exports, and sign-in/out events."
+        description="Per-user access log — page navigation, file/record access, changes to sensitive records, data exports, and sign-in/out events. Search by user, date range, or access type."
         actions={
           <Button variant="outline" onClick={exportCSV} disabled={loading || filtered.length === 0}>
             <Download className="size-4" /> Export CSV
@@ -199,7 +214,8 @@ export default function AuditTrailPage() {
       <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
         <Shield className="mr-1.5 -mt-0.5 inline size-4" />
         Change entries on sensitive tables are written by database triggers — server-side and append-only, so they
-        can&apos;t be edited or removed from the app. Record views are not logged.
+        can&apos;t be edited or removed from the app. Page views and file/record access are logged per user with the
+        actor taken from the signed-in session, so entries can&apos;t be spoofed.
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -250,11 +266,31 @@ export default function AuditTrailPage() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
-                <select className="input" value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>
+                <select className="input" value={filterUser} onChange={(e) => setFilterUser(e.target.value)} aria-label="Filter by user">
+                  <option value="all">All users</option>
+                  {actors.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+                <select
+                  className="input"
+                  value={rangeDays}
+                  onChange={(e) => setRangeDays(Number(e.target.value))}
+                  disabled={!!(fromDate || toDate)}
+                  title={fromDate || toDate ? "Using the From/To range instead" : undefined}
+                >
                   {RANGE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+                <div className="flex items-center gap-1.5">
+                  <input type="date" className="input" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} aria-label="From date" />
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <input type="date" className="input" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} aria-label="To date" />
+                  {(fromDate || toDate) && (
+                    <button type="button" onClick={() => { setFromDate(""); setToDate(""); }} className="text-xs text-primary hover:underline">clear</button>
+                  )}
+                </div>
                 <select
                   className="input"
                   value={filterAction}
