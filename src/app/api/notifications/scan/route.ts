@@ -145,6 +145,20 @@ async function runScan(): Promise<{ created: number }> {
     else if (d <= insWindow) candidates.push({ title: `Payer contract renewal: ${c.payer_name}`, body: `The ${c.payer_name} contract renews in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_contracts", entity_id: c.id, link: "/payer-enrollment" });
   }
 
+  // Self-heal: remove unread alerts whose underlying record has since been
+  // deleted (e.g. a credential removed during cleanup) so they don't linger as
+  // phantom "take action" items. Only single-entity categories are safe here.
+  const validByCat: { cat: string; ids: Set<string> }[] = [
+    { cat: "credential", ids: new Set((creds ?? []).map((c) => c.id)) },
+    { cat: "insurance", ids: new Set((policies ?? []).map((p) => p.id)) },
+    { cat: "vendor", ids: new Set((vendors ?? []).map((v) => v.id)) },
+  ];
+  for (const { cat, ids } of validByCat) {
+    const { data: notes } = await admin.from("notifications").select("id, entity_id").eq("category", cat).eq("read", false);
+    const orphans = (notes ?? []).filter((x) => !ids.has(x.entity_id as string)).map((x) => x.id);
+    if (orphans.length) await admin.from("notifications").delete().in("id", orphans);
+  }
+
   if (candidates.length === 0) return { created: 0 };
 
   // Dedupe against existing UNREAD notifications for the same entity+category.
