@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FileText, Plus, Search, Upload, X } from "lucide-react";
+import { FileText, Plus, Search, Upload, X, Sparkles } from "lucide-react";
+import JSZip from "jszip";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
-import { uploadFile } from "@/lib/storage";
+import { uploadFile, getSignedUrl } from "@/lib/storage";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
@@ -23,6 +24,57 @@ import type { ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 const MAX_FILE_MB = 25;
+const EXTRACT_MAX_MB = 12; // only send file bytes to the AI extractor below this
+
+/** Extract readable text from a .docx (a zip of XML) with the JSZip we bundle. */
+async function docxToText(file: Blob): Promise<string> {
+  const zip = await JSZip.loadAsync(file);
+  const doc = zip.file("word/document.xml");
+  if (!doc) return "";
+  const xml = await doc.async("string");
+  return xml
+    .replace(/<\/w:p>/gi, "\n").replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n").trim();
+}
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const s = reader.result as string; resolve(s.slice(s.indexOf(",") + 1)); };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+function mediaFromName(name: string, fallback?: string): string {
+  const ext = name.toLowerCase().split("?")[0].split(".").pop() ?? "";
+  const map: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", txt: "text/plain", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+  return map[ext] ?? fallback ?? "application/octet-stream";
+}
+
+/**
+ * Pull plain text out of a policy file so the Policy Q&A assistant can actually
+ * read it. txt/docx are extracted in the browser; PDFs and images go through the
+ * AI transcriber (handles scans too). Returns "" if nothing could be read.
+ */
+async function extractDocumentText(file: Blob, name: string): Promise<string> {
+  const media = mediaFromName(name, file.type);
+  try {
+    if (media === "text/plain" || /\.txt$/i.test(name)) return (await file.text()).trim();
+    if (media.includes("word") || /\.docx$/i.test(name)) return await docxToText(file);
+    if ((media === "application/pdf" || media.startsWith("image/")) && file.size <= EXTRACT_MAX_MB * 1024 * 1024) {
+      const fileBase64 = await blobToBase64(file);
+      const res = await fetch("/api/ai/extract-text", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64, mediaType: media }),
+      });
+      if (res.status === 429) { toast.error("Daily AI limit reached — paste the policy text manually."); return ""; }
+      if (!res.ok) return "";
+      const d = await res.json() as { text?: string };
+      return (d.text ?? "").trim();
+    }
+  } catch { /* fall through */ }
+  return "";
+}
 
 const STATUS_VARIANT = {
   active: "success",
@@ -51,6 +103,7 @@ interface DocForm {
   reviewDate: string;
   requiresAcknowledgment: boolean;
   fileUrl: string;
+  content: string;
 }
 
 const EMPTY: DocForm = {
@@ -64,6 +117,7 @@ const EMPTY: DocForm = {
   reviewDate: "",
   requiresAcknowledgment: false,
   fileUrl: "",
+  content: "",
 };
 
 function DocDialog({
@@ -90,10 +144,12 @@ function DocDialog({
           reviewDate: initial.reviewDate ?? "",
           requiresAcknowledgment: initial.requiresAcknowledgment,
           fileUrl: initial.fileUrl ?? "",
+          content: initial.content ?? "",
         }
       : EMPTY,
   );
   const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [fileName, setFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,10 +169,38 @@ function DocDialog({
       setForm((p) => ({ ...p, fileUrl: url }));
       setFileName(file.name);
       toast.success("File uploaded");
+      // Pull the text out so the Policy Q&A assistant can actually read it.
+      setExtracting(true);
+      const text = await extractDocumentText(file, file.name);
+      if (text) {
+        setForm((p) => ({ ...p, content: text }));
+        toast.success("Text extracted — the assistant can now use this policy.");
+      } else {
+        toast.info("Couldn't auto-read this file — paste the policy text below so the assistant can use it.");
+      }
     } catch {
       toast.error("Upload failed. Save without a file or try again.");
     } finally {
       setUploading(false);
+      setExtracting(false);
+    }
+  }
+
+  // Backfill text for a policy that was uploaded before (fetches the stored file).
+  async function extractFromStored() {
+    if (!form.fileUrl) return;
+    setExtracting(true);
+    try {
+      const url = await getSignedUrl(form.fileUrl);
+      if (!url) { toast.error("Couldn't open the stored file."); return; }
+      const blob = await (await fetch(url)).blob();
+      const text = await extractDocumentText(blob, form.fileUrl);
+      if (text) { setForm((p) => ({ ...p, content: text })); toast.success("Text extracted from the attached file."); }
+      else toast.info("Couldn't read that file — paste the text manually.");
+    } catch {
+      toast.error("Extraction failed.");
+    } finally {
+      setExtracting(false);
     }
   }
 
@@ -202,6 +286,24 @@ function DocDialog({
               </Button>
             )}
           </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Full text <span className="font-normal text-muted-foreground">— what Policy Q&amp;A reads &amp; quotes</span></label>
+              {form.fileUrl && (
+                <Button type="button" size="sm" variant="ghost" onClick={extractFromStored} disabled={extracting || uploading}>
+                  <Sparkles className="size-3.5" /> {extracting ? "Reading…" : "Extract from file"}
+                </Button>
+              )}
+            </div>
+            <textarea
+              className="input w-full resize-y font-mono text-xs"
+              rows={6}
+              value={form.content}
+              onChange={set("content")}
+              placeholder="The policy's full text. Auto-filled from the uploaded file — edit or paste here so Policy Q&A can ground answers in this document."
+            />
+            {extracting && <p className="flex items-center gap-1 text-xs text-primary"><Sparkles className="size-3 animate-pulse" /> Reading the document…</p>}
+          </div>
           <div className="flex items-center gap-2 sm:col-span-2">
             <input
               id="ack"
@@ -215,7 +317,7 @@ function DocDialog({
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.title.trim() || saving || uploading}>
+          <Button onClick={() => onSave(form)} disabled={!form.title.trim() || saving || uploading || extracting}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -276,6 +378,7 @@ export default function SOPLibraryPage() {
         reviewDate: form.reviewDate ? dateInputToISO(form.reviewDate) : undefined,
         requiresAcknowledgment: form.requiresAcknowledgment,
         fileUrl: form.fileUrl || null,
+        content: form.content.trim() || null,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
