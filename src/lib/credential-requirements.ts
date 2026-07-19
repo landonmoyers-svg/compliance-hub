@@ -122,8 +122,16 @@ export function evaluateRequirements(type: ProviderType, creds: CredentialRecord
 
   if (type === "np") {
     out.push(credReq(ctx, "rn", "RN state license", isRnLicense));
-    out.push(credReq(ctx, "aprn", "APRN state license", isAprnLicense));
-    out.push(credReq(ctx, "aprn_cs", "APRN controlled-substance license", isAprnCsLicense));
+    const aprn = credReq(ctx, "aprn", "APRN state license", isAprnLicense);
+    const aprnCs = credReq(ctx, "aprn_cs", "APRN controlled-substance license", isAprnCsLicense);
+    // Invariant: an APRN-CS license IS an APRN license — you can hold an APRN
+    // without CS, but never CS without the underlying APRN. So a satisfied CS
+    // requirement can never leave the base APRN requirement unmet.
+    if (aprnCs.status === "met" && aprn.status !== "met") {
+      aprn.status = "met";
+      aprn.note = "included with controlled-substance license";
+    }
+    out.push(aprn, aprnCs);
     out.push(credReq(ctx, "diploma", "Diploma / degree", isDiploma));
     out.push(credReq(ctx, "npi", "NPI", isNpi));
     out.push(credReq(ctx, "dea", "DEA registration", isDea));
