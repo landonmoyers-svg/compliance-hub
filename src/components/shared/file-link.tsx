@@ -15,11 +15,15 @@ export function FileLink({
   label = "View",
   className,
   iconOnly = false,
+  audit,
 }: {
   path: string;
   label?: string;
   className?: string;
   iconOnly?: boolean;
+  /** When set, opening the file records a "view" audit entry (for access-logged
+   *  records like restricted personnel documents). */
+  audit?: { entityType: string; entityId: string; entityLabel?: string; details?: string };
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -27,8 +31,14 @@ export function FileLink({
     setLoading(true);
     try {
       const url = await getSignedUrl(path);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-      else toast.error("Couldn't open file.");
+      if (url) {
+        // Log the access (fire-and-forget) before handing over the file.
+        if (audit) void fetch("/api/audit/view", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(audit),
+        }).catch(() => {});
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else toast.error("Couldn't open file.");
     } catch {
       toast.error("Couldn't open file.");
     } finally {

@@ -27,7 +27,7 @@ import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import type { EmployeeDocument, EmployeeDocType, Employee } from "@/lib/data/schema";
-import { employeeDocTypes } from "@/lib/data/schema";
+import { employeeDocTypes, RESTRICTED_EMPLOYEE_DOC_TYPES } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB
@@ -42,6 +42,8 @@ const DOC_TYPE_LABEL: Record<EmployeeDocType, string> = {
   termination: "Termination",
   benefit_enrollment: "Benefit enrollment",
   training_certificate: "Training certificate",
+  medical: "Medical / health (restricted)",
+  background_check: "Background check (restricted)",
   other: "Other",
 };
 
@@ -520,7 +522,14 @@ export default function EmployeeVaultPage() {
                       <td data-label="By" className="py-3 pr-4 text-muted-foreground">{d.uploadedByName ?? "—"}</td>
                       <td data-label="File" className="py-3 pr-4">
                         {d.fileUrl ? (
-                          <FileLink path={d.fileUrl} label="View" className="inline-flex items-center gap-1 text-primary hover:underline" />
+                          <FileLink
+                            path={d.fileUrl}
+                            label="View"
+                            className="inline-flex items-center gap-1 text-primary hover:underline"
+                            audit={(d.sensitive || RESTRICTED_EMPLOYEE_DOC_TYPES.includes(d.documentType))
+                              ? { entityType: "employee_documents", entityId: d.id, entityLabel: `${d.title} — ${d.employeeName}`, details: `Opened restricted personnel document (${DOC_TYPE_LABEL[d.documentType]})` }
+                              : undefined}
+                          />
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import { inferProviderType } from "@/lib/credential-requirements";
 import { RequirementsChecklist } from "@/components/shared/requirements-checklist";
+import { RESTRICTED_EMPLOYEE_DOC_TYPES } from "@/lib/data/schema";
 
 /**
  * Aggregated 360° view of every record linked to one person — the same rows
@@ -147,14 +148,18 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
       {/* Employee documents */}
       {empDocs.length > 0 && (
         <Section icon={FolderLock} title="HR documents" count={empDocs.length} href="/employee-vault">
-          {empDocs.map((d) => (
-            <Row key={d.id}
-              left={<span className="font-medium">{d.title}</span>}
-              sub={humanizeLabel(d.documentType)}
-              right={d.sensitive ? <Badge variant="warning">Restricted</Badge> : null}
-              fileUrl={d.fileUrl ?? undefined}
-            />
-          ))}
+          {empDocs.map((d) => {
+            const restricted = d.sensitive || RESTRICTED_EMPLOYEE_DOC_TYPES.includes(d.documentType);
+            return (
+              <Row key={d.id}
+                left={<span className="font-medium">{d.title}</span>}
+                sub={humanizeLabel(d.documentType)}
+                right={restricted ? <Badge variant="warning">Restricted</Badge> : null}
+                fileUrl={d.fileUrl ?? undefined}
+                audit={restricted ? { entityType: "employee_documents", entityId: d.id, entityLabel: `${d.title} — ${name}`, details: "Opened restricted personnel document" } : undefined}
+              />
+            );
+          })}
         </Section>
       )}
 
@@ -224,8 +229,9 @@ function Section({ icon: Icon, title, count, href, children }: {
   );
 }
 
-function Row({ left, sub, right, fileUrl }: {
+function Row({ left, sub, right, fileUrl, audit }: {
   left: React.ReactNode; sub?: string; right?: React.ReactNode; fileUrl?: string;
+  audit?: { entityType: string; entityId: string; entityLabel?: string; details?: string };
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2">
@@ -235,7 +241,7 @@ function Row({ left, sub, right, fileUrl }: {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {right}
-        {fileUrl && <FileLink path={fileUrl} iconOnly label="View file" className="text-muted-foreground hover:text-primary" />}
+        {fileUrl && <FileLink path={fileUrl} iconOnly label="View file" className="text-muted-foreground hover:text-primary" audit={audit} />}
       </div>
     </div>
   );

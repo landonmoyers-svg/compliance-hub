@@ -1123,8 +1123,18 @@ export const employeeDocTypes = [
   "termination",
   "benefit_enrollment",
   "training_certificate",
+  "medical",          // ADA/GINA-protected health info — restricted access
+  "background_check", // BCI/FBI/screening — restricted access
   "other",
 ] as const;
+
+/** Personnel documents whose access is legally restricted (ADA/GINA medical
+ *  info, background-check dissemination limits, SSN/identity/financial). These
+ *  are visible to Owner/Admin/HR only — not clinical leadership. A document
+ *  manually flagged `sensitive` is treated the same way. */
+export const RESTRICTED_EMPLOYEE_DOC_TYPES: readonly string[] = [
+  "medical", "background_check", "i9", "w4", "benefit_enrollment",
+];
 export const EmployeeDocType = z.enum(employeeDocTypes);
 export type EmployeeDocType = z.infer<typeof EmployeeDocType>;
 
