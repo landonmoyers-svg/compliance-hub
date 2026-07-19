@@ -30,7 +30,8 @@ Analyze this document and return a JSON object with these fields:
 - suggestedDestination: WHERE this document should be filed. Choose exactly one:
   - "sop_library" — policies, standard operating procedures, procedures, manuals, acknowledgment forms
   - "credentialing" — professional licenses, certifications, DEA registrations, board certifications, CPR/BLS/ACLS cards, malpractice certificates (anything tied to an individual's qualification to practice)
-  - "employee_vault" — HR personnel documents: offer letters, employment contracts, I-9, W-4, performance reviews, disciplinary actions, termination letters, benefit enrollment
+  - "employee_vault" — HR & personnel documents tied to a person or the business: offer letters, employment contracts, I-9, W-4, performance reviews, disciplinary actions, termination letters, benefit enrollment, AND company HR/tax/business records (W-9, IRS EIN / CP-575 letters, business licenses, tax forms)
+  - "forms" — blank or fillable form TEMPLATES and questionnaires meant to be completed: intake forms, consent/acknowledgment form templates, HR onboarding forms, and blank application/credentialing/enrollment forms. Choose this for an EMPTY template to be filled out — NOT a completed/signed instance (a signed credential or agreement goes to its own destination).
   - "sds_library" — Safety Data Sheets (SDS/MSDS) for chemicals or hazardous products
   - "osha" — OSHA injury/illness logs (300/300A/301), incident reports, exposure reports, safety inspections
   - "insurance" — insurance policies, certificates of insurance, malpractice/general liability/cyber coverage documents

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import {
   Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight, Folder, FileArchive,
-  BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock,
+  BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock, Layers,
 } from "lucide-react";
 import JSZip from "jszip";
 import { useAuth } from "@/lib/auth/context";
@@ -114,6 +114,7 @@ type DestinationKey =
   | "sop_library"
   | "credentialing"
   | "employee_vault"
+  | "forms"
   | "sds_library"
   | "osha"
   | "insurance"
@@ -124,6 +125,7 @@ const DESTINATIONS: Record<DestinationKey, { label: string; icon: LucideIcon; ro
   sop_library: { label: "SOP Library", icon: FileText, route: "/sop-library", storesFile: true },
   credentialing: { label: "Credentials", icon: BadgeCheck, route: "/credentials", storesFile: true },
   employee_vault: { label: "Employee Vault", icon: FolderLock, route: "/employee-vault", storesFile: true },
+  forms: { label: "Forms", icon: Layers, route: "/fillable-documents", storesFile: true },
   sds_library: { label: "SDS Library", icon: FlaskConical, route: "/sds-library", storesFile: false },
   osha: { label: "OSHA Tracker", icon: ClipboardCheck, route: "/osha-tracker", storesFile: false },
   insurance: { label: "Insurance Vault", icon: Shield, route: "/insurance-vault", storesFile: false },
@@ -138,6 +140,7 @@ const DEST_COLLECTION: Record<DestinationKey, CollectionName> = {
   sop_library: "documents",
   credentialing: "credentials",
   employee_vault: "employeeDocuments",
+  forms: "formTemplates",
   sds_library: "sdsRecords",
   osha: "oshaRecords",
   insurance: "insurancePolicies",
@@ -195,6 +198,7 @@ export default function DocumentIntakePage() {
   const createInsurance = useCreate("insurancePolicies");
   const createRegulatory = useCreate("regulatorySources");
   const createTraining = useCreate("trainingModules");
+  const createForm = useCreate("formTemplates");
 
   // Matching remove hooks so a mis-filed record can be un-filed (deleted) again.
   const removeDocument = useRemove("documents");
@@ -205,6 +209,7 @@ export default function DocumentIntakePage() {
   const removeInsurance = useRemove("insurancePolicies");
   const removeRegulatory = useRemove("regulatorySources");
   const removeTraining = useRemove("trainingModules");
+  const removeForm = useRemove("formTemplates");
 
   async function processFile(file: File): Promise<IntakeResult> {
     let fileUrl: string | null = null;
@@ -335,6 +340,16 @@ export default function DocumentIntakePage() {
             uploadedByName: actorName, notes: r.summary || undefined,
           });
           break;
+        case "forms":
+          // Uploaded form templates come in as a draft (no fields extracted yet)
+          // so HR reviews/builds them out before the form goes live.
+          created = await createForm.mutateAsync({
+            title, category: r.complianceArea === "hr" ? "hr_onboarding" : "other",
+            description: r.summary || undefined,
+            fields: [], requiresSignature: false, sensitive: false,
+            status: "active", isDraft: true, fileUrl: r.fileUrl,
+          });
+          break;
         case "sds_library":
           created = await createSds.mutateAsync({ productName: title, signalWord: "NONE", status: "needs_review" });
           break;
@@ -392,6 +407,7 @@ export default function DocumentIntakePage() {
         case "insurancePolicies": await removeInsurance.mutateAsync(r.filedRecordId); break;
         case "regulatorySources": await removeRegulatory.mutateAsync(r.filedRecordId); break;
         case "trainingModules": await removeTraining.mutateAsync(r.filedRecordId); break;
+        case "formTemplates": await removeForm.mutateAsync(r.filedRecordId); break;
         default: throw new Error("Unknown collection");
       }
     } catch {
