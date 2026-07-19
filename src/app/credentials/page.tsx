@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, useMemo, useRef } from "react";
-import { BadgeCheck, Plus, Search, Sparkles, X, Upload } from "lucide-react";
+import { BadgeCheck, Plus, Search, Sparkles, X, Upload, ChevronRight } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { getSignedUrl, uploadFile } from "@/lib/storage";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, bySoonest, buildHolderIndex, holderStatus } from "@/lib/compliance";
 import { summarizeRequirements, inferProviderType, type RequirementSummary } from "@/lib/credential-requirements";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
+import { formatName } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
 import type { CredentialRecord, Employee } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -609,25 +610,31 @@ function CredentialFileView({ files, locName, reqFor, onEdit, onDeleted }: {
   onEdit: (c: CredentialRecord) => void;
   onDeleted: () => void;
 }) {
+  // Collapsed by default: the page opens as an alphabetical list of names; a row
+  // expands to reveal that person's credential file.
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   if (files.length === 0) {
     return <EmptyState icon={BadgeCheck} title="No credentials found" description="Add a credential or clear the search." />;
   }
-  return (
-    <div className="space-y-5">
-      {files.map((f) => {
-        const req = reqFor?.(f) ?? null;
-        return (
+  // buildProviderFiles already sorts active-first then alphabetical, so filtering
+  // preserves each group's alphabetical order.
+  const active = files.filter((f) => !f.former);
+  const former = files.filter((f) => f.former);
+
+  const renderFile = (f: ProviderFile) => {
+    const req = reqFor?.(f) ?? null;
+    const isOpen = open.has(f.key);
+    return (
         <div key={f.key} className="rounded-lg border border-border">
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
-            <PersonLink userId={f.userId} name={f.name} />
-            {f.former && <Badge variant="secondary">Former</Badge>}
-            {req && !f.former && (
-              <Badge variant={req.gaps.length === 0 ? "success" : "warning"}>
-                {req.gaps.length === 0 ? "Requirements current" : `${req.met}/${req.total} required current`}
-              </Badge>
-            )}
+          <button type="button" onClick={() => toggle(f.key)} className="flex w-full flex-wrap items-center gap-2 px-4 py-2.5 text-left hover:bg-secondary/20">
+            <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+            <span className="font-medium">{formatName(f.name)}</span>
+            {req && !f.former && req.gaps.length > 0 && <Badge variant="warning">{req.gaps.length} to address</Badge>}
             <span className="ml-auto text-xs text-muted-foreground">{f.leaves.reduce((n, l) => n + l.items.length, 0)} on file</span>
-          </div>
+          </button>
+          {isOpen && (
+          <div className="border-t border-border">
           {req && !f.former && req.gaps.length > 0 && (
             <div className="border-b border-border/60 bg-warning/5 px-4 py-1.5 text-xs text-muted-foreground">
               <span className="font-medium text-warning">Needs attention:</span>{" "}
@@ -687,9 +694,23 @@ function CredentialFileView({ files, locName, reqFor, onEdit, onDeleted }: {
               );
             })}
           </div>
+          </div>
+          )}
         </div>
-        );
-      })}
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">{active.map(renderFile)}</div>
+      {former.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 pt-2 text-sm font-semibold text-muted-foreground">
+            Former / past employees <Badge variant="secondary">{former.length}</Badge>
+          </div>
+          {former.map(renderFile)}
+        </div>
+      )}
     </div>
   );
 }
