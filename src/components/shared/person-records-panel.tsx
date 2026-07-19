@@ -17,6 +17,18 @@ import { humanizeLabel } from "@/lib/format";
  * Matches by stable userId where available, falling back to name. Used by the
  * admin person view (User Management) and the staff member's own portal.
  */
+/** Order records so the most current sit on top: no-expiry first, then by
+ *  expiration date descending (latest expiration high, oldest at the bottom). */
+function byExpiryDesc<T>(getDate: (x: T) => string | null | undefined) {
+  return (a: T, b: T) => {
+    const da = getDate(a), db = getDate(b);
+    if (!da && !db) return 0;
+    if (!da) return -1; // no expiration → treat as most current → top
+    if (!db) return 1;
+    return db.localeCompare(da); // ISO dates: later date first
+  };
+}
+
 export function PersonRecordsPanel({ userId, name }: { userId: string | null; name: string }) {
   const credsQ = useCollection("credentials");
   const insuranceQ = useCollection("insurancePolicies");
@@ -35,11 +47,13 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
   }, [userId, name]);
 
   const creds = useMemo(
-    () => (credsQ.data ?? []).filter((c) => matchesPerson({ uid: c.employeeUserId, nm: c.employeeName })),
+    () => (credsQ.data ?? []).filter((c) => matchesPerson({ uid: c.employeeUserId, nm: c.employeeName }))
+      .sort(byExpiryDesc((c) => c.expirationDate)),
     [credsQ.data, matchesPerson],
   );
   const insurance = useMemo(
-    () => (insuranceQ.data ?? []).filter((p) => matchesPerson({ uid: p.holderUserId, nm: p.holderName })),
+    () => (insuranceQ.data ?? []).filter((p) => matchesPerson({ uid: p.holderUserId, nm: p.holderName }))
+      .sort(byExpiryDesc((p) => p.renewalDate)),
     [insuranceQ.data, matchesPerson],
   );
   const empDocs = useMemo(
