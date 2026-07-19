@@ -13,6 +13,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
+import { EntityRecordsPanel } from "@/components/shared/entity-records-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -431,7 +432,7 @@ function EntityFileView({ files, locName, onEdit, onDeleted }: {
 
 /* ------------------------------ page ------------------------------ */
 
-type ViewMode = "file" | "list";
+type ViewMode = "overview" | "file" | "list";
 
 export default function BusinessRecordsPage() {
   const { data, isLoading, isError, refetch } = useCollection("businessRecords");
@@ -441,7 +442,7 @@ export default function BusinessRecordsPage() {
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState<BusinessRecordCategory | "all">("all");
-  const [view, setView] = useState<ViewMode>("file");
+  const [view, setView] = useState<ViewMode>("overview");
   const [editing, setEditing] = useState<BusinessRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -600,7 +601,7 @@ export default function BusinessRecordsPage() {
 
       <PageHeader
         title="Business Records"
-        description="The practice as an entity — its licenses, contracts, insurance, BAAs, leases, group payer contracts, audits, and formation/tax documents. Renewal status is derived from expiration dates, never stale stored values."
+        description="One place to see every document the practice owns as an entity — its licenses, contracts, insurance, BAAs, leases, group payer contracts, audits, and formation/tax records, pulled together from across the app. Renewal status is derived from expiration dates, never stale stored values."
         actions={
           <div className="flex flex-wrap gap-2">
             <DuplicateFinder
@@ -645,7 +646,7 @@ export default function BusinessRecordsPage() {
             </select>
             <div className="ml-auto flex items-center gap-1.5">
               <span className="text-sm text-muted-foreground">View</span>
-              {([["file", "Category file"], ["list", "Flat list"]] as const).map(([g, label]) => (
+              {([["overview", "One-stop view"], ["file", "Category file"], ["list", "Flat list"]] as const).map(([g, label]) => (
                 <button key={g} onClick={() => setView(g)}
                   className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${view === g ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>
                   {label}
@@ -657,6 +658,8 @@ export default function BusinessRecordsPage() {
         <CardContent>
           {isLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : view === "overview" ? (
+            <EntityRecordsPanel records={filtered} onEditRecord={setEditing} />
           ) : view === "file" ? (
             <EntityFileView files={files} locName={locName} onEdit={setEditing} onDeleted={() => void refetch()} />
           ) : filtered.length === 0 ? (
