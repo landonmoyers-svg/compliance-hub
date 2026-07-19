@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { credentialStatus } from "@/lib/compliance";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
+import { inferProviderType } from "@/lib/credential-requirements";
+import { RequirementsChecklist } from "@/components/shared/requirements-checklist";
 
 /**
  * Aggregated 360° view of every record linked to one person — the same rows
@@ -36,6 +38,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
   const trainingQ = useCollection("trainingAssignments");
   const compQ = useCollection("competencyRecords");
   const acksQ = useCollection("policyAcks");
+  const employeesQ = useCollection("employees");
 
   const matchesPerson = useMemo(() => {
     const lname = name.trim().toLowerCase();
@@ -73,23 +76,38 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
     [acksQ.data, userId],
   );
 
+  // The person's clinical role drives which credentials they must keep current.
+  const providerType = useMemo(() => {
+    const list = employeesQ.data ?? [];
+    const lname = name.trim().toLowerCase();
+    const emp = list.find((e) => (userId && e.userId === userId) || `${e.firstName} ${e.lastName}`.trim().toLowerCase() === lname);
+    return inferProviderType(emp?.jobRole, emp?.title);
+  }, [employeesQ.data, userId, name]);
+
   const loading = credsQ.isLoading || insuranceQ.isLoading || trainingQ.isLoading;
 
   if (loading) {
     return <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
 
+  const checklist = <RequirementsChecklist providerType={providerType} creds={creds} insurance={insurance} />;
+
   const totalRecords = creds.length + insurance.length + empDocs.length + training.length + competencies.length + acks.length;
   if (totalRecords === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-        No linked records for {name || "this person"} yet. Add credentials, insurance, or training and assign them to this person.
-      </p>
+      <div className="space-y-4">
+        {checklist}
+        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          No linked records for {name || "this person"} yet. Add credentials, insurance, or training and assign them to this person.
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {checklist}
+
       {/* Credentials */}
       {creds.length > 0 && (
         <Section icon={BadgeCheck} title="Credentials" count={creds.length} href="/credentials">

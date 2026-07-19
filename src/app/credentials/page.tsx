@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, bySoonest, buildHolderIndex, holderStatus } from "@/lib/compliance";
+import { summarizeRequirements, inferProviderType, type RequirementSummary } from "@/lib/credential-requirements";
 import { formatDate, daysUntil, parseDate, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
 import type { CredentialRecord, Employee } from "@/lib/data/schema";
@@ -586,9 +587,10 @@ function buildProviderFiles(
   return files.sort((a, b) => Number(a.former) - Number(b.former) || a.name.localeCompare(b.name));
 }
 
-function CredentialFileView({ files, locName, onEdit, onDeleted }: {
+function CredentialFileView({ files, locName, reqFor, onEdit, onDeleted }: {
   files: ProviderFile[];
   locName: (id: string | null) => string;
+  reqFor?: (f: ProviderFile) => RequirementSummary | null;
   onEdit: (c: CredentialRecord) => void;
   onDeleted: () => void;
 }) {
@@ -597,13 +599,26 @@ function CredentialFileView({ files, locName, onEdit, onDeleted }: {
   }
   return (
     <div className="space-y-5">
-      {files.map((f) => (
+      {files.map((f) => {
+        const req = reqFor?.(f) ?? null;
+        return (
         <div key={f.key} className="rounded-lg border border-border">
-          <div className="flex items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
             <PersonLink userId={f.userId} name={f.name} />
             {f.former && <Badge variant="secondary">Former</Badge>}
+            {req && !f.former && (
+              <Badge variant={req.gaps.length === 0 ? "success" : "warning"}>
+                {req.gaps.length === 0 ? "Requirements current" : `${req.met}/${req.total} required current`}
+              </Badge>
+            )}
             <span className="ml-auto text-xs text-muted-foreground">{f.leaves.reduce((n, l) => n + l.items.length, 0)} on file</span>
           </div>
+          {req && !f.former && req.gaps.length > 0 && (
+            <div className="border-b border-border/60 bg-warning/5 px-4 py-1.5 text-xs text-muted-foreground">
+              <span className="font-medium text-warning">Needs attention:</span>{" "}
+              {req.gaps.map((g) => `${g.label}${g.status === "expired" ? " (expired)" : " (missing)"}`).join(" · ")}
+            </div>
+          )}
           <div className="divide-y divide-border/60">
             {f.leaves.map((leaf) => {
               const suffix =
@@ -658,7 +673,8 @@ function CredentialFileView({ files, locName, onEdit, onDeleted }: {
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -667,6 +683,7 @@ export default function CredentialsPage() {
   const { data, isLoading, isError, refetch } = useCollection("credentials");
   const employeesQ = useCollection("employees");
   const locationsQ = useCollection("locations");
+  const insuranceQ = useCollection("insurancePolicies");
   const createMut = useCreate("credentials");
   const updateMut = useUpdate("credentials");
   const createEmployee = useCreate("employees");
@@ -870,6 +887,22 @@ export default function CredentialsPage() {
   }, [credentials, search]);
   const providerFiles = useMemo(() => buildProviderFiles(searchFiltered, isFormerHolder), [searchFiltered, isFormerHolder]);
 
+  // Role-based requirements per provider: what current credentials their clinical
+  // role demands, checked against what they actually hold (+ malpractice).
+  const reqFor = useMemo(() => {
+    const emps = employeesQ.data ?? [];
+    const policies = insuranceQ.data ?? [];
+    return (f: ProviderFile): RequirementSummary | null => {
+      const lname = f.name.trim().toLowerCase();
+      const emp = emps.find((e) => (f.userId && e.userId === f.userId) || `${e.firstName} ${e.lastName}`.trim().toLowerCase() === lname);
+      const type = inferProviderType(emp?.jobRole, emp?.title);
+      if (type === "none") return null;
+      const creds = f.leaves.flatMap((l) => l.items);
+      const insurance = policies.filter((p) => (f.userId && p.holderUserId === f.userId) || (!!p.holderName && p.holderName.trim().toLowerCase() === lname));
+      return summarizeRequirements(type, creds, insurance);
+    };
+  }, [employeesQ.data, insuranceQ.data]);
+
   const counts = useMemo(() => {
     const out = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
     for (const c of credentials) {
@@ -1034,7 +1067,7 @@ export default function CredentialsPage() {
               ))}
             </div>
           ) : groupBy === "provider_file" ? (
-            <CredentialFileView files={providerFiles} locName={locName} onEdit={setEditing} onDeleted={() => void refetch()} />
+            <CredentialFileView files={providerFiles} locName={locName} reqFor={reqFor} onEdit={setEditing} onDeleted={() => void refetch()} />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={BadgeCheck}
