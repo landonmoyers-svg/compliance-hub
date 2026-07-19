@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Users, Plus, Search, X, FolderOpen, AlertTriangle } from "lucide-react";
+import { Fragment, useState, useMemo } from "react";
+import { Users, Plus, Search, X, FolderOpen, AlertTriangle, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
@@ -252,6 +252,7 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState<Employee | null | "new">(null);
   const [viewingRecords, setViewingRecords] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   const employees = useMemo(() => data ?? [], [data]);
   // CC-6: canonical job-role list = the same source the Org Chart uses
@@ -281,7 +282,41 @@ export default function EmployeesPage() {
     department: (e) => e.department,
     hireDate: (e) => e.hireDate,
     status: (e) => e.employmentStatus,
-  });
+  }, { key: "name", dir: "asc" });
+
+  // Current staff (active / on leave) list first, alphabetical; former staff go
+  // into a collapsed section at the end. When a specific status filter is on,
+  // fall back to a single flat list.
+  const isCurrent = (e: Employee) => e.employmentStatus === "active" || e.employmentStatus === "on_leave";
+  const currentRows = sorted.filter(isCurrent);
+  const pastRows = sorted.filter((e) => !isCurrent(e));
+
+  const renderRow = (e: Employee) => (
+    <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
+      <td data-label="Name" className="py-3 pr-4">
+        <div className="flex items-center gap-2">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
+            {e.firstName.charAt(0)}{e.lastName.charAt(0)}
+          </div>
+          <span className="font-medium">{e.firstName} {e.lastName}</span>
+          {e.workerType === "contractor" && <Badge variant="outline" className="border-primary/40 text-primary">Contractor</Badge>}
+        </div>
+      </td>
+      <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email || "—"}</td>
+      <td data-label="Title" className="py-3 pr-4">{e.title ?? "—"}</td>
+      <td data-label="Department" className="py-3 pr-4 capitalize">{e.department ? humanizeLabel(e.department) : "—"}</td>
+      <td data-label="Hire date" className="py-3 pr-4">{e.hireDate ? formatDate(e.hireDate) : "—"}</td>
+      <td data-label="Status" className="py-3 pr-4">
+        <Badge variant={STATUS_VARIANT[e.employmentStatus]}>{humanizeLabel(e.employmentStatus)}</Badge>
+      </td>
+      <td data-label="" className="py-3">
+        <div className="flex gap-1 md:justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setViewingRecords(e)}><FolderOpen className="size-3.5" /> Records</Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>Edit</Button>
+        </div>
+      </td>
+    </tr>
+  );
 
   const stats = useMemo(() => ({
     active: employees.filter((e) => e.employmentStatus === "active").length,
@@ -453,34 +488,30 @@ export default function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((e) => (
-                    <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Name" className="py-3 pr-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-                            {e.firstName.charAt(0)}{e.lastName.charAt(0)}
-                          </div>
-                          <span className="font-medium">{e.firstName} {e.lastName}</span>
-                          {e.workerType === "contractor" && <Badge variant="outline" className="border-primary/40 text-primary">Contractor</Badge>}
-                        </div>
-                      </td>
-                      <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{e.email || "—"}</td>
-                      <td data-label="Title" className="py-3 pr-4">{e.title ?? "—"}</td>
-                      <td data-label="Department" className="py-3 pr-4 capitalize">{e.department ? humanizeLabel(e.department) : "—"}</td>
-                      <td data-label="Hire date" className="py-3 pr-4">{e.hireDate ? formatDate(e.hireDate) : "—"}</td>
-                      <td data-label="Status" className="py-3 pr-4">
-                        <Badge variant={STATUS_VARIANT[e.employmentStatus]}>
-                          {humanizeLabel(e.employmentStatus)}
-                        </Badge>
-                      </td>
-                      <td data-label="" className="py-3">
-                        <div className="flex gap-1 md:justify-end">
-                          <Button size="sm" variant="ghost" onClick={() => setViewingRecords(e)}><FolderOpen className="size-3.5" /> Records</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>Edit</Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filterStatus !== "all"
+                    ? sorted.map(renderRow)
+                    : (
+                      <>
+                        {currentRows.map(renderRow)}
+                        {pastRows.length > 0 && (
+                          <Fragment>
+                            <tr className="border-b border-border bg-secondary/40">
+                              <td colSpan={7} className="py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPast((v) => !v)}
+                                  className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                                >
+                                  <ChevronRight className={cn("size-4 transition-transform", showPast && "rotate-90")} />
+                                  Past employees <Badge variant="secondary">{pastRows.length}</Badge>
+                                </button>
+                              </td>
+                            </tr>
+                            {showPast && pastRows.map(renderRow)}
+                          </Fragment>
+                        )}
+                      </>
+                    )}
                 </tbody>
               </table>
             </div>
