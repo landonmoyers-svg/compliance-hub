@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Shield, Search, Download, Flag, AlertTriangle, Activity, LogIn, MapPin, Monitor } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +108,8 @@ function mapAudit(r: Record<string, unknown>): AuditLog {
 
 export default function AuditTrailPage() {
   const supabase = useMemo(() => createClient(), []);
+  const orgQ = useCollection("organizationSettings");
+  const retentionYears = orgQ.data?.[0]?.auditRetentionYears ?? 7;
 
   const [tab, setTab] = useState<TabKey>("timeline");
   const [search, setSearch] = useState("");
@@ -269,7 +272,8 @@ export default function AuditTrailPage() {
         <Shield className="mr-1.5 -mt-0.5 inline size-4" />
         Change entries on sensitive tables are written by database triggers — server-side and append-only, so they
         can&apos;t be edited or removed from the app. Page views and file/record access are logged per user with the
-        actor taken from the signed-in session, so entries can&apos;t be spoofed.
+        actor taken from the signed-in session, so entries can&apos;t be spoofed. Entries are retained for{" "}
+        <span className="font-medium text-foreground">{retentionYears} years</span>, then automatically purged (configurable in Settings).
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">

@@ -30,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 interface OrgForm {
   orgName: string; address: string; phone: string; website: string;
-  npiNumber: string; taxId: string; documentRetentionYears: string;
+  npiNumber: string; taxId: string; documentRetentionYears: string; auditRetentionYears: string;
   sessionTimeoutMinutes: string; requireTwoFactor: boolean; passwordMinLength: string;
   credentialReminderDays: string; trainingReminderDays: string;
   insuranceReminderDays: string; emailNotifications: boolean;
@@ -42,6 +42,7 @@ function toForm(s: OrganizationSettings | undefined): OrgForm {
     address: s?.address ?? "", phone: s?.phone ?? "", website: s?.website ?? "",
     npiNumber: s?.npiNumber ?? "", taxId: s?.taxId ?? "",
     documentRetentionYears: String(s?.documentRetentionYears ?? 7),
+    auditRetentionYears: String(s?.auditRetentionYears ?? 7),
     sessionTimeoutMinutes: String(s?.sessionTimeoutMinutes ?? 30),
     requireTwoFactor: s?.requireTwoFactor ?? false,
     passwordMinLength: String(s?.passwordMinLength ?? 12),
@@ -75,6 +76,7 @@ export default function SettingsPage() {
         await createSettings.mutateAsync({
           orgName: form.orgName.trim() || DEFAULT_ORG_NAME,
           documentRetentionYears: parseInt(form.documentRetentionYears, 10) || 7,
+          auditRetentionYears: parseInt(form.auditRetentionYears, 10) || 7,
           sessionTimeoutMinutes: parseInt(form.sessionTimeoutMinutes, 10) || 30,
           requireTwoFactor: form.requireTwoFactor,
           passwordMinLength: parseInt(form.passwordMinLength, 10) || 12,
@@ -100,11 +102,14 @@ export default function SettingsPage() {
     e.preventDefault();
     const retention = parseInt(form.documentRetentionYears, 10);
     if (isNaN(retention) || retention < 1) { toast.error("Document retention must be at least 1 year"); return; }
+    const auditRetention = parseInt(form.auditRetentionYears, 10);
+    if (isNaN(auditRetention) || auditRetention < 1) { toast.error("Audit log retention must be at least 1 year"); return; }
     void persist({
       orgName: form.orgName.trim(), address: form.address.trim() || undefined,
       phone: form.phone.trim() || undefined, website: form.website.trim() || undefined,
       npiNumber: form.npiNumber.trim() || undefined, taxId: form.taxId.trim() || undefined,
       documentRetentionYears: retention,
+      auditRetentionYears: auditRetention,
     }, "Organization settings");
   }
 
@@ -184,6 +189,11 @@ export default function SettingsPage() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Document retention (years)</label>
                   <input type="number" min="1" className="input w-full" value={form.documentRetentionYears} onChange={(e) => setForm((p) => ({ ...p, documentRetentionYears: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Audit log retention (years)</label>
+                  <input type="number" min="1" className="input w-full" value={form.auditRetentionYears} onChange={(e) => setForm((p) => ({ ...p, auditRetentionYears: e.target.value }))} />
+                  <p className="text-xs text-muted-foreground">Access-log entries are kept this long, then automatically purged monthly.</p>
                 </div>
                 <div className="flex justify-end sm:col-span-2">
                   <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save organization settings"}</Button>

@@ -1182,6 +1182,7 @@ export const OrganizationSettings = z.object({
   npiNumber: z.string().optional(),
   taxId: z.string().optional(),
   documentRetentionYears: z.number().default(7),
+  auditRetentionYears: z.number().default(7),
   sessionTimeoutMinutes: z.number().default(30),
   requireTwoFactor: z.boolean().default(false),
   passwordMinLength: z.number().default(12),
