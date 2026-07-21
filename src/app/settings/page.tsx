@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, Fragment } from "react";
-import { Building2, MapPin, Plus, X, Trash2 } from "lucide-react";
+import { Building2, MapPin, Plus, X, Trash2, HardDrive } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 const ROLE_SHORT: Record<string, string> = { owner: "Owner", admin: "Admin", hr: "HR", clinical_leadership: "Clinical", manager: "Mgr", staff: "Staff", contractor: "Contr", read_only: "Read" };
 
-type Tab = "organization" | "locations" | "access" | "security" | "notifications";
+type Tab = "organization" | "locations" | "access" | "security" | "notifications" | "storage";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "organization", label: "Organization" },
@@ -26,6 +26,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "access", label: "Modules & Access" },
   { id: "security", label: "Security" },
   { id: "notifications", label: "Notifications" },
+  { id: "storage", label: "Storage" },
 ];
 
 interface OrgForm {
@@ -266,6 +267,119 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {tab === "storage" && <StorageAuditTab />}
+    </div>
+  );
+}
+
+/* ─── Storage audit (read-only) ─────────────────────────────────── */
+
+interface StorageAudit {
+  totalFiles: number;
+  totalBytes: number;
+  referencedCount: number;
+  pending: { count: number; bytes: number };
+  stray: { count: number; bytes: number; files: { path: string; size: number; updatedAt: string | null }[] };
+}
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function StorageAuditTab() {
+  const [data, setData] = useState<StorageAudit | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/storage-audit");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Audit failed.");
+      setData(json as StorageAudit);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Audit failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><HardDrive className="size-4 text-muted-foreground" /> Storage audit</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Reconciles every file in the private documents bucket against the records that reference it. Read-only — nothing is deleted.
+          Files parked by <span className="font-medium text-foreground">Bulk Upload</span> (under <code className="rounded bg-secondary px-1">bulk/</code>) are shown separately, since those are usually pending filing, not junk.
+        </p>
+
+        <Button onClick={() => void run()} disabled={loading}>{loading ? "Scanning…" : data ? "Re-scan" : "Run storage audit"}</Button>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {data && (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Stat label="Total files" value={String(data.totalFiles)} sub={fmtBytes(data.totalBytes)} />
+              <Stat label="Referenced" value={String(data.referencedCount)} sub="linked to a record" />
+              <Stat label="Pending (bulk/)" value={String(data.pending.count)} sub={`${fmtBytes(data.pending.bytes)} · awaiting filing`} />
+              <Stat label="Stray" value={String(data.stray.count)} sub={`${fmtBytes(data.stray.bytes)} · unreferenced`} tone={data.stray.count > 0 ? "warn" : "ok"} />
+            </div>
+
+            {data.stray.count > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Unreferenced files (not under bulk/){data.stray.count > data.stray.files.length ? ` — showing ${data.stray.files.length} of ${data.stray.count}, oldest first` : ""}</p>
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/30 text-left text-muted-foreground">
+                        <th className="px-3 py-2 font-medium">Path</th>
+                        <th className="px-3 py-2 font-medium">Size</th>
+                        <th className="px-3 py-2 font-medium">Last modified</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.stray.files.map((f) => (
+                        <tr key={f.path} className="border-b border-border/50">
+                          <td className="px-3 py-2 font-mono text-xs">{f.path}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{fmtBytes(f.size)}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{f.updatedAt ? new Date(f.updatedAt).toLocaleDateString() : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  These files aren&apos;t linked to any record. Review before removing — deletion is intentionally not automated here.
+                  Remove a file from Supabase Storage only after confirming it&apos;s truly unused.
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                No stray files. Every stored document (outside pending bulk uploads) is linked to a record.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("text-2xl font-semibold", tone === "warn" && "text-warning", tone === "ok" && "text-success")}>{value}</div>
+      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
