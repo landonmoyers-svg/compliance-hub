@@ -1,4 +1,4 @@
-import type { CredentialRecord, InsurancePolicyRecord } from "./data/schema";
+import type { CredentialRecord, InsurancePolicyRecord, Employee } from "./data/schema";
 import { credentialStatus } from "./compliance";
 import { isExpired, parseDate } from "./dates";
 
@@ -172,4 +172,34 @@ export function summarizeRequirements(type: ProviderType, creds: CredentialRecor
   const results = evaluateRequirements(type, creds, insurance);
   const gaps = results.filter((r) => r.status !== "met");
   return { type, results, met: results.length - gaps.length, total: results.length, gaps };
+}
+
+const normName = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * Count required credentials that are entirely MISSING (never on file) across
+ * current clinical staff — for the compliance score. Only "missing" gaps count:
+ * expired-but-present items are already penalized as expired credentials, so
+ * counting them here too would double-charge the score. Former staff are skipped.
+ * Lives here (not in compliance.ts) to keep the score module free of a cycle.
+ */
+export function countRequirementGaps(
+  employees: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus" | "jobRole" | "title">[],
+  credentials: CredentialRecord[],
+  insurance: InsurancePolicyRecord[],
+): number {
+  let gaps = 0;
+  for (const e of employees) {
+    if (e.employmentStatus !== "active" && e.employmentStatus !== "on_leave") continue;
+    const type = inferProviderType(e.jobRole, e.title);
+    if (type === "none") continue;
+    const uid = e.userId;
+    const nm = normName(`${e.firstName} ${e.lastName}`);
+    const match = (recUid?: string | null, recName?: string | null) =>
+      (!!uid && !!recUid && recUid === uid) || (!!nm && normName(recName) === nm);
+    const empCreds = credentials.filter((c) => match(c.employeeUserId, c.employeeName));
+    const empIns = insurance.filter((p) => match(p.holderUserId, p.holderName));
+    gaps += summarizeRequirements(type, empCreds, empIns).gaps.filter((g) => g.status === "missing").length;
+  }
+  return gaps;
 }

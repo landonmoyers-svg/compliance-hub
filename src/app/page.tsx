@@ -33,11 +33,14 @@ import {
   computeComplianceScore,
   holderIsActive,
   credentialStatus,
+  insuranceStatus,
+  supersededInsuranceIds,
   documentNeedsReview,
   scoreBand,
   taskIsOpen,
   taskIsOverdue,
 } from "@/lib/compliance";
+import { countRequirementGaps } from "@/lib/credential-requirements";
 
 type Tone = "default" | "success" | "warning" | "destructive";
 
@@ -150,6 +153,7 @@ export default function CommandCenterPage() {
   const invQ = useCollection("inventory");
   const employeesQ = useCollection("employees");
   const screeningsQ = useCollection("exclusionScreenings");
+  const insuranceQ = useCollection("insurancePolicies");
 
   const queries = [tasksQ, credsQ, docsQ, trainingQ, sdsQ, riskQ, regQ, invQ];
   const loading = queries.some((q) => q.isLoading);
@@ -165,6 +169,7 @@ export default function CommandCenterPage() {
   const regs = useMemo(() => regQ.data ?? [], [regQ.data]);
   const inventory = useMemo(() => invQ.data ?? [], [invQ.data]);
   const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+  const insurance = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
 
   // Context: warnings only for people who still work here. A former employee's
   // expired license is history, not an action item.
@@ -173,6 +178,12 @@ export default function CommandCenterPage() {
     () => credentials.filter((c) => holderIsActive(c, holderIdx)),
     [credentials, holderIdx],
   );
+  const activeInsurance = useMemo(() => {
+    const superseded = supersededInsuranceIds(insurance);
+    return insurance
+      .filter((p) => !superseded.has(p.id))
+      .filter((p) => holderIsActive({ employeeUserId: p.holderUserId, employeeName: p.holderName }, holderIdx));
+  }, [insurance, holderIdx]);
   const activeTraining = useMemo(
     () => training.filter((a) => holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, holderIdx)),
     [training, holderIdx],
@@ -187,10 +198,12 @@ export default function CommandCenterPage() {
         trainingAssignments: training,
         documents,
         riskCases: risk,
+        insurancePolicies: insurance,
+        requirementGaps: countRequirementGaps(employees, credentials, insurance),
         employees,
         exclusionScreenings: screenings,
       }),
-    [tasks, credentials, training, documents, risk, employees, screenings],
+    [tasks, credentials, training, documents, risk, insurance, employees, screenings],
   );
   const band = scoreBand(score.score);
   // The program is "configured" once there's operational data to score against
@@ -212,21 +225,42 @@ export default function CommandCenterPage() {
         secondary: `Expired ${formatDate(c.expirationDate)}`,
         badge: { label: "Expired", tone: "destructive" },
       }));
-    return [...overdueTasks, ...expiredCreds];
-  }, [tasks, activeCredentials]);
+    const expiredInsurance = activeInsurance
+      .filter((p) => insuranceStatus(p) === "expired")
+      .map<QueueItem>((p) => ({
+        id: `i-${p.id}`,
+        primary: `${p.policyName}${p.holderName ? ` — ${p.holderName}` : ""}`,
+        secondary: `Insurance expired ${formatDate(p.renewalDate)}`,
+        badge: { label: "Expired", tone: "destructive" },
+      }));
+    return [...overdueTasks, ...expiredCreds, ...expiredInsurance];
+  }, [tasks, activeCredentials, activeInsurance]);
 
   const expiringCreds: QueueItem[] = useMemo(
-    () =>
-      [...activeCredentials]
+    () => {
+      const creds = activeCredentials
         .filter((c) => credentialStatus(c) === "expiring_soon")
-        .sort(bySoonest((c) => c.expirationDate))
         .map((c) => ({
           id: c.id,
           primary: `${c.credentialName} — ${c.employeeName}`,
           secondary: c.issuingBody ?? undefined,
+          date: c.expirationDate,
           badge: dueBadge(c.expirationDate),
-        })),
-    [activeCredentials],
+        }));
+      const ins = activeInsurance
+        .filter((p) => insuranceStatus(p) === "expiring_soon")
+        .map((p) => ({
+          id: `i-${p.id}`,
+          primary: `${p.policyName}${p.holderName ? ` — ${p.holderName}` : ""}`,
+          secondary: p.carrierName ?? "Insurance",
+          date: p.renewalDate,
+          badge: dueBadge(p.renewalDate),
+        }));
+      return [...creds, ...ins]
+        .sort(bySoonest((x) => x.date))
+        .map(({ date: _date, ...item }) => item);
+    },
+    [activeCredentials, activeInsurance],
   );
 
   const trainingDue: QueueItem[] = useMemo(

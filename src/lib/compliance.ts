@@ -1,4 +1,4 @@
-import { daysUntil, isExpired, isExpiringSoon } from "./dates";
+import { daysUntil, isExpired, isExpiringSoon, parseDate } from "./dates";
 import { supersededCredentialIds } from "./credentials";
 import type {
   ComplianceDocument,
@@ -6,6 +6,7 @@ import type {
   CredentialRecord,
   Employee,
   ExclusionScreening,
+  InsurancePolicyRecord,
   RiskManagementCase,
   TrainingAssignment,
 } from "./data/schema";
@@ -34,6 +35,42 @@ export function credentialStatus(
   if (isExpired(c.expirationDate)) return "expired";
   if (isExpiringSoon(c.expirationDate, within)) return "expiring_soon";
   return "active";
+}
+
+/** Insurance policy status derived from its renewal date — same semantics as
+ *  credentialStatus, so "expired"/"renewing soon" mean the same thing everywhere. */
+export function insuranceStatus(
+  p: Pick<InsurancePolicyRecord, "renewalDate">,
+  within = 30,
+): DerivedCredentialStatus {
+  if (!p.renewalDate) return "no_expiry";
+  if (isExpired(p.renewalDate)) return "expired";
+  if (isExpiringSoon(p.renewalDate, within)) return "expiring_soon";
+  return "active";
+}
+
+type SupersedablePolicy = Pick<InsurancePolicyRecord, "id" | "holderUserId" | "holderName" | "policyType" | "renewalDate" | "createdDate">;
+
+/** IDs of insurance policies SUPERSEDED by a newer term in the same
+ *  (holder, policy type) line — a prior renewal is history, not an action item,
+ *  so it must not count as "expired" in the score or on the dashboard. Mirrors
+ *  supersededCredentialIds. A policy of one type never supersedes another type. */
+export function supersededInsuranceIds(policies: SupersedablePolicy[]): Set<string> {
+  const recency = (p: SupersedablePolicy) => (parseDate(p.renewalDate) ?? parseDate(p.createdDate))?.getTime() ?? 0;
+  const groups = new Map<string, SupersedablePolicy[]>();
+  for (const p of policies) {
+    const holder = p.holderUserId || p.holderName?.trim() || "Entity";
+    const key = `${holder}::${(p.policyType ?? "").toLowerCase()}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(p); else groups.set(key, [p]);
+  }
+  const superseded = new Set<string>();
+  for (const arr of groups.values()) {
+    if (arr.length < 2) continue;
+    const sorted = [...arr].sort((a, b) => recency(b) - recency(a));
+    for (let i = 1; i < sorted.length; i++) superseded.add(sorted[i].id);
+  }
+  return superseded;
 }
 
 /* ------------------------- holder context (active vs former) -------------------------
@@ -134,6 +171,14 @@ interface ScoreInput {
   trainingAssignments: TrainingAssignment[];
   documents: ComplianceDocument[];
   riskCases: RiskManagementCase[];
+  /** Insurance policies (e.g. malpractice). Expired/renewing-soon policies for
+   *  current holders (or entity-wide policies) fold into the score, like creds. */
+  insurancePolicies?: InsurancePolicyRecord[];
+  /** Count of required credentials that are entirely MISSING (never on file) for
+   *  current clinical staff — computed by the caller via countRequirementGaps()
+   *  to avoid a module cycle. Expired-but-present items are already penalized as
+   *  expired credentials, so only true gaps are passed here. */
+  requirementGaps?: number;
   /** When provided, credential/training penalties only count people who still
    *  work here — an expired license of a former employee is history, not risk. */
   employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
@@ -186,6 +231,16 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
         holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, index))
     : input.trainingAssignments;
 
+  // Insurance: exclude superseded prior-term policies (history, not risk), then
+  // count only policies whose holder still works here, or entity-wide policies
+  // (no holder). Unknown holders count as active — never silence a real lapse we
+  // can't attribute — mirroring the credential rule.
+  const supersededInsIds = supersededInsuranceIds(input.insurancePolicies ?? []);
+  const currentInsurance = (input.insurancePolicies ?? []).filter((p) => !supersededInsIds.has(p.id));
+  const insurance = index
+    ? currentInsurance.filter((p) => holderIsActive({ employeeUserId: p.holderUserId, employeeName: p.holderName }, index))
+    : currentInsurance;
+
   const overdueTasks = input.tasks.filter(taskIsOverdue).length;
   const expiredCreds = creds.filter(
     (c) => credentialStatus(c) === "expired",
@@ -193,8 +248,11 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   const expiringCreds = creds.filter(
     (c) => credentialStatus(c) === "expiring_soon",
   ).length;
+  const expiredInsurance = insurance.filter((p) => insuranceStatus(p) === "expired").length;
+  const expiringInsurance = insurance.filter((p) => insuranceStatus(p) === "expiring_soon").length;
   const overdueTraining = training.filter(assignmentIsOverdue).length;
   const docsNeedingReview = input.documents.filter(documentNeedsReview).length;
+  const requirementGaps = input.requirementGaps ?? 0;
 
   const openRisk = input.riskCases.filter(
     (r) => r.status === "open" || r.status === "investigating",
@@ -211,6 +269,9 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
     { key: "overdueTasks", label: "Overdue tasks", count: overdueTasks, impact: deduct(overdueTasks, 3, 25) },
     { key: "expiredCreds", label: "Expired credentials", count: expiredCreds, impact: deduct(expiredCreds, 5, 20) },
     { key: "expiringCreds", label: "Credentials expiring ≤30d", count: expiringCreds, impact: deduct(expiringCreds, 2, 10) },
+    { key: "requirementGaps", label: "Missing required credentials", count: requirementGaps, impact: deduct(requirementGaps, 3, 15) },
+    { key: "expiredInsurance", label: "Expired insurance", count: expiredInsurance, impact: deduct(expiredInsurance, 5, 15) },
+    { key: "expiringInsurance", label: "Insurance renewing ≤30d", count: expiringInsurance, impact: deduct(expiringInsurance, 2, 8) },
     { key: "overdueTraining", label: "Overdue training", count: overdueTraining, impact: deduct(overdueTraining, 2, 15) },
     { key: "docsReview", label: "Documents past review", count: docsNeedingReview, impact: deduct(docsNeedingReview, 2, 10) },
     { key: "criticalRisk", label: "Open critical risk cases", count: criticalRisk, impact: deduct(criticalRisk, 6, 18) },
@@ -226,8 +287,8 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   return {
     score,
     factors,
-    criticalCount: overdueTasks + expiredCreds + criticalRisk,
-    highCount: expiringCreds + overdueTraining + highRisk,
+    criticalCount: overdueTasks + expiredCreds + expiredInsurance + requirementGaps + criticalRisk,
+    highCount: expiringCreds + expiringInsurance + overdueTraining + highRisk,
   };
 }
 
