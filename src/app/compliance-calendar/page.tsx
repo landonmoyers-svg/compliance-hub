@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
 import { parseDate, formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
+import { buildIcs, type IcsEvent } from "@/lib/ics";
 import {
   startOfMonth,
   endOfMonth,
@@ -172,6 +173,30 @@ export default function ComplianceCalendarPage() {
   const [selected, setSelected] = useState<Date | null>(null);
   const selectedEvents = selected ? events.filter((e) => isSameDay(e.date, selected)) : [];
 
+  // Export all upcoming (today onward) deadlines as an all-day .ics file that
+  // users can import into Google / Outlook / Apple Calendar.
+  function handleExportIcs() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcoming = events
+      .filter((e) => e.date >= today)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const icsEvents: IcsEvent[] = upcoming.map((e) => ({
+      uid: `${e.id}@compliance-hub`,
+      title: e.label,
+      date: format(e.date, "yyyy-MM-dd"),
+      description: humanizeLabel(e.type),
+    }));
+    const ics = buildIcs(icsEvents, new Date().toISOString());
+    const blob = new Blob([ics], { type: "text/calendar" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "compliance-calendar.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (isError) {
     return (
       <div className="space-y-6">
@@ -189,6 +214,11 @@ export default function ComplianceCalendarPage() {
       <PageHeader
         title="Compliance Calendar"
         description="Visualize credential expirations, training due dates, document reviews, and drills in one calendar view."
+        actions={
+          <Button variant="outline" onClick={handleExportIcs} disabled={loading}>
+            <Download className="size-4" /> Export calendar (.ics)
+          </Button>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

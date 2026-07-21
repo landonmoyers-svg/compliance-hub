@@ -75,5 +75,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Invite sent but profile setup failed: ${profileErr.message}` }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, userId: invited.user.id });
+  // 5. Auto-link this person's existing records that were filed by NAME before
+  //    they had a login, so their My Portal shows them immediately (and RLS
+  //    own-row access works). ilike without wildcards = case-insensitive equals.
+  const newUserId = invited.user.id;
+  await admin.from("credentials").update({ employee_user_id: newUserId }).is("employee_user_id", null).ilike("employee_name", fullName);
+  await admin.from("insurance_policies").update({ holder_user_id: newUserId }).is("holder_user_id", null).ilike("holder_name", fullName);
+  // Employees match on first+last, so find the unlinked record by full name.
+  const { data: emps } = await admin.from("employees").select("id, first_name, last_name, user_id");
+  const emp = (emps ?? []).find((e) => !e.user_id && `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim().toLowerCase() === fullName.toLowerCase());
+  if (emp) await admin.from("employees").update({ user_id: newUserId }).eq("id", emp.id);
+
+  return NextResponse.json({ ok: true, userId: newUserId });
 }

@@ -15,7 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
-import { provisionLogin } from "@/lib/admin";
+import { provisionLogin, deactivateLogin } from "@/lib/admin";
 import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
 import { accountRoles } from "@/lib/data/schema";
@@ -340,7 +340,18 @@ export default function EmployeesPage() {
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
-        toast.success("Employee updated");
+        // Offboarding: when someone moves to a former status and still has an app
+        // login, revoke it (a terminated employee's session must not keep working).
+        const FORMER = new Set(["terminated", "resigned", "laid_off"]);
+        const nowFormer = FORMER.has(form.employmentStatus);
+        const wasActive = !FORMER.has(editing.employmentStatus);
+        if (nowFormer && wasActive && editing.userId) {
+          const r = await deactivateLogin(editing.userId);
+          if (r.ok) toast.success("Employee updated — their app login was deactivated.");
+          else toast.error(`Employee updated, but deactivating the login failed: ${r.error}`);
+        } else {
+          toast.success("Employee updated");
+        }
       } else {
         const created = await createMut.mutateAsync(payload);
         if (form.inviteToApp) {

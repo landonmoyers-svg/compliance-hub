@@ -17,9 +17,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const orgSettingsQ = useCollection("organizationSettings");
   const org = orgSettingsQ.data?.[0];
+
+  // Enforce the org's idle session timeout: sign the user out after N minutes of
+  // no interaction. (The setting was saved but never enforced before.)
+  const timeoutMin = org?.sessionTimeoutMinutes ?? 30;
+  useEffect(() => {
+    if (!profile || !timeoutMin || timeoutMin <= 0) return;
+    const ms = timeoutMin * 60_000;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => { clearTimeout(timer); timer = setTimeout(() => { void logout(); }, ms); };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => { clearTimeout(timer); events.forEach((e) => window.removeEventListener(e, reset)); };
+  }, [profile, timeoutMin, logout]);
 
   // Enforce page access once settings have loaded: a user who navigates to a
   // page their role/org doesn't permit is redirected home (defense beyond nav hiding).

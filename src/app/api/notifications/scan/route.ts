@@ -135,6 +135,17 @@ async function runScan(): Promise<{ created: number }> {
     else if (d <= credWindow) candidates.push({ title: `Re-credentialing due: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling is due for re-credentialing in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment" });
   }
 
+  // Business records (licenses, contracts, leases, BAAs, entity insurance…)
+  // expiring within the insurance window or lapsed.
+  const { data: bizRecords } = await admin.from("business_records").select("id, title, category, expiration_date, status");
+  for (const b of bizRecords ?? []) {
+    if (b.status === "terminated" || b.status === "expired") continue;
+    const d = daysUntil(b.expiration_date);
+    if (d === null) continue;
+    if (d < 0) candidates.push({ title: `Business record lapsed: ${b.title}`, body: `${b.title} (${b.category}) expired ${Math.abs(d)} day(s) ago.`, category: "business", severity: "critical", entity_type: "business_records", entity_id: b.id, link: "/business-records" });
+    else if (d <= insWindow) candidates.push({ title: `Business record renewal: ${b.title}`, body: `${b.title} (${b.category}) expires in ${d} day(s).`, category: "business", severity: d <= 14 ? "critical" : "warning", entity_type: "business_records", entity_id: b.id, link: "/business-records" });
+  }
+
   // Payer contract renewals within the insurance window or lapsed
   const { data: payerContracts } = await admin.from("payer_contracts").select("id, payer_name, contract_status, renewal_date");
   for (const c of payerContracts ?? []) {
@@ -152,6 +163,7 @@ async function runScan(): Promise<{ created: number }> {
     { cat: "credential", ids: new Set((creds ?? []).map((c) => c.id)) },
     { cat: "insurance", ids: new Set((policies ?? []).map((p) => p.id)) },
     { cat: "vendor", ids: new Set((vendors ?? []).map((v) => v.id)) },
+    { cat: "business", ids: new Set((bizRecords ?? []).map((b) => b.id)) },
   ];
   for (const { cat, ids } of validByCat) {
     const { data: notes } = await admin.from("notifications").select("id, entity_id").eq("category", cat).eq("read", false);
