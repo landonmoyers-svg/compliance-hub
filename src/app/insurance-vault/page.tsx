@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { Shield, Plus, Search, Upload, FileText, Sparkles, X } from "lucide-react";
+import { Fragment, useState, useMemo, useRef } from "react";
+import { Shield, Plus, Search, Upload, FileText, Sparkles, X, ChevronRight } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
-import { uploadFile } from "@/lib/storage";
+import { uploadFile, getSignedUrl } from "@/lib/storage";
+import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, isExpiringSoon, parseDate, dateInputToISO } from "@/lib/dates";
 import { buildHolderIndex, holderStatus } from "@/lib/compliance";
-import { humanizeLabel } from "@/lib/format";
+import { humanizeLabel, formatName } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
@@ -50,7 +51,8 @@ function policyStatus(p: Pick<InsurancePolicyRecord, "renewalDate">): PolicyStat
  * Same organization as the Credentials page: policies grouped by holder, then by
  * coverage line (malpractice, cyber, general…). Within a line the newest renewal
  * is the ACTIVE policy and prior terms nest as superseded history — a policy of
- * one type never supersedes a policy of another type. */
+ * one type never supersedes a policy of another type. Collapsed by default;
+ * former holders sit in their own section at the end. */
 
 interface PolicyLeaf { key: string; label: string; rank: number; items: InsurancePolicyRecord[]; }
 interface PolicyFile { key: string; userId: string | null; name: string; org: boolean; former: boolean; leaves: PolicyLeaf[]; }
@@ -110,6 +112,14 @@ function fileToBase64(file: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+const blobToBase64 = fileToBase64;
+
+/** Best-effort media type from a stored file path/extension. */
+function mediaFromName(name: string): string {
+  const ext = name.toLowerCase().split("?")[0].split(".").pop() ?? "";
+  const map: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+  return map[ext] ?? "application/octet-stream";
 }
 
 /** Returns the media type if the file can be sent to the AI extractor, else null. */
@@ -317,44 +327,56 @@ function PolicyFileView({ files, onEdit, onDeleted }: {
   onEdit: (p: InsurancePolicyRecord) => void;
   onDeleted: () => void;
 }) {
+  // Collapsed by default: the view opens as a list of holders; a row expands to
+  // reveal that holder's policy file.
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   if (files.length === 0) {
     return <EmptyState icon={Shield} title="No policies found" description="Add a policy or clear the search." />;
   }
-  return (
-    <div className="space-y-5">
-      {files.map((f) => (
-        <div key={f.key} className="rounded-lg border border-border">
-          <div className="flex items-center gap-2 border-b border-border bg-secondary/30 px-4 py-2.5">
-            {f.org ? <span className="inline-flex items-center gap-1.5 font-medium"><Shield className="size-4 text-muted-foreground" />{f.name}</span> : <PersonLink userId={f.userId} name={f.name} />}
-            {f.former && <Badge variant="secondary">Former</Badge>}
-            <span className="ml-auto text-xs text-muted-foreground">{f.leaves.reduce((n, l) => n + l.items.length, 0)} on file</span>
-          </div>
-          <div className="divide-y divide-border/60">
+  // buildPolicyFiles already orders org-wide → active → former, each alphabetical.
+  const current = files.filter((f) => !f.former);
+  const former = files.filter((f) => f.former);
+
+  const renderFile = (f: PolicyFile) => {
+    const isOpen = open.has(f.key);
+    const count = f.leaves.reduce((n, l) => n + l.items.length, 0);
+    return (
+      <div key={f.key} className="rounded-lg border border-border">
+        <button type="button" onClick={() => toggle(f.key)} className="flex w-full flex-wrap items-center gap-2 px-4 py-2.5 text-left hover:bg-secondary/20">
+          <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+          {f.org
+            ? <span className="inline-flex items-center gap-1.5 font-medium"><Shield className="size-4 text-muted-foreground" />{f.name}</span>
+            : <span className="font-medium">{formatName(f.name)}</span>}
+          <span className="ml-auto text-xs text-muted-foreground">{count} on file</span>
+        </button>
+        {isOpen && (
+          <div className="divide-y divide-border/60 border-t border-border">
             {f.leaves.map((leaf) => {
-              const [current, ...history] = leaf.items;
-              const st = policyStatus(current);
-              const days = daysUntil(current.renewalDate);
+              const [currentPolicy, ...history] = leaf.items;
+              const st = policyStatus(currentPolicy);
+              const days = daysUntil(currentPolicy.renewalDate);
               return (
                 <div key={leaf.key} className="px-4 py-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{leaf.label}</div>
                   {/* Active / current term */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
-                    <span className="font-medium">{current.policyName}</span>
-                    {current.carrierName && <span className="text-xs text-muted-foreground">{current.carrierName}</span>}
-                    {current.policyNumber && <span className="text-xs text-muted-foreground">#{current.policyNumber}</span>}
-                    {current.coverageAmountCents != null && <span className="text-xs text-muted-foreground">{formatCents(current.coverageAmountCents)} coverage</span>}
-                    <button type="button" onClick={() => onEdit(current)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                    <span className="font-medium">{currentPolicy.policyName}</span>
+                    {currentPolicy.carrierName && <span className="text-xs text-muted-foreground">{currentPolicy.carrierName}</span>}
+                    {currentPolicy.policyNumber && <span className="text-xs text-muted-foreground">#{currentPolicy.policyNumber}</span>}
+                    {currentPolicy.coverageAmountCents != null && <span className="text-xs text-muted-foreground">{formatCents(currentPolicy.coverageAmountCents)} coverage</span>}
+                    <button type="button" onClick={() => onEdit(currentPolicy)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                       <Badge variant={f.former ? "secondary" : POLICY_STATUS_VARIANT[st]}>{POLICY_STATUS_LABEL[st]}</Badge>
                     </button>
                     <span className="text-sm text-muted-foreground">
-                      {current.renewalDate ? <>renews {formatDate(current.renewalDate)}{days !== null && st !== "no_expiry" && <> · {days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? "today" : `${days}d left`}</>}</> : "no renewal date"}
+                      {currentPolicy.renewalDate ? <>renews {formatDate(currentPolicy.renewalDate)}{days !== null && st !== "no_expiry" && <> · {days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? "today" : `${days}d left`}</>}</> : "no renewal date"}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => onEdit(current)}>Edit</Button>
-                      {current.documentUrl && <FileLink path={current.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />}
-                      <VersionHistoryButton entityType="insurancePolicies" entityId={current.id} title={`${current.policyName}${current.holderName ? ` — ${current.holderName}` : ""}`} />
-                      <AdminDeleteButton collection="insurancePolicies" id={current.id} label={current.policyName} noun="policy" onDeleted={onDeleted} />
+                      <Button size="sm" variant="ghost" onClick={() => onEdit(currentPolicy)}>Edit</Button>
+                      {currentPolicy.documentUrl && <FileLink path={currentPolicy.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />}
+                      <VersionHistoryButton entityType="insurancePolicies" entityId={currentPolicy.id} title={`${currentPolicy.policyName}${currentPolicy.holderName ? ` — ${currentPolicy.holderName}` : ""}`} />
+                      <AdminDeleteButton collection="insurancePolicies" id={currentPolicy.id} label={currentPolicy.policyName} noun="policy" onDeleted={onDeleted} />
                     </div>
                   </div>
                   {/* Superseded prior terms, most recent → oldest */}
@@ -380,15 +402,31 @@ function PolicyFileView({ files, onEdit, onDeleted }: {
               );
             })}
           </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">{current.map(renderFile)}</div>
+      {former.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 pt-2 text-sm font-semibold text-muted-foreground">
+            Former / past employees <Badge variant="secondary">{former.length}</Badge>
+          </div>
+          {former.map(renderFile)}
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
 /* ----------------------------- page --------------------------------- */
 
-type PolicyGroupBy = "provider_file" | "list";
+type PolicyGroupBy = "provider_file" | "none" | "type" | "holder";
+type StatusFilter = PolicyStatus | "all";
+const STATUS_FILTERS: StatusFilter[] = ["all", "active", "expiring_soon", "expired", "no_expiry"];
 
 export default function InsuranceVaultPage() {
   const { data, isLoading, isError, refetch } = useCollection("insurancePolicies");
@@ -397,9 +435,11 @@ export default function InsuranceVaultPage() {
   const updateMut = useUpdate("insurancePolicies");
 
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<PolicyGroupBy>("provider_file");
   const [editing, setEditing] = useState<InsurancePolicyRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   const policies = useMemo(() => data ?? [], [data]);
 
@@ -411,18 +451,26 @@ export default function InsuranceVaultPage() {
     [holderIdx],
   );
 
-  const filtered = useMemo(() => {
+  const matchesSearch = useMemo(() => {
     const q = search.toLowerCase();
-    return policies.filter(
-      (p) =>
-        !q ||
-        p.policyName.toLowerCase().includes(q) ||
-        (p.carrierName ?? "").toLowerCase().includes(q) ||
-        (p.holderName ?? "").toLowerCase().includes(q),
-    );
-  }, [policies, search]);
+    return (p: InsurancePolicyRecord) =>
+      !q ||
+      p.policyName.toLowerCase().includes(q) ||
+      (p.carrierName ?? "").toLowerCase().includes(q) ||
+      (p.holderName ?? "").toLowerCase().includes(q) ||
+      (p.policyNumber ?? "").toLowerCase().includes(q);
+  }, [search]);
 
-  const policyFiles = useMemo(() => buildPolicyFiles(filtered, isFormerHolder), [filtered, isFormerHolder]);
+  // Provider file: search only (a status filter would hide the superseded
+  // history the file view is meant to show).
+  const searchFiltered = useMemo(() => policies.filter(matchesSearch), [policies, matchesSearch]);
+  const policyFiles = useMemo(() => buildPolicyFiles(searchFiltered, isFormerHolder), [searchFiltered, isFormerHolder]);
+
+  // Flat / grouped views: search + status filter.
+  const filtered = useMemo(
+    () => searchFiltered.filter((p) => filterStatus === "all" || policyStatus(p) === filterStatus),
+    [searchFiltered, filterStatus],
+  );
 
   const { sorted, sort, toggle } = useSort(filtered, {
     policyName: (p) => p.policyName,
@@ -433,7 +481,22 @@ export default function InsuranceVaultPage() {
     premium: (p) => p.annualPremiumCents,
     renewal: (p) => p.renewalDate,
     holder: (p) => p.holderName,
+    status: (p) => policyStatus(p),
   });
+
+  const groups = useMemo(() => {
+    if (groupBy !== "type" && groupBy !== "holder") return [] as { key: string; label: string; items: InsurancePolicyRecord[] }[];
+    const map = new Map<string, InsurancePolicyRecord[]>();
+    for (const p of sorted) {
+      const key = groupBy === "type" ? (p.policyType || "other") : (p.holderName?.trim() || "Organization-wide");
+      const arr = map.get(key) ?? [];
+      arr.push(p);
+      map.set(key, arr);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, items]) => ({ key, label: groupBy === "type" ? humanizeLabel(key) : key, items }));
+  }, [sorted, groupBy]);
 
   const stats = useMemo(() => {
     const expired = policies.filter((p) => isExpired(p.renewalDate));
@@ -443,6 +506,60 @@ export default function InsuranceVaultPage() {
     });
     return { total: policies.length, expired: expired.length, expiringSoon: expiringSoon.length };
   }, [policies]);
+
+  // Re-read every policy with an attached document and fill missing fields from
+  // the ACTUAL contents (carrier, number, coverage, premium, renewal). Never
+  // overwrites a field that already has a value — mirrors the Credentials page.
+  async function reanalyze() {
+    const withDocs = policies.filter((p) => p.documentUrl);
+    if (withDocs.length === 0) { toast.info("No policy documents are attached to analyze. Attach a policy file first."); return; }
+    if (!window.confirm(`Analyze ${withDocs.length} attached document${withDocs.length === 1 ? "" : "s"} with AI? This fills in missing details (carrier, number, coverage, premium, renewal date). Existing values are never overwritten.`)) return;
+    setReanalyzing(true);
+    const tId = toast.loading(`Analyzing 0/${withDocs.length} policy documents…`);
+    let done = 0, updated = 0;
+    try {
+      for (const p of withDocs) {
+        let fileBase64: string | undefined;
+        let mediaType: string | undefined;
+        try {
+          const url = await getSignedUrl(p.documentUrl as string);
+          if (url) {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const mt = blob.type && blob.type !== "application/octet-stream" ? blob.type : mediaFromName(p.documentUrl as string);
+            if (blob.size <= 8 * 1024 * 1024 && (mt === "application/pdf" || mt.startsWith("image/"))) {
+              fileBase64 = await blobToBase64(blob);
+              mediaType = mt;
+            }
+          }
+        } catch { /* skip files we can't read */ }
+        if (!fileBase64) { done++; toast.loading(`Analyzing ${done}/${withDocs.length} policy documents…`, { id: tId }); continue; }
+
+        try {
+          const res = await fetch("/api/ai/insurance-analyze", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileBase64, mediaType }),
+          });
+          if (res.status === 429) { toast.error("Daily AI limit reached — stopping reanalysis.", { id: tId }); break; }
+          const d = await res.json() as { policyType?: string; carrierName?: string | null; policyNumber?: string | null; coverageAmount?: number | null; annualPremium?: number | null; renewalDate?: string | null };
+          if (res.ok) {
+            const patch: Partial<InsurancePolicyRecord> = {};
+            if (!p.carrierName && d.carrierName) patch.carrierName = d.carrierName;
+            if (!p.policyNumber && d.policyNumber) patch.policyNumber = d.policyNumber;
+            if (p.coverageAmountCents == null && d.coverageAmount != null) patch.coverageAmountCents = Math.round(d.coverageAmount * 100);
+            if (p.annualPremiumCents == null && d.annualPremium != null) patch.annualPremiumCents = Math.round(d.annualPremium * 100);
+            if (!p.renewalDate && d.renewalDate) patch.renewalDate = dateInputToISO(d.renewalDate);
+            if (Object.keys(patch).length > 0) { await updateMut.mutateAsync({ id: p.id, patch }); updated++; }
+          }
+        } catch { /* skip this one */ }
+        done++;
+        toast.loading(`Analyzing ${done}/${withDocs.length} policy documents…`, { id: tId });
+      }
+      toast.success(`Reanalyzed ${done} document${done === 1 ? "" : "s"} — updated ${updated}.`, { id: tId });
+    } finally {
+      setReanalyzing(false);
+    }
+  }
 
   async function handleSave(form: PolicyForm, file: File | null) {
     setSaving(true);
@@ -490,6 +607,53 @@ export default function InsuranceVaultPage() {
     );
   }
 
+  const renderRow = (p: InsurancePolicyRecord) => {
+    const expired = isExpired(p.renewalDate);
+    const days = daysUntil(p.renewalDate);
+    const expiringSoon = days !== null && days >= 0 && days <= 60;
+    return (
+      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
+        <td data-label="Policy name" className="py-3 pr-4 font-medium">
+          {p.documentUrl
+            ? <FileLink path={p.documentUrl} label={p.policyName} className="text-primary hover:underline" />
+            : p.policyName}
+        </td>
+        <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(p.policyType)}</td>
+        <td data-label="Carrier" className="py-3 pr-4">{p.carrierName ?? "—"}</td>
+        <td data-label="Policy #" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
+        <td data-label="Coverage" className="py-3 pr-4 text-right">{formatCents(p.coverageAmountCents)}</td>
+        <td data-label="Premium / yr" className="py-3 pr-4 text-right">{formatCents(p.annualPremiumCents)}</td>
+        <td data-label="Renewal" className="py-3 pr-4">
+          {p.renewalDate ? (
+            <div>
+              <div className={expired ? "text-destructive" : expiringSoon ? "text-warning" : ""}>{formatDate(p.renewalDate)}</div>
+              {expired ? (
+                <button type="button" onClick={() => setEditing(p)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                  <Badge variant="destructive" className="mt-1">Expired</Badge>
+                </button>
+              ) : expiringSoon ? (
+                <div className="text-xs text-warning">{days === 0 ? "Today" : `${days}d`}</div>
+              ) : null}
+            </div>
+          ) : "—"}
+        </td>
+        <td data-label="Holder" className="py-3 pr-4">
+          {p.holderName ? <PersonLink userId={p.holderUserId ?? null} name={p.holderName} /> : <span className="text-muted-foreground">Org-wide</span>}
+        </td>
+        <td data-label="" className="py-3">
+          <div className="flex gap-2 md:justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
+            {p.documentUrl && (
+              <FileLink path={p.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
+            )}
+            <VersionHistoryButton entityType="insurancePolicies" entityId={p.id} title={`${p.policyName}${p.holderName ? ` — ${p.holderName}` : ""}`} />
+            <AdminDeleteButton collection="insurancePolicies" id={p.id} label={p.policyName} noun="policy" onDeleted={() => void refetch()} />
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {editing && (
@@ -503,7 +667,7 @@ export default function InsuranceVaultPage() {
 
       <PageHeader
         title="Insurance Vault"
-        description="Track all insurance policies, renewal dates, and coverage amounts."
+        description="Track all insurance policies, renewal dates, and coverage amounts. Renewal status is always derived from the renewal date — never stale stored values."
         actions={
           <div className="flex flex-wrap gap-2">
             <DuplicateFinder
@@ -513,6 +677,9 @@ export default function InsuranceVaultPage() {
               describe={(p) => ({ title: p.policyName, subtitle: [p.carrierName, p.policyNumber ? `#${p.policyNumber}` : ""].filter(Boolean).join(" · "), hasFile: !!p.documentUrl })}
               score={(p) => (p.documentUrl ? 2 : 0) + (p.policyNumber ? 1 : 0)}
             />
+            <Button variant="outline" onClick={reanalyze} disabled={reanalyzing}>
+              <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Auto-fill from files"}
+            </Button>
             <Button onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add policy
             </Button>
@@ -533,14 +700,25 @@ export default function InsuranceVaultPage() {
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 className="input w-full pl-9"
-                placeholder="Search by name, carrier, or holder…"
+                placeholder="Search by name, carrier, holder, or #…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            {groupBy !== "provider_file" && STATUS_FILTERS.map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  filterStatus === s ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
+              >
+                {s === "all" ? "All" : POLICY_STATUS_LABEL[s]}
+              </button>
+            ))}
             <div className="ml-auto flex items-center gap-1.5">
               <span className="text-sm text-muted-foreground">View</span>
-              {([["provider_file", "Provider file"], ["list", "Flat list"]] as const).map(([g, label]) => (
+              {([["provider_file", "Provider file"], ["none", "Flat list"], ["type", "By type"], ["holder", "By holder"]] as const).map(([g, label]) => (
                 <button
                   key={g}
                   onClick={() => setGroupBy(g)}
@@ -565,7 +743,7 @@ export default function InsuranceVaultPage() {
             <EmptyState
               icon={Shield}
               title="No policies found"
-              description={search ? "Try adjusting your search." : "Add your first insurance policy."}
+              description={search || filterStatus !== "all" ? "Try adjusting your search or filter." : "Add your first insurance policy."}
               action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add policy</Button>}
             />
           ) : (
@@ -585,51 +763,18 @@ export default function InsuranceVaultPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((p) => {
-                    const expired = isExpired(p.renewalDate);
-                    const days = daysUntil(p.renewalDate);
-                    const expiringSoon = days !== null && days >= 0 && days <= 60;
-                    return (
-                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Policy name" className="py-3 pr-4 font-medium">
-                          {p.documentUrl
-                            ? <FileLink path={p.documentUrl} label={p.policyName} className="text-primary hover:underline" />
-                            : p.policyName}
-                        </td>
-                        <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(p.policyType)}</td>
-                        <td data-label="Carrier" className="py-3 pr-4">{p.carrierName ?? "—"}</td>
-                        <td data-label="Policy #" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{p.policyNumber ?? "—"}</td>
-                        <td data-label="Coverage" className="py-3 pr-4 text-right">{formatCents(p.coverageAmountCents)}</td>
-                        <td data-label="Premium / yr" className="py-3 pr-4 text-right">{formatCents(p.annualPremiumCents)}</td>
-                        <td data-label="Renewal" className="py-3 pr-4">
-                          {p.renewalDate ? (
-                            <div>
-                              <div className={expired ? "text-destructive" : expiringSoon ? "text-warning" : ""}>{formatDate(p.renewalDate)}</div>
-                              {expired ? (
-                                <button type="button" onClick={() => setEditing(p)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
-                                  <Badge variant="destructive" className="mt-1">Expired</Badge>
-                                </button>
-                              ) : expiringSoon ? (
-                                <div className="text-xs text-warning">{days === 0 ? "Today" : `${days}d`}</div>
-                              ) : null}
-                            </div>
-                          ) : "—"}
-                        </td>
-                        <td data-label="Holder" className="py-3 pr-4">
-                          {p.holderName ? <PersonLink userId={p.holderUserId ?? null} name={p.holderName} /> : <span className="text-muted-foreground">Org-wide</span>}
-                        </td>
-                        <td data-label="" className="py-3">
-                          <div className="flex gap-2 md:justify-end">
-                            <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
-                            {p.documentUrl && (
-                              <FileLink path={p.documentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />
-                            )}
-                            <AdminDeleteButton collection="insurancePolicies" id={p.id} label={p.policyName} noun="policy" onDeleted={() => void refetch()} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {(groupBy === "none" ? [{ key: "__all__", label: "", items: sorted }] : groups).map((g) => (
+                    <Fragment key={g.key}>
+                      {groupBy !== "none" && (
+                        <tr className="bg-secondary/40">
+                          <td colSpan={9} className="py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span>{g.label}</span> · {g.items.length}
+                          </td>
+                        </tr>
+                      )}
+                      {g.items.map(renderRow)}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
