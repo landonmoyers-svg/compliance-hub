@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useMemo, useRef } from "react";
+import { Fragment, useState, useMemo, useRef, useEffect } from "react";
 import { BadgeCheck, Plus, Search, Sparkles, X, Upload, ChevronRight } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { getSignedUrl, uploadFile } from "@/lib/storage";
@@ -168,11 +168,13 @@ function analyzableMedia(file: File): string | null {
 
 function CredentialDialog({
   initial,
+  prefill,
   onClose,
   onSave,
   saving,
 }: {
   initial?: CredentialRecord;
+  prefill?: Partial<FormState>;
   onClose: () => void;
   onSave: (data: FormState, file: File | null) => void;
   saving: boolean;
@@ -191,7 +193,7 @@ function CredentialDialog({
           credentialClass: initial.credentialClass ?? null,
           boardType: initial.boardType ?? "",
         }
-      : EMPTY_FORM,
+      : { ...EMPTY_FORM, ...prefill },
   );
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -615,11 +617,30 @@ export default function CredentialsPage() {
   const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("provider_file");
   const [editing, setEditing] = useState<CredentialRecord | null | "new">(null);
+  const [prefill, setPrefill] = useState<Partial<FormState> | null>(null);
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [resolveQueue, setResolveQueue] = useState<Unresolved[] | null>(null);
 
   const credentials = useMemo(() => data ?? [], [data]);
+
+  // Deep-link: a gap/expiry alert can send the user straight to the pre-scoped
+  // "Add credential" dialog via /credentials?add=credential&holder=…&type=…&name=…
+  // Read from the URL directly (avoids Next's useSearchParams Suspense rule) and
+  // clear the params so a refresh doesn't reopen the dialog.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("add") !== "credential") return;
+    setPrefill({
+      employeeName: p.get("holder") ?? "",
+      employeeUserId: p.get("holderId") || null,
+      credentialType: p.get("type") || "license",
+      credentialName: p.get("name") ?? "",
+    });
+    setEditing("new");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -888,7 +909,8 @@ export default function CredentialsPage() {
       {editing && (
         <CredentialDialog
           initial={editing === "new" ? undefined : editing}
-          onClose={() => setEditing(null)}
+          prefill={editing === "new" ? (prefill ?? undefined) : undefined}
+          onClose={() => { setEditing(null); setPrefill(null); }}
           onSave={handleSave}
           saving={saving}
         />

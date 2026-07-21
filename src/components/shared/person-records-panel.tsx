@@ -2,15 +2,18 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { BadgeCheck, Shield, FolderLock, GraduationCap, Award, CheckCircle2, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+import { BadgeCheck, Shield, FolderLock, GraduationCap, Award, CheckCircle2, ArrowRight, Printer } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
 import { FileLink } from "@/components/shared/file-link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { credentialStatus } from "@/lib/compliance";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import { inferProviderType } from "@/lib/credential-requirements";
+import { openPacket } from "@/lib/audit-packet";
 import { RequirementsChecklist } from "@/components/shared/requirements-checklist";
 import { RESTRICTED_EMPLOYEE_DOC_TYPES } from "@/lib/data/schema";
 
@@ -40,6 +43,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
   const compQ = useCollection("competencyRecords");
   const acksQ = useCollection("policyAcks");
   const employeesQ = useCollection("employees");
+  const orgQ = useCollection("organizationSettings");
 
   const matchesPerson = useMemo(() => {
     const lname = name.trim().toLowerCase();
@@ -91,7 +95,27 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
     return <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
 
-  const checklist = <RequirementsChecklist providerType={providerType} creds={creds} insurance={insurance} />;
+  const checklist = <RequirementsChecklist providerType={providerType} creds={creds} insurance={insurance} holderName={name} holderUserId={userId} />;
+
+  function handleExportPacket() {
+    const opened = openPacket({
+      name,
+      providerType,
+      orgName: orgQ.data?.[0]?.orgName,
+      creds,
+      insurance,
+      training: training.map((a) => ({ moduleTitle: a.moduleTitle, status: a.status, score: a.score, dueDate: a.dueDate })),
+      competencies: competencies.map((c) => ({ competencyName: c.competencyName, competencyType: c.competencyType, status: c.status })),
+      acks: acks.map((a) => ({ documentTitle: a.documentTitle, status: a.status, acknowledgedAt: a.acknowledgedAt })),
+    });
+    if (!opened) toast.error("Allow pop-ups to open the compliance packet.");
+  }
+
+  const exportButton = (
+    <Button variant="outline" size="sm" onClick={handleExportPacket} className="gap-1.5">
+      <Printer className="size-4" /> Export packet
+    </Button>
+  );
 
   const totalRecords = creds.length + insurance.length + empDocs.length + training.length + competencies.length + acks.length;
   if (totalRecords === 0) {
@@ -107,6 +131,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">{exportButton}</div>
       {checklist}
 
       {/* Credentials */}
