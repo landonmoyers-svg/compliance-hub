@@ -158,11 +158,61 @@ export interface ScoreFactor {
   impact: number; // negative number of points deducted
 }
 
+/** Requirement completion across current clinical staff (from the requirements
+ *  engine). "missing" = required doc not on file yet — usually just not uploaded,
+ *  so it feeds readiness/progress, NOT a score penalty. Computed by the caller
+ *  (staffRequirementStats) to keep this module free of an import cycle. */
+export interface StaffRequirementStats {
+  clinicians: number;
+  required: number;
+  met: number;
+  missing: number;
+  expired: number;
+}
+
+export interface Achievement {
+  key: string;
+  label: string;
+  description: string;
+  unlocked: boolean;
+}
+
+export interface LevelInfo {
+  tier: number;      // 1-based
+  name: string;
+  floor: number;     // points at which this level starts
+  nextAt: number | null; // points needed for the next level (null at max)
+}
+
+/** Positive, monotonic "you're making progress" ladder — the gamified counter to
+ *  a penalty-only score so ramp-up feels like climbing, not digging out. */
+const LEVELS: { floor: number; name: string }[] = [
+  { floor: 0, name: "Getting Started" },
+  { floor: 300, name: "Building Momentum" },
+  { floor: 800, name: "On Track" },
+  { floor: 1600, name: "Well Managed" },
+  { floor: 3000, name: "Gold Standard" },
+];
+
+export function levelForPoints(points: number): LevelInfo {
+  let idx = 0;
+  for (let i = 0; i < LEVELS.length; i++) if (points >= LEVELS[i].floor) idx = i;
+  const next = LEVELS[idx + 1] ?? null;
+  return { tier: idx + 1, name: LEVELS[idx].name, floor: LEVELS[idx].floor, nextAt: next ? next.floor : null };
+}
+
 export interface ComplianceScore {
-  score: number; // 0–100
+  score: number; // 0–100 health (penalty-based, gentle)
   factors: ScoreFactor[];
   criticalCount: number;
   highCount: number;
+  // Gamification layer — progress the officer earns, not just risk they carry.
+  readiness: number;         // 0–100 completion; climbs as records are uploaded/done
+  points: number;            // cumulative points for work completed
+  level: LevelInfo;
+  achievements: Achievement[];
+  strengths: string[];       // positive callouts ("No expired licenses or insurance")
+  rampUp: boolean;           // still onboarding — UI should lead with progress, not the score
 }
 
 interface ScoreInput {
@@ -174,11 +224,10 @@ interface ScoreInput {
   /** Insurance policies (e.g. malpractice). Expired/renewing-soon policies for
    *  current holders (or entity-wide policies) fold into the score, like creds. */
   insurancePolicies?: InsurancePolicyRecord[];
-  /** Count of required credentials that are entirely MISSING (never on file) for
-   *  current clinical staff — computed by the caller via countRequirementGaps()
-   *  to avoid a module cycle. Expired-but-present items are already penalized as
-   *  expired credentials, so only true gaps are passed here. */
-  requirementGaps?: number;
+  /** Requirement completion across current clinical staff (staffRequirementStats).
+   *  Drives readiness/points; "missing" items are treated as not-yet-uploaded
+   *  (progress to make), not a score penalty. */
+  requirements?: StaffRequirementStats;
   /** When provided, credential/training penalties only count people who still
    *  work here — an expired license of a former employee is history, not risk. */
   employees?: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus">[];
@@ -252,7 +301,6 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   const expiringInsurance = insurance.filter((p) => insuranceStatus(p) === "expiring_soon").length;
   const overdueTraining = training.filter(assignmentIsOverdue).length;
   const docsNeedingReview = input.documents.filter(documentNeedsReview).length;
-  const requirementGaps = input.requirementGaps ?? 0;
 
   const openRisk = input.riskCases.filter(
     (r) => r.status === "open" || r.status === "investigating",
@@ -265,18 +313,22 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
     ? exclusionScreeningOverdue(input.employees, input.exclusionScreenings)
     : 0;
 
+  // Penalty weights, deliberately ordered: an INCOMPLETE TRAINING (a real gap in
+  // someone's competency) is the heaviest per-item hit — no expired license or
+  // insurance out-weighs it. A credential/policy just NOT UPLOADED YET is not a
+  // penalty at all; it lowers readiness (below) instead, so ramp-up doesn't feel
+  // like a hole. Every deduction is capped and surfaced for transparency.
   const factors: ScoreFactor[] = [
-    { key: "overdueTasks", label: "Overdue tasks", count: overdueTasks, impact: deduct(overdueTasks, 3, 25) },
-    { key: "expiredCreds", label: "Expired credentials", count: expiredCreds, impact: deduct(expiredCreds, 5, 20) },
-    { key: "expiringCreds", label: "Credentials expiring ≤30d", count: expiringCreds, impact: deduct(expiringCreds, 2, 10) },
-    { key: "requirementGaps", label: "Missing required credentials", count: requirementGaps, impact: deduct(requirementGaps, 3, 15) },
-    { key: "expiredInsurance", label: "Expired insurance", count: expiredInsurance, impact: deduct(expiredInsurance, 5, 15) },
-    { key: "expiringInsurance", label: "Insurance renewing ≤30d", count: expiringInsurance, impact: deduct(expiringInsurance, 2, 8) },
-    { key: "overdueTraining", label: "Overdue training", count: overdueTraining, impact: deduct(overdueTraining, 2, 15) },
-    { key: "docsReview", label: "Documents past review", count: docsNeedingReview, impact: deduct(docsNeedingReview, 2, 10) },
-    { key: "criticalRisk", label: "Open critical risk cases", count: criticalRisk, impact: deduct(criticalRisk, 6, 18) },
-    { key: "highRisk", label: "Open high risk cases", count: highRisk, impact: deduct(highRisk, 3, 12) },
-    { key: "screeningDue", label: "Staff overdue for exclusion screening", count: screeningDue, impact: deduct(screeningDue, 1, 10) },
+    { key: "overdueTraining", label: "Overdue / incomplete training", count: overdueTraining, impact: deduct(overdueTraining, 4, 24) },
+    { key: "overdueTasks", label: "Overdue tasks", count: overdueTasks, impact: deduct(overdueTasks, 3, 18) },
+    { key: "criticalRisk", label: "Open critical risk cases", count: criticalRisk, impact: deduct(criticalRisk, 4, 12) },
+    { key: "expiredCreds", label: "Expired licenses / credentials", count: expiredCreds, impact: deduct(expiredCreds, 3, 15) },
+    { key: "expiredInsurance", label: "Expired insurance", count: expiredInsurance, impact: deduct(expiredInsurance, 3, 12) },
+    { key: "highRisk", label: "Open high risk cases", count: highRisk, impact: deduct(highRisk, 2, 8) },
+    { key: "screeningDue", label: "Staff overdue for exclusion screening", count: screeningDue, impact: deduct(screeningDue, 1, 6) },
+    { key: "expiringCreds", label: "Licenses expiring ≤30d", count: expiringCreds, impact: deduct(expiringCreds, 1, 6) },
+    { key: "expiringInsurance", label: "Insurance renewing ≤30d", count: expiringInsurance, impact: deduct(expiringInsurance, 1, 5) },
+    { key: "docsReview", label: "Documents past review", count: docsNeedingReview, impact: deduct(docsNeedingReview, 1, 5) },
     // Additional caller-supplied recurring-obligation penalties.
     ...(input.extraFactors ?? []),
   ].filter((f) => f.count > 0);
@@ -284,11 +336,75 @@ export function computeComplianceScore(input: ScoreInput): ComplianceScore {
   const total = factors.reduce((sum, f) => sum + f.impact, 0);
   const score = Math.max(0, Math.min(100, 100 + total));
 
+  /* ---------------------------- gamification layer ----------------------------
+   * Positive progress the officer earns. Points go UP as records are uploaded and
+   * obligations completed; readiness is % complete; levels + achievements reward
+   * the climb. "Missing" required docs reduce readiness (something to do) but are
+   * never a penalty — most are just not uploaded yet. */
+  const req = input.requirements;
+  const activeStaff = (input.employees ?? []).filter(
+    (e) => e.employmentStatus === "active" || e.employmentStatus === "on_leave",
+  ).length;
+  const screenedStaff = Math.max(0, activeStaff - screeningDue);
+
+  const credsOnFile = creds.filter((c) => credentialStatus(c) !== "expired").length;
+  const policiesActive = insurance.filter((p) => insuranceStatus(p) !== "expired").length;
+  const trainingDone = training.filter((a) => a.status === "completed").length;
+  const trainingTotal = training.length;
+  const resolvedRisk = input.riskCases.length - openRisk.length;
+
+  const points =
+    trainingDone * 15 +
+    credsOnFile * 10 +
+    policiesActive * 10 +
+    screenedStaff * 5 +
+    resolvedRisk * 10 +
+    (req ? req.met * 12 : 0);
+  const level = levelForPoints(points);
+
+  // Readiness = average of whatever completion dimensions actually apply.
+  const rates: number[] = [];
+  if (trainingTotal > 0) rates.push(trainingDone / trainingTotal);
+  if (req && req.required > 0) rates.push(req.met / req.required);
+  if (activeStaff > 0) rates.push(screenedStaff / activeStaff);
+  const readiness = rates.length ? Math.round((rates.reduce((s, r) => s + r, 0) / rates.length) * 100) : 100;
+
+  const noneExpired = expiredCreds === 0 && expiredInsurance === 0;
+  const trainingRate = trainingTotal > 0 ? trainingDone / trainingTotal : 1;
+  const screeningRate = activeStaff > 0 ? screenedStaff / activeStaff : 1;
+  const reqRate = req && req.required > 0 ? req.met / req.required : 1;
+
+  const achievements: Achievement[] = [
+    { key: "first_docs", label: "First Documents", description: "Uploaded your first credential", unlocked: credsOnFile > 0 },
+    { key: "halfway", label: "Halfway There", description: "Reached 50% readiness", unlocked: readiness >= 50 },
+    { key: "training_champ", label: "Training Champion", description: "90%+ of training complete", unlocked: trainingTotal > 0 && trainingRate >= 0.9 },
+    { key: "covered", label: "Covered", description: "Insurance on file with none expired", unlocked: policiesActive > 0 && expiredInsurance === 0 },
+    { key: "nothing_expired", label: "Nothing Expired", description: "No expired licenses or insurance", unlocked: noneExpired && (credsOnFile > 0 || policiesActive > 0) },
+    { key: "screened", label: "Screening Clean", description: "All active staff screened", unlocked: activeStaff > 0 && screeningRate >= 1 },
+    { key: "audit_ready", label: "Audit Ready", description: "Reached 90% readiness", unlocked: readiness >= 90 },
+  ];
+
+  const strengths: string[] = [];
+  if (noneExpired && (credsOnFile > 0 || policiesActive > 0)) strengths.push("No expired licenses or insurance");
+  if (trainingTotal > 0 && trainingRate >= 0.9) strengths.push("Training is on track");
+  if (activeStaff > 0 && screeningRate >= 1) strengths.push("All active staff screened");
+  if (req && req.required > 0 && reqRate >= 0.9) strengths.push("Required credentials nearly complete");
+  if (overdueTasks === 0) strengths.push("No overdue tasks");
+
+  // Ramp-up: still building coverage. UI leads with progress, not the score.
+  const rampUp = readiness < 70;
+
   return {
     score,
     factors,
-    criticalCount: overdueTasks + expiredCreds + expiredInsurance + requirementGaps + criticalRisk,
+    criticalCount: overdueTasks + expiredCreds + expiredInsurance + criticalRisk,
     highCount: expiringCreds + expiringInsurance + overdueTraining + highRisk,
+    readiness,
+    points,
+    level,
+    achievements,
+    strengths,
+    rampUp,
   };
 }
 

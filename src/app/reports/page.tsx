@@ -15,7 +15,7 @@ import { ErrorState } from "@/components/shared/states";
 import {
   buildHolderIndex,
   holderIsActive, credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
-import { countRequirementGaps } from "@/lib/credential-requirements";
+import { staffRequirementStats } from "@/lib/credential-requirements";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
@@ -52,7 +52,7 @@ export default function ReportsPage() {
   const orgSettings = useMemo(() => orgSettingsQ.data ?? [], [orgSettingsQ.data]);
 
   const score = useMemo(
-    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, insurancePolicies, requirementGaps: countRequirementGaps(employees, credentials, insurancePolicies), employees, exclusionScreenings: screenings }),
+    () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, insurancePolicies, requirements: staffRequirementStats(employees, credentials, insurancePolicies), employees, exclusionScreenings: screenings }),
     [tasks, credentials, training, documents, risk, insurancePolicies, employees, screenings],
   );
 

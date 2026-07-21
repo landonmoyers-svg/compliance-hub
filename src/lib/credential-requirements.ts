@@ -1,5 +1,5 @@
 import type { CredentialRecord, InsurancePolicyRecord, Employee } from "./data/schema";
-import { credentialStatus } from "./compliance";
+import { credentialStatus, type StaffRequirementStats } from "./compliance";
 import { isExpired, parseDate } from "./dates";
 
 /**
@@ -177,18 +177,18 @@ export function summarizeRequirements(type: ProviderType, creds: CredentialRecor
 const normName = (s?: string | null): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 /**
- * Count required credentials that are entirely MISSING (never on file) across
- * current clinical staff — for the compliance score. Only "missing" gaps count:
- * expired-but-present items are already penalized as expired credentials, so
- * counting them here too would double-charge the score. Former staff are skipped.
- * Lives here (not in compliance.ts) to keep the score module free of a cycle.
+ * Roll up requirement completion across current clinical staff, for the score's
+ * readiness/points. Returns totals of required items, how many are met, how many
+ * are entirely MISSING (not on file — usually just not uploaded yet), and how
+ * many are EXPIRED. Former staff are skipped. Lives here (not in compliance.ts)
+ * to keep the score module free of an import cycle.
  */
-export function countRequirementGaps(
+export function staffRequirementStats(
   employees: Pick<Employee, "userId" | "firstName" | "lastName" | "employmentStatus" | "jobRole" | "title">[],
   credentials: CredentialRecord[],
   insurance: InsurancePolicyRecord[],
-): number {
-  let gaps = 0;
+): StaffRequirementStats {
+  let clinicians = 0, required = 0, met = 0, missing = 0, expired = 0;
   for (const e of employees) {
     if (e.employmentStatus !== "active" && e.employmentStatus !== "on_leave") continue;
     const type = inferProviderType(e.jobRole, e.title);
@@ -199,7 +199,14 @@ export function countRequirementGaps(
       (!!uid && !!recUid && recUid === uid) || (!!nm && normName(recName) === nm);
     const empCreds = credentials.filter((c) => match(c.employeeUserId, c.employeeName));
     const empIns = insurance.filter((p) => match(p.holderUserId, p.holderName));
-    gaps += summarizeRequirements(type, empCreds, empIns).gaps.filter((g) => g.status === "missing").length;
+    const s = summarizeRequirements(type, empCreds, empIns);
+    clinicians += 1;
+    required += s.total;
+    met += s.met;
+    for (const g of s.gaps) {
+      if (g.status === "missing") missing += 1;
+      else if (g.status === "expired") expired += 1;
+    }
   }
-  return gaps;
+  return { clinicians, required, met, missing, expired };
 }

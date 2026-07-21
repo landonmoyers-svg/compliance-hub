@@ -27,7 +27,7 @@ import {
   credentialStatus,
   scoreBand,
 } from "@/lib/compliance";
-import { countRequirementGaps } from "@/lib/credential-requirements";
+import { staffRequirementStats } from "@/lib/credential-requirements";
 
 const CHART = {
   primary: "hsl(210 100% 56%)",
@@ -166,7 +166,7 @@ export default function ExecutiveDashboardPage() {
         documents,
         riskCases: risk,
         insurancePolicies: insurance,
-        requirementGaps: countRequirementGaps(employees, credentials, insurance),
+        requirements: staffRequirementStats(employees, credentials, insurance),
         employees,
         exclusionScreenings: screenings,
       }),
