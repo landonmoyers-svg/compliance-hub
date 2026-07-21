@@ -26,7 +26,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const timeoutMin = org?.sessionTimeoutMinutes ?? 30;
   useEffect(() => {
     if (!profile || !timeoutMin || timeoutMin <= 0) return;
-    const ms = timeoutMin * 60_000;
+    // setTimeout stores the delay as a signed 32-bit int; a delay above
+    // 2,147,483,647 ms (~24.8 days) overflows and fires IMMEDIATELY — which would
+    // log the user out the instant the shell mounts. Clamp to the safe maximum so
+    // a very large idle-timeout setting behaves as "effectively never".
+    const ms = Math.min(timeoutMin * 60_000, 2_147_483_647);
     let timer: ReturnType<typeof setTimeout>;
     const reset = () => { clearTimeout(timer); timer = setTimeout(() => { void logout(); }, ms); };
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
