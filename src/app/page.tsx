@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { cn } from "@/lib/cn";
 import { daysUntil, formatDate } from "@/lib/dates";
+import { buildAgenda, groupByBucket, type WorkItem, type Bucket } from "@/lib/agenda";
 import {
   assignmentIsOverdue,
   buildHolderIndex,
@@ -147,6 +148,73 @@ function QueueCard({
   );
 }
 
+/** The unified, prioritized "what needs to be done" list — every due-dated
+ *  signal fused and ranked, each item deep-linking to where to act. */
+function AgendaBoard({ groups, loading }: { groups: Record<Bucket, WorkItem[]>; loading: boolean }) {
+  const order: { b: Bucket; label: string; cap: number }[] = [
+    { b: "overdue", label: "Overdue", cap: 20 },
+    { b: "today", label: "Due today", cap: 20 },
+    { b: "week", label: "This week", cap: 10 },
+    { b: "horizon", label: "Coming up (30 days)", cap: 8 },
+  ];
+  const total = order.reduce((n, g) => n + groups[g.b].length, 0);
+  const dot = (risk: number) => risk >= 3 ? "bg-destructive" : risk === 2 ? "bg-warning" : risk === 1 ? "bg-primary" : "bg-muted-foreground/50";
+  const dueLabel = (it: WorkItem) => {
+    if (it.daysUntil === null) return null;
+    if (it.daysUntil < 0) return `${Math.abs(it.daysUntil)}d overdue`;
+    if (it.daysUntil === 0) return "Today";
+    return it.dueDate ? formatDate(it.dueDate) : `${it.daysUntil}d`;
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ClipboardList className="size-4 text-muted-foreground" /> What needs to be done
+          {!loading && total > 0 && <Badge variant="default">{total}</Badge>}
+        </CardTitle>
+        <Link href="/chief-of-staff" className="text-xs text-primary hover:underline">Prioritized plan →</Link>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : total === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">You&apos;re all caught up — nothing needs action right now.</p>
+        ) : (
+          <div className="space-y-4">
+            {order.filter((g) => groups[g.b].length > 0).map((g) => {
+              const items = groups[g.b];
+              const shown = items.slice(0, g.cap);
+              return (
+                <div key={g.b}>
+                  <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {g.label} <span className="rounded-full bg-secondary px-1.5 text-[10px]">{items.length}</span>
+                  </div>
+                  <div className="divide-y divide-border/50">
+                    {shown.map((it) => (
+                      <Link key={it.key} href={it.href} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-secondary/30">
+                        <span className={cn("size-2 shrink-0 rounded-full", dot(it.risk))} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{it.title}</div>
+                          <div className="truncate text-xs text-muted-foreground">{it.why}</div>
+                        </div>
+                        {dueLabel(it) && <span className={cn("shrink-0 text-xs tabular-nums", it.daysUntil !== null && it.daysUntil < 0 ? "text-destructive" : "text-muted-foreground")}>{dueLabel(it)}</span>}
+                      </Link>
+                    ))}
+                  </div>
+                  {items.length > shown.length && (
+                    <Link href="/chief-of-staff" className="mt-1 block px-2 text-xs text-primary hover:underline">+{items.length - shown.length} more →</Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CommandCenterPage() {
   const tasksQ = useCollection("tasks");
   const credsQ = useCollection("credentials");
@@ -159,6 +227,13 @@ export default function CommandCenterPage() {
   const employeesQ = useCollection("employees");
   const screeningsQ = useCollection("exclusionScreenings");
   const insuranceQ = useCollection("insurancePolicies");
+  // Extra signals the unified action queue fuses in.
+  const capasQ = useCollection("correctiveActions");
+  const sraQ = useCollection("sraFindings");
+  const incidentsQ = useCollection("incidents");
+  const breachesQ = useCollection("breachAssessments");
+  const vendorsQ = useCollection("vendors");
+  const backupsQ = useCollection("backups");
 
   const queries = [tasksQ, credsQ, docsQ, trainingQ, sdsQ, riskQ, regQ, invQ];
   const loading = queries.some((q) => q.isLoading);
@@ -175,6 +250,33 @@ export default function CommandCenterPage() {
   const inventory = useMemo(() => invQ.data ?? [], [invQ.data]);
   const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
   const insurance = useMemo(() => insuranceQ.data ?? [], [insuranceQ.data]);
+
+  // Unified, prioritized "what needs to be done" — the same agenda the Chief of
+  // Staff ranks, surfaced here in detail (each item deep-links to where to act).
+  const screeningDueCount = useMemo(() => {
+    const scr = screeningsQ.data ?? [];
+    const active = (employeesQ.data ?? []).filter((e) => e.employmentStatus === "active");
+    return active.filter((e) => {
+      const name = `${e.firstName} ${e.lastName}`.trim().toLowerCase();
+      const matches = scr.filter((x) => (e.userId && x.subjectUserId === e.userId) || x.subjectName.toLowerCase() === name);
+      if (matches.length === 0) return true;
+      const latest = matches.sort((a, b) => (b.screenedDate ?? b.createdDate).localeCompare(a.screenedDate ?? a.createdDate))[0];
+      const d = latest.screenedDate ? daysUntil(latest.screenedDate) : null;
+      return d === null || -d > 30;
+    }).length;
+  }, [screeningsQ.data, employeesQ.data]);
+
+  const agenda = useMemo(() => buildAgenda({
+    horizonDays: 30, showLow: false, snoozed: new Set<string>(),
+    credentials, training, documents,
+    correctiveActions: capasQ.data ?? [], sraFindings: sraQ.data ?? [],
+    incidents: incidentsQ.data ?? [], breaches: breachesQ.data ?? [],
+    insurance, vendors: vendorsQ.data ?? [], tasks,
+    screeningDueCount,
+    lastBackupAt: (backupsQ.data ?? []).slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate))[0]?.createdDate ?? null,
+    employees,
+  }), [credentials, training, documents, capasQ.data, sraQ.data, incidentsQ.data, breachesQ.data, insurance, vendorsQ.data, tasks, screeningDueCount, backupsQ.data, employees]);
+  const agendaGroups = useMemo(() => groupByBucket(agenda), [agenda]);
 
   // Context: warnings only for people who still work here. A former employee's
   // expired license is history, not an action item.
@@ -385,13 +487,20 @@ export default function CommandCenterPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <QueueCard title="Critical attention" icon={AlertTriangle} href="/credentials" items={criticalItems} emptyText="Nothing critical right now." loading={loading} />
-        <QueueCard title="Credentials expiring" icon={BadgeCheck} href="/credentials" items={expiringCreds} emptyText="No credentials expiring in 30 days." loading={loading} />
-        <QueueCard title="Training due" icon={GraduationCap} href="/training" items={trainingDue} emptyText="All training is on track." loading={loading} />
-        <QueueCard title="Open risk cases" icon={ShieldAlert} href="/risk-management" items={riskItems} emptyText="No open risk cases." loading={loading} />
-        <QueueCard title="SDS reviews" icon={FlaskConical} href="/sds-library" items={sdsReviews} emptyText="SDS library is complete." loading={loading} />
-        <QueueCard title="Documents past review" icon={FileWarning} href="/sop-library" items={docReviews} emptyText="No documents past review." loading={loading} />
+      {/* The prioritized, detailed action list — what actually needs doing. */}
+      <AgendaBoard groups={agendaGroups} loading={loading} />
+
+      {/* Secondary: browse the same signals by area. */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Browse by area</h2>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <QueueCard title="Critical attention" icon={AlertTriangle} href="/credentials" items={criticalItems} emptyText="Nothing critical right now." loading={loading} />
+          <QueueCard title="Credentials expiring" icon={BadgeCheck} href="/credentials" items={expiringCreds} emptyText="No credentials expiring in 30 days." loading={loading} />
+          <QueueCard title="Training due" icon={GraduationCap} href="/training" items={trainingDue} emptyText="All training is on track." loading={loading} />
+          <QueueCard title="Open risk cases" icon={ShieldAlert} href="/risk-management" items={riskItems} emptyText="No open risk cases." loading={loading} />
+          <QueueCard title="SDS reviews" icon={FlaskConical} href="/sds-library" items={sdsReviews} emptyText="SDS library is complete." loading={loading} />
+          <QueueCard title="Documents past review" icon={FileWarning} href="/sop-library" items={docReviews} emptyText="No documents past review." loading={loading} />
+        </div>
       </div>
     </div>
   );
