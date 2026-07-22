@@ -108,7 +108,7 @@ export function AssistantWidget() {
 
   async function logAi(entityType: string | null, entityId: string | null, action: string, summary: string, reversible: boolean) {
     try {
-      await createActivity.mutateAsync({ actorType: "ai", actorName: profile?.fullName ?? "AI assistant", assistant: "universal_assistant", action, entityType, entityId, summary, reversible, undone: false });
+      await createActivity.mutateAsync({ actorType: "ai", actorName: profile?.fullName ?? "Sage", assistant: "universal_assistant", action, entityType, entityId, summary, reversible, undone: false });
     } catch { /* non-blocking */ }
   }
 
@@ -249,10 +249,10 @@ export function AssistantWidget() {
         <button
           onClick={() => setOpen(true)}
           className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg transition-transform hover:scale-105"
-          aria-label="Open AI assistant"
+          aria-label="Open Sage, your assistant"
         >
           <Sparkles className="size-5" />
-          <span className="hidden sm:inline">Ask AI</span>
+          <span className="hidden sm:inline">Ask Sage</span>
         </button>
       )}
 
@@ -263,7 +263,7 @@ export function AssistantWidget() {
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
               <div>
-                <p className="text-sm font-semibold leading-none">Assistant</p>
+                <p className="text-sm font-semibold leading-none">Sage</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{page.title}</p>
               </div>
             </div>
@@ -298,7 +298,7 @@ export function AssistantWidget() {
             {messages.length === 0 && (
               <div className="space-y-3">
                 <div className="rounded-xl bg-secondary px-3 py-2 text-sm">
-                  I can help with <span className="font-medium">{page.title}</span> — {page.purpose} Ask me to do something, and I’ll set it up for you to confirm.
+                  Hi, I’m <span className="font-medium">Sage</span>. I can help with <span className="font-medium">{page.title}</span> — {page.purpose} Ask me to walk you through it or do something, and I’ll set it up for you to confirm.
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {examples.map((ex) => (
@@ -336,7 +336,7 @@ export function AssistantWidget() {
 
           <div className="border-t border-border p-3">
             <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="flex gap-2">
-              <input className="input flex-1" placeholder={`Ask about ${page.title}…`} value={input} onChange={(e) => setInput(e.target.value)} disabled={thinking} />
+              <input className="input flex-1" placeholder={`Ask Sage about ${page.title}…`} value={input} onChange={(e) => setInput(e.target.value)} disabled={thinking} />
               <Button type="submit" disabled={!input.trim() || thinking} aria-label="Send"><Send className="size-4" /></Button>
             </form>
             {!isAdmin && <p className="mt-1.5 text-[11px] text-muted-foreground">Some actions may require admin permissions.</p>}

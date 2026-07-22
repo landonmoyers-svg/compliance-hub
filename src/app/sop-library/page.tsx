@@ -174,9 +174,9 @@ function DocDialog({
       const text = await extractDocumentText(file, file.name);
       if (text) {
         setForm((p) => ({ ...p, content: text }));
-        toast.success("Text extracted — the assistant can now use this policy.");
+        toast.success("Text extracted — Sage can now use this policy.");
       } else {
-        toast.info("Couldn't auto-read this file — paste the policy text below so the assistant can use it.");
+        toast.info("Couldn't auto-read this file — paste the policy text below so Sage can use it.");
       }
     } catch {
       toast.error("Upload failed. Save without a file or try again.");

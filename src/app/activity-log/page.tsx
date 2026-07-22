@@ -43,7 +43,7 @@ export default function ActivityLogPage() {
   const entries = useMemo<Entry[]>(() => {
     const ai: Entry[] = (activityQ.data ?? []).map((a) => ({
       id: a.id, time: a.createdDate, day: dayKey(a.createdDate),
-      actorType: a.actorType, actorName: a.actorName ?? "AI assistant", assistant: a.assistant ?? undefined,
+      actorType: a.actorType, actorName: a.actorName ?? "Sage", assistant: a.assistant ?? undefined,
       action: a.action, summary: a.summary, reversible: a.reversible && !a.undone, undone: a.undone,
       entityType: a.entityType ?? undefined, entityId: a.entityId ?? undefined, source: "ai",
     }));
@@ -102,7 +102,7 @@ export default function ActivityLogPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Daily Activity Log" description="Every meaningful task by a person or the AI assistant, compiled by day. AI actions can be undone." />
+      <PageHeader title="Daily Activity Log" description="Every meaningful task by a person or Sage (the assistant), compiled by day. Sage's actions can be undone." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Actions today" value={stats.today} icon={Activity} loading={loading} />

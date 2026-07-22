@@ -735,7 +735,7 @@ export default function InventoryPage() {
               describe={(i) => ({ title: i.itemName, subtitle: [i.itemType, i.quantity != null ? `qty ${i.quantity}` : ""].filter(Boolean).join(" · "), hasFile: !!i.imageUrl })}
               score={(i) => (i.imageUrl ? 2 : 0) + (i.estimatedValueCents ? 1 : 0)}
             />
-            <Button variant="outline" onClick={() => setChatOpen(true)}><MessageSquare className="size-4" /> Ask AI</Button>
+            <Button variant="outline" onClick={() => setChatOpen(true)}><MessageSquare className="size-4" /> Ask Sage</Button>
             <Button variant="outline" onClick={() => setBatchOpen(true)}><Upload className="size-4" /> Batch add</Button>
             <Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add item</Button>
           </div>
