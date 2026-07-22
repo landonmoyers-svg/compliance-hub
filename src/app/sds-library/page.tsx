@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload } from "lucide-react";
+import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload, Printer, Database } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,6 +16,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
+import { openSdsSheet } from "@/lib/sds-sheet";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -79,8 +80,9 @@ function AILookupDialog({
   onClose: () => void;
   onResult: (result: LookupResult) => void;
 }) {
-  const [mode, setMode] = useState<"choose" | "barcode" | "image">("choose");
+  const [mode, setMode] = useState<"choose" | "database" | "barcode" | "image">("choose");
   const [upcInput, setUpcInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState<string>("image/jpeg");
@@ -105,6 +107,27 @@ function AILookupDialog({
     setError("");
     setLoading(true);
     try {
+      if (mode === "database") {
+        const res = await fetch("/api/sds/pubchem", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: nameInput.trim() }),
+        });
+        const data = await res.json() as { notFound?: boolean; message?: string; error?: string } & Partial<LookupResult>;
+        if (data.error) { setError(data.error); return; }
+        if (data.notFound) { setError(data.message ?? "Not found in PubChem. Try AI lookup instead."); return; }
+        onResult({
+          productName: nameInput.trim(),
+          manufacturer: "",
+          upc: "",
+          casNumber: data.casNumber ?? "",
+          signalWord: data.signalWord ?? "NONE",
+          hazardSummary: data.hazardSummary ?? "",
+          hazardStatements: data.hazardStatements ?? "",
+          confidence: "high",
+        });
+        return;
+      }
+
       const body = mode === "barcode"
         ? { upc: upcInput.trim() }
         : { imageBase64, mimeType: imageMime };
@@ -125,7 +148,8 @@ function AILookupDialog({
     }
   }
 
-  const canLookup = mode === "barcode" ? upcInput.trim().length > 0 : imageBase64 !== null;
+  const canLookup = mode === "database" ? nameInput.trim().length > 0
+    : mode === "barcode" ? upcInput.trim().length > 0 : imageBase64 !== null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -142,8 +166,18 @@ function AILookupDialog({
           {mode === "choose" && (
             <>
               <p className="text-sm text-muted-foreground">
-                Scan a barcode or upload a photo of the product label. Claude will identify the product and fill in SDS details automatically.
+                Import the SDS from the <span className="font-medium text-foreground">PubChem</span> chemical database by name or CAS number, or identify a product by barcode/photo with AI.
               </p>
+              <button
+                onClick={() => setMode("database")}
+                className="flex w-full items-center gap-3 rounded-lg border border-border p-4 text-left hover:border-primary hover:bg-primary/5 transition-colors"
+              >
+                <Database className="size-7 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Search a database (PubChem)</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">By chemical name or CAS # — pulls the real GHS classification</p>
+                </div>
+              </button>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setMode("barcode")}
@@ -167,6 +201,24 @@ function AILookupDialog({
                 </button>
               </div>
             </>
+          )}
+
+          {mode === "database" && (
+            <div className="space-y-3">
+              <button onClick={() => setMode("choose")} className="text-xs text-muted-foreground hover:text-foreground">← Back</button>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Chemical name or CAS number</label>
+                <input
+                  className="input w-full"
+                  placeholder="e.g. Isopropyl alcohol  or  67-63-0"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) void lookup(); }}
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">Pulls the authoritative GHS hazard classification (signal word + H-statements) from PubChem (NIH). Best for chemicals and CAS numbers; branded consumer products may not be listed — use AI lookup for those.</p>
+              </div>
+            </div>
           )}
 
           {mode === "barcode" && (
@@ -236,7 +288,9 @@ function AILookupDialog({
             <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
             <Button onClick={lookup} disabled={!canLookup || loading}>
               {loading ? (
-                <><Bot className="size-3 animate-pulse" /> Looking up…</>
+                <>{mode === "database" ? <Database className="size-3 animate-pulse" /> : <Bot className="size-3 animate-pulse" />} {mode === "database" ? "Searching…" : "Looking up…"}</>
+              ) : mode === "database" ? (
+                <><Database className="size-3" /> Search PubChem</>
               ) : (
                 <><Bot className="size-3" /> Look up with AI</>
               )}
@@ -402,11 +456,18 @@ function SDSDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-          <Button variant="outline" onClick={onClose} disabled={saving || uploading}>Cancel</Button>
-          <Button onClick={() => void handleSaveClick()} disabled={!form.productName.trim() || saving || uploading}>
-            {uploading ? "Uploading…" : saving ? "Saving…" : <><Check className="size-3" /> Save</>}
-          </Button>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+          {initial ? (
+            <Button variant="ghost" onClick={() => { if (!openSdsSheet(initial)) toast.error("Allow pop-ups to print the MSDS."); }}>
+              <Printer className="size-4" /> Print full MSDS
+            </Button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving || uploading}>Cancel</Button>
+            <Button onClick={() => void handleSaveClick()} disabled={!form.productName.trim() || saving || uploading}>
+              {uploading ? "Uploading…" : saving ? "Saving…" : <><Check className="size-3" /> Save</>}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -660,6 +721,9 @@ export default function SDSLibraryPage() {
                       </td>
                       <td data-label="" className="py-3">
                         <div className="flex items-center gap-1 md:justify-end">
+                          <Button size="sm" variant="ghost" title="Print full MSDS" onClick={() => { if (!openSdsSheet(r)) toast.error("Allow pop-ups to print the MSDS."); }}>
+                            <Printer className="size-4" />
+                          </Button>
                           <Button size="sm" variant="ghost" onClick={() => { setAiPrefill(null); setEditing(r); }}>Edit</Button>
                           <AdminDeleteButton collection="sdsRecords" id={r.id} label={r.productName} noun="SDS record" onDeleted={() => void refetch()} />
                         </div>
