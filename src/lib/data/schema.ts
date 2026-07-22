@@ -610,6 +610,44 @@ export const EmergencyDrill = z.object({
 });
 export type EmergencyDrill = z.infer<typeof EmergencyDrill>;
 
+/* -------- Emergency preparedness plans -------- */
+// The emergency scenarios a behavioral-health practice should have a written
+// plan for (CMS Emergency Preparedness Rule + OSHA + behavioral-health specifics).
+export const emergencyPlanTypes = [
+  "fire",
+  "severe_weather",
+  "natural_disaster",
+  "active_threat",
+  "workplace_violence",
+  "medical_emergency",
+  "behavioral_crisis",
+  "elopement",
+  "utility_failure",
+  "evacuation_shelter",
+  "communication",
+  "infectious_disease",
+  "bomb_threat",
+  "cyber_incident",
+  "other",
+] as const;
+export type EmergencyPlanType = (typeof emergencyPlanTypes)[number];
+export const emergencyPlanStatuses = ["draft", "active", "needs_review"] as const;
+
+export const EmergencyPlan = z.object({
+  ...base,
+  title: z.string(),
+  planType: z.enum(emergencyPlanTypes).default("other"),
+  // The plan body — markdown (procedures + a step-by-step algorithm), AI-draftable and editable.
+  content: z.string().nullable().optional(),
+  status: z.enum(emergencyPlanStatuses).default("draft"),
+  reviewDate: z.string().nullable().optional(),
+  lastReviewedDate: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  fileUrl: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type EmergencyPlan = z.infer<typeof EmergencyPlan>;
+
 /* ---------------------------- employees ---------------------------- */
 
 export const Employee = z.object({

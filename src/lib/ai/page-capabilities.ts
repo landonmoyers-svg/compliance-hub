@@ -98,9 +98,9 @@ const CAPABILITIES: Record<string, PageCapability> = {
   },
   "/emergency-preparedness": {
     title: "Emergency Preparedness",
-    purpose: "Schedule and track emergency drills (fire, tornado, lockdown).",
+    purpose: "Write emergency response plans (with step-by-step algorithms) for every required scenario, and schedule/track drills. Use the AI guide on this page to see coverage gaps, draft missing plans, and review existing ones.",
     actions: ["create_emergency_drill", TASK],
-    examples: ["Schedule a fire drill for next month", "Add a lockdown drill"],
+    examples: ["Which emergency plans are we missing?", "Schedule a fire drill for next month", "Draft an active-threat response plan"],
   },
   "/training-academy": {
     title: "Training Academy",

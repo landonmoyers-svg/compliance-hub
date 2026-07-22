@@ -36,6 +36,7 @@ import type {
   BusinessRecord,
   LifecycleTask,
   CeRecord,
+  EmergencyPlan,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -818,6 +819,33 @@ function businessRecordFrom(r: Record<string, unknown>): BusinessRecord {
     locationId: r.location_id as string | undefined,
     notes: r.notes as string | undefined,
     documentUrl: r.document_url as string | undefined,
+  };
+}
+function emergencyPlanFrom(r: Record<string, unknown>): EmergencyPlan {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    planType: (r.plan_type as EmergencyPlan["planType"]) ?? "other",
+    content: r.content as string | undefined,
+    status: (r.status as EmergencyPlan["status"]) ?? "draft",
+    reviewDate: r.review_date as string | undefined,
+    lastReviewedDate: r.last_reviewed_date as string | undefined,
+    locationId: r.location_id as string | undefined,
+    fileUrl: r.file_url as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function emergencyPlanTo(d: Partial<EmergencyPlan>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.planType !== undefined && { plan_type: d.planType }),
+    ...(d.content !== undefined && { content: d.content }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.reviewDate !== undefined && { review_date: d.reviewDate }),
+    ...(d.lastReviewedDate !== undefined && { last_reviewed_date: d.lastReviewedDate }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 function ceRecordFrom(r: Record<string, unknown>): CeRecord {
@@ -1945,6 +1973,7 @@ export function createSupabaseDataClient(): DataClient {
     businessRecords:    makeCollection(supabase, "business_records",     businessRecordFrom,     businessRecordTo),
     lifecycleTasks:     makeCollection(supabase, "lifecycle_tasks",       lifecycleTaskFrom,      lifecycleTaskTo),
     ceRecords:          makeCollection(supabase, "ce_records",            ceRecordFrom,           ceRecordTo),
+    emergencyPlans:     makeCollection(supabase, "emergency_plans",       emergencyPlanFrom,      emergencyPlanTo),
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),
     inventory:          makeCollection(supabase, "inventory",           inventoryFrom,          inventoryTo),

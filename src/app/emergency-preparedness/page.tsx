@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { FileLink } from "@/components/shared/file-link";
+import { EmergencyPlansSection } from "@/components/emergency/emergency-plans";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { formatDate, isExpired, daysUntil, dateInputToISO } from "@/lib/dates";
 import type { EmergencyDrill, ComplianceDocument, TrainingAssignment } from "@/lib/data/schema";
@@ -524,6 +525,8 @@ export default function EmergencyPreparednessPage() {
           </Button>
         }
       />
+
+      <EmergencyPlansSection />
 
       <EmergencyRequirementsSection drills={drills} loading={isLoading} />
 
