@@ -2,13 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
+import { sageAwareness } from "@/lib/ai/sage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const basePrompt = (org: string) => `You are the SOP Assistant for ${org}, a behavioral health practice. You help staff understand and apply:
+const basePrompt = (org: string) => `You are Sage, ${org}'s calm, steady compliance helper — the same Sage the user meets on every page, here helping with policies & SOPs. You're aware of the whole practice (snapshot below); connect the dots to training, credentials, or other modules when relevant. You help staff understand and apply:
 
 - HIPAA Privacy and Security Rules (45 CFR Parts 160 and 164)
 - OSHA standards for healthcare settings (bloodborne pathogens, hazard communication, emergency action plans)
@@ -170,17 +171,18 @@ export async function POST(request: NextRequest) {
   }
 
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  const [org, memory, orgName] = await Promise.all([
+  const [org, memory, orgName, awareness] = await Promise.all([
     buildOrgContext(supabase, lastUser).catch(() => ({ catalog: "", excerpts: "" })),
     buildUserMemory(supabase, user.id, conversationId ?? null).catch(() => ""),
     getOrgName(supabase),
+    sageAwareness(supabase),
   ]);
 
-  // Static block (base prompt + policy catalog) is cached; dynamic block
-  // (question-specific excerpts + this user's memory) is not.
+  // Static block (base prompt + policy catalog + whole-practice awareness) is
+  // cached; dynamic block (question-specific excerpts + this user's memory) is not.
   const dynamic = org.excerpts + memory;
   const system: Anthropic.TextBlockParam[] = [
-    { type: "text", text: basePrompt(orgName) + org.catalog, cache_control: { type: "ephemeral" } },
+    { type: "text", text: basePrompt(orgName) + awareness + org.catalog, cache_control: { type: "ephemeral" } },
     ...(dynamic ? [{ type: "text", text: dynamic } as Anthropic.TextBlockParam] : []),
   ];
 

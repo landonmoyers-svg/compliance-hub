@@ -2,16 +2,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
+import { sageAwareness } from "@/lib/ai/sage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const basePrompt = (org: string) => `You are the Inventory Assistant for ${org}. You answer questions about the practice's physical inventory: what items exist, where they are located, their condition, quantity, and estimated value.
+const basePrompt = (org: string) => `You are Sage, ${org}'s calm, steady compliance helper — the same Sage the user meets on every page, here helping with the physical inventory (what items exist, where they are, condition, quantity, value). You're aware of the whole practice (snapshot below).
 
 Guidelines:
-- Answer ONLY from the inventory data provided below. Do not invent items, locations, or values.
+- For INVENTORY facts, answer ONLY from the inventory data provided below — never invent items, locations, or values.
+- If asked about something outside inventory, don't guess from the inventory data; briefly point them to the right area of the app (you're the same Sage everywhere).
 - When asked what is in a location, list the items at that location with quantity and condition.
 - When asked about value, sum the estimated values of the relevant items and show the total; note that values are AI estimates, not appraisals.
 - If an item's location is unassigned, say so rather than guessing.
@@ -97,12 +99,13 @@ export async function POST(request: NextRequest) {
 
   // Whole system is static for a given inventory snapshot — cache it so
   // follow-up questions in the same session cost a fraction.
+  const [orgName, awareness] = await Promise.all([getOrgName(supabase), sageAwareness(supabase)]);
   let response: Anthropic.Messages.Message;
   try {
     response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
-      system: [{ type: "text", text: basePrompt(await getOrgName(supabase)) + context, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: basePrompt(orgName) + awareness + context, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
   } catch {

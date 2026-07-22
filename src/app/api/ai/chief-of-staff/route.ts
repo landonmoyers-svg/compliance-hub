@@ -2,12 +2,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
+import { sageIdentity, sageAwareness } from "@/lib/ai/sage";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const buildSystem = (org: string) => `You are the Compliance Chief of Staff for the compliance officer of ${org}, a behavioral-health practice. You receive the officer's current prioritized work items (already ranked by risk and urgency) and produce a short, energizing morning briefing that makes them feel in control and a step ahead — never overwhelmed.
+const buildSystem = (org: string) => `${sageIdentity(org, "the compliance officer's prioritized plan (a daily briefing)")}
+
+You receive the officer's current prioritized work items (already ranked by risk and urgency) and produce a short, energizing morning briefing that makes them feel in control and a step ahead — never overwhelmed.
 
 Rules:
 - Be concise: 4–7 sentences total. Lead with what's genuinely urgent (overdue / today), then the smart move for the week.
@@ -34,11 +37,15 @@ export async function POST(request: NextRequest) {
   const lines = items.map((i) => `- [${i.bucket}] (risk ${i.risk}) ${i.title}${i.dueLabel ? ` — ${i.dueLabel}` : ""} — ${i.why}`).join("\n");
   const context = `Today: ${body.today ?? "unknown"}\nOfficer: ${body.name ?? "the compliance officer"}\nStated focus areas: ${body.focusAreas || "none specified"}\nPreferences the officer told you: ${body.agentNotes || "none specified"}\n\nCurrent prioritized work items (${items.length}):\n${lines || "(nothing outstanding)"}`;
 
+  const [orgName, awareness] = await Promise.all([getOrgName(supabase), sageAwareness(supabase)]);
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 640,
-      system: [{ type: "text", text: buildSystem(await getOrgName(supabase)), cache_control: { type: "ephemeral" } }],
+      system: [
+        { type: "text", text: buildSystem(orgName), cache_control: { type: "ephemeral" } },
+        { type: "text", text: awareness },
+      ],
       messages: [{ role: "user", content: context }],
     });
     const text = response.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
