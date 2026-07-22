@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Sparkles, Plus, AlertTriangle, CheckCircle2, Circle, Wand2, X, Save } from "lucide-react";
+import { Sparkles, Plus, AlertTriangle, CheckCircle2, Circle, Wand2, X, Save, ChevronRight, FileText, BookText } from "lucide-react";
+import Link from "next/link";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileLink } from "@/components/shared/file-link";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
-import { formatDate, todayInput, dateInputToISO } from "@/lib/dates";
-import { planCoverage, coverageSummary, EMERGENCY_PLAN_META, type PlanCoverage, type PlanCoverageState } from "@/lib/emergency";
-import { emergencyPlanTypes, emergencyPlanStatuses, type EmergencyPlan, type EmergencyPlanType } from "@/lib/data/schema";
+import { todayInput, dateInputToISO } from "@/lib/dates";
+import {
+  planCoverage, coverageSummary, EMERGENCY_PLAN_META, relatedSops, emergencySopGaps,
+  type PlanCoverage, type PlanCoverageState, type SopState,
+} from "@/lib/emergency";
+import { emergencyPlanTypes, emergencyPlanStatuses, type EmergencyPlan, type EmergencyPlanType, type ComplianceDocument } from "@/lib/data/schema";
 
 const STATE_BADGE: Record<PlanCoverageState, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
   active: { label: "Ready", variant: "success" },
@@ -20,51 +24,86 @@ const STATE_BADGE: Record<PlanCoverageState, { label: string; variant: "success"
   needs_review: { label: "Needs review", variant: "warning" },
   missing: { label: "Missing", variant: "destructive" },
 };
+const SOP_BADGE: Record<SopState, { label: string; variant: "success" | "warning" | "destructive" }> = {
+  present: { label: "On file", variant: "success" },
+  stale: { label: "Past review", variant: "warning" },
+  missing: { label: "Missing", variant: "destructive" },
+};
 
 interface Draft { planType: EmergencyPlanType; title: string; content: string; status: EmergencyPlan["status"]; reviewDate: string; }
 
+/** Gather related-SOP context to ground an AI draft in the practice's own policies. */
+function sopContextFor(planType: EmergencyPlanType, docs: ComplianceDocument[]): string {
+  const related = relatedSops(planType, docs);
+  if (related.length === 0) return "";
+  return related.slice(0, 4).map((d) => `- ${d.title}: ${((d.content ?? d.summary) ?? "").slice(0, 700)}`).join("\n");
+}
+
 export function EmergencyPlansSection() {
   const plansQ = useCollection("emergencyPlans");
+  const docsQ = useCollection("documents");
   const createMut = useCreate("emergencyPlans");
   const updateMut = useUpdate("emergencyPlans");
+  const createDoc = useCreate("documents");
 
   const [editing, setEditing] = useState<EmergencyPlan | Draft | null>(null);
   const [draftingType, setDraftingType] = useState<string | null>(null);
+  const [openType, setOpenType] = useState<Set<string>>(new Set());
+  const [creatingSop, setCreatingSop] = useState<string | null>(null);
 
   const plans = useMemo(() => plansQ.data ?? [], [plansQ.data]);
+  const docs = useMemo(() => docsQ.data ?? [], [docsQ.data]);
   const coverage = useMemo(() => planCoverage(plans), [plans]);
   const summary = useMemo(() => coverageSummary(coverage), [coverage]);
+  const sopGaps = useMemo(() => emergencySopGaps(docs), [docs]);
 
-  /** AI-draft a plan for a missing scenario, then open the editor to review/save. */
+  const toggle = (k: string) => setOpenType((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
   async function draftFor(cov: PlanCoverage) {
     setDraftingType(cov.planType);
     const tId = toast.loading(`Drafting a ${cov.label} plan…`);
     try {
+      const meta = EMERGENCY_PLAN_META[cov.planType];
       const res = await fetch("/api/ai/emergency-guide", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "draft", planType: cov.planType, planLabel: cov.label }),
+        body: JSON.stringify({ mode: "draft", planType: cov.planType, planLabel: cov.label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(cov.planType, docs) }),
       });
       const d = await res.json() as { title?: string; content?: string; error?: string };
       if (!res.ok || !d.content) { toast.error(d.error ?? "Couldn't draft the plan.", { id: tId }); return; }
       toast.success("Draft ready — review and save.", { id: tId });
       setEditing({ planType: cov.planType, title: d.title ?? `${cov.label} Plan`, content: d.content, status: "draft", reviewDate: "" });
-    } catch {
-      toast.error("Couldn't reach the planner.", { id: tId });
-    } finally {
-      setDraftingType(null);
-    }
+    } catch { toast.error("Couldn't reach the planner.", { id: tId }); }
+    finally { setDraftingType(null); }
+  }
+
+  /** Draft an emergency SOP (policy) and save it to the SOP Library. */
+  async function createSop(name: string, citation: string) {
+    setCreatingSop(name);
+    const tId = toast.loading(`Writing "${name}"…`);
+    try {
+      const res = await fetch("/api/ai/draft-document", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: name, documentType: "policy", complianceArea: "emergency", spec: `Behavioral-health practice policy. Cover the applicable rule (${citation}) and the practice's procedures.`, pageTitle: "Emergency Preparedness" }),
+      });
+      const g = await res.json() as { title?: string; content?: string; error?: string };
+      if (!res.ok || !g.content) { toast.error(g.error ?? "Couldn't write the SOP.", { id: tId }); return; }
+      await createDoc.mutateAsync({ title: g.title || name, documentType: "policy", complianceArea: "emergency", content: g.content, status: "draft", accessLevel: "all_staff", version: "1.0", requiresAcknowledgment: false });
+      toast.success("SOP drafted and saved to the SOP Library.", { id: tId });
+      void docsQ.refetch();
+    } catch { toast.error("Couldn't write the SOP.", { id: tId }); }
+    finally { setCreatingSop(null); }
   }
 
   if (plansQ.isLoading) return <Skeleton className="h-40 w-full" />;
 
   return (
     <Card>
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-5 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="size-4 text-primary" /> Emergency plans — AI guide</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Every required scenario should have a written plan with a step-by-step response algorithm. The guide shows what&apos;s covered, drafts missing plans, and reviews existing ones for gaps.
+              Each required scenario shows the rule behind it and what a complete plan must cover. Draft or write plans (with or without AI), and the guide flags which underlying SOPs are missing or overdue.
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={() => setEditing({ planType: "other", title: "", content: "", status: "draft", reviewDate: "" })}>
@@ -83,43 +122,113 @@ export function EmergencyPlansSection() {
           </div>
         </div>
 
-        {/* Gap checklist */}
+        {/* Plan checklist — each row expands to show the rules & requirements */}
         <div className="divide-y divide-border/50">
           {coverage.map((cov) => {
             const badge = STATE_BADGE[cov.state];
             const Icon = cov.state === "active" ? CheckCircle2 : cov.state === "missing" ? Circle : AlertTriangle;
+            const meta = EMERGENCY_PLAN_META[cov.planType];
+            const isOpen = openType.has(cov.planType);
+            const related = relatedSops(cov.planType, docs);
             return (
-              <div key={cov.planType} className="flex items-center gap-3 py-2.5">
-                <Icon className={cn("size-4 shrink-0", cov.state === "active" ? "text-success" : cov.state === "missing" ? "text-muted-foreground" : "text-warning")} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{cov.label}</span>
-                    {!cov.required && <Badge variant="secondary">Optional</Badge>}
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">{cov.plan?.title ?? cov.why}</p>
+              <div key={cov.planType} className="py-1">
+                <div className="flex items-center gap-2 py-1.5">
+                  <button type="button" onClick={() => toggle(cov.planType)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                    <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+                    <Icon className={cn("size-4 shrink-0", cov.state === "active" ? "text-success" : cov.state === "missing" ? "text-muted-foreground" : "text-warning")} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{cov.label}</span>
+                        {!cov.required && <Badge variant="secondary">Optional</Badge>}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">{cov.plan?.title ?? cov.why}</p>
+                    </div>
+                  </button>
+                  <Badge variant={badge.variant}>{badge.label}</Badge>
+                  {cov.plan ? (
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(cov.plan!)}>Open</Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={draftingType === cov.planType} onClick={() => void draftFor(cov)}>
+                      <Wand2 className="size-3.5" /> {draftingType === cov.planType ? "Drafting…" : "Draft with AI"}
+                    </Button>
+                  )}
                 </div>
-                <Badge variant={badge.variant}>{badge.label}</Badge>
-                {cov.plan ? (
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(cov.plan!)}>Open</Button>
-                ) : (
-                  <Button size="sm" variant="outline" disabled={draftingType === cov.planType} onClick={() => void draftFor(cov)}>
-                    <Wand2 className="size-3.5" /> {draftingType === cov.planType ? "Drafting…" : "Draft with AI"}
-                  </Button>
+
+                {isOpen && (
+                  <div className="ml-6 space-y-3 border-l border-border/60 pl-4 pb-3 text-sm">
+                    {meta?.citations.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground">Rules</div>
+                        <div className="mt-0.5 flex flex-wrap gap-1.5">{meta.citations.map((c) => <Badge key={c} variant="outline">{c}</Badge>)}</div>
+                      </div>
+                    )}
+                    {meta?.requiredElements.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground">A complete plan must cover</div>
+                        <ul className="mt-1 grid gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
+                          {meta.requiredElements.map((e) => <li key={e} className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 size-3 shrink-0 text-muted-foreground/60" /> {e}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground">Related SOPs {related.length > 0 ? `(${related.length})` : ""}</div>
+                      {related.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5">
+                          {related.map((d) => (
+                            <li key={d.id} className="flex items-center gap-1.5 text-xs">
+                              <FileText className="size-3 shrink-0 text-muted-foreground" />
+                              <Link href="/sop-library" className="text-primary hover:underline">{d.title}</Link>
+                              {d.fileUrl && <FileLink path={d.fileUrl} iconOnly label="Open file" className="text-muted-foreground hover:text-primary" />}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-muted-foreground">No matching SOP on file — the guide can draft one below, and AI drafts pull in any related SOP content.</p>
+                      )}
+                    </div>
+                    {cov.plan && <Button size="sm" variant="ghost" onClick={() => setEditing(cov.plan!)}>Open plan →</Button>}
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* Any extra/custom plans not in the required set already show above via coverage. */}
-        {plans.some((p) => p.fileUrl) && (
-          <div className="text-xs text-muted-foreground">Plans with an attached file show a document link in the editor.</div>
-        )}
+        {/* Required emergency SOPs — what policy documents should back the plans */}
+        <div className="rounded-lg border border-border">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <BookText className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Required emergency SOPs</span>
+            <span className="text-xs text-muted-foreground">policies that should back these plans</span>
+          </div>
+          <div className="divide-y divide-border/50">
+            {sopGaps.map(({ sop, state, doc }) => {
+              const b = SOP_BADGE[state];
+              return (
+                <div key={sop.key} className="flex items-center gap-2 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm">{doc?.title ?? sop.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{sop.citation}</div>
+                  </div>
+                  <Badge variant={b.variant}>{b.label}</Badge>
+                  {state === "missing" ? (
+                    <Button size="sm" variant="outline" disabled={creatingSop === sop.name} onClick={() => void createSop(sop.name, sop.citation)}>
+                      <Wand2 className="size-3.5" /> {creatingSop === sop.name ? "Writing…" : "Create SOP"}
+                    </Button>
+                  ) : (
+                    <Link href="/sop-library"><Button size="sm" variant="ghost">{state === "stale" ? "Update" : "Open"}</Button></Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </CardContent>
 
       {editing && (
         <PlanEditor
           initial={editing}
+          docs={docs}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void plansQ.refetch(); }}
           createMut={createMut}
@@ -134,8 +243,9 @@ function isExisting(p: EmergencyPlan | Draft): p is EmergencyPlan {
   return "id" in p;
 }
 
-function PlanEditor({ initial, onClose, onSaved, createMut, updateMut }: {
+function PlanEditor({ initial, docs, onClose, onSaved, createMut, updateMut }: {
   initial: EmergencyPlan | Draft;
+  docs: ComplianceDocument[];
   onClose: () => void;
   onSaved: () => void;
   createMut: ReturnType<typeof useCreate<"emergencyPlans">>;
@@ -151,13 +261,14 @@ function PlanEditor({ initial, onClose, onSaved, createMut, updateMut }: {
   const [busyAi, setBusyAi] = useState<"draft" | "review" | null>(null);
   const [review, setReview] = useState<{ completeness?: number; summary?: string; gaps?: string[]; suggestions?: string[] } | null>(null);
 
-  const label = EMERGENCY_PLAN_META[planType]?.label ?? planType;
+  const meta = EMERGENCY_PLAN_META[planType];
+  const label = meta?.label ?? planType;
 
   async function aiDraft() {
     setBusyAi("draft");
     const tId = toast.loading("Drafting the plan…");
     try {
-      const res = await fetch("/api/ai/emergency-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "draft", planType, planLabel: label }) });
+      const res = await fetch("/api/ai/emergency-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "draft", planType, planLabel: label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(planType, docs) }) });
       const d = await res.json() as { title?: string; content?: string; error?: string };
       if (!res.ok || !d.content) { toast.error(d.error ?? "Draft failed.", { id: tId }); return; }
       setContent(d.content);
@@ -199,6 +310,8 @@ function PlanEditor({ initial, onClose, onSaved, createMut, updateMut }: {
     } finally { setSaving(false); }
   }
 
+  const related = relatedSops(planType, docs);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -222,6 +335,23 @@ function PlanEditor({ initial, onClose, onSaved, createMut, updateMut }: {
               </select>
             </div>
           </div>
+
+          {/* Rules & requirements reference for the selected scenario */}
+          {(meta?.citations.length > 0 || meta?.requiredElements.length > 0) && (
+            <div className="rounded-lg border border-border bg-secondary/20 p-3 text-xs">
+              {meta.citations.length > 0 && <div className="mb-1.5"><span className="font-semibold text-muted-foreground">Rules: </span>{meta.citations.join(" · ")}</div>}
+              {meta.requiredElements.length > 0 && (
+                <div>
+                  <span className="font-semibold text-muted-foreground">Must cover: </span>
+                  <span className="text-muted-foreground">{meta.requiredElements.join(" · ")}</span>
+                </div>
+              )}
+              {related.length > 0 && (
+                <div className="mt-1.5"><span className="font-semibold text-muted-foreground">Related SOPs pulled in: </span><span className="text-muted-foreground">{related.slice(0, 4).map((d) => d.title).join(", ")}</span></div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-medium text-muted-foreground">Title</label>
             <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${label} Emergency Response Plan`} />
@@ -268,12 +398,9 @@ function PlanEditor({ initial, onClose, onSaved, createMut, updateMut }: {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
-          <span className="text-xs text-muted-foreground">{existing ? "" : "Saving files to Emergency Preparedness."}</span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void save()} disabled={saving}><Save className="size-4" /> {saving ? "Saving…" : "Save plan"}</Button>
-          </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={() => void save()} disabled={saving}><Save className="size-4" /> {saving ? "Saving…" : "Save plan"}</Button>
         </div>
       </div>
     </div>

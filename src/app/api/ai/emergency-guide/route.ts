@@ -46,8 +46,14 @@ export async function POST(request: NextRequest) {
     planType?: string;
     planLabel?: string;
     content?: string;
+    requiredElements?: string[];
+    citations?: string[];
+    sopContext?: string; // titles + excerpts of the practice's related SOPs
   };
   const orgName = await getOrgName(supabase);
+  const reqs = body.requiredElements?.length ? `\n\nThis plan MUST cover these required elements: ${body.requiredElements.join("; ")}.` : "";
+  const cites = body.citations?.length ? `\nApplicable rules: ${body.citations.join("; ")}.` : "";
+  const sops = body.sopContext ? `\n\nAlign with the practice's EXISTING related policies (reference and stay consistent with them; don't contradict):\n${body.sopContext.slice(0, 6000)}` : "";
 
   try {
     if (body.mode === "review") {
@@ -66,7 +72,7 @@ export async function POST(request: NextRequest) {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2400,
       system: DRAFT_SYSTEM,
-      messages: [{ role: "user", content: `Practice: ${orgName} (behavioral-health outpatient clinic in Utah).\nWrite the emergency plan for this scenario: ${body.planLabel ?? body.planType}.\n\nReturn the JSON with title and full markdown content.` }],
+      messages: [{ role: "user", content: `Practice: ${orgName} (behavioral-health outpatient clinic in Utah).\nWrite the emergency plan for this scenario: ${body.planLabel ?? body.planType}.${cites}${reqs}${sops}\n\nReturn the JSON with title and full markdown content.` }],
     });
     return NextResponse.json(parseJson(res));
   } catch {
