@@ -11,9 +11,7 @@ const SYSTEM = `You write a complete, practice-ready COMPLIANCE DOCUMENT for a b
 
 Ground it in the applicable framework (HIPAA, OSHA, CMS, OIG, or state rules) for the topic. Be specific and operational: real roles, thresholds, and steps, not platitudes. Use placeholders like "[main line]" or "[Security Official]" for details the practice fills in — never invent addresses, names, or numbers.
 
-Return ONLY valid JSON: {"title": string, "content": string}
-- "title": a clear document title.
-- "content": GitHub-flavored MARKDOWN. Structure appropriately for the document type — typically: Purpose & Scope; Policy/Procedure; Roles & Responsibilities; step-by-step procedure (numbered); references/citations; review cadence. For a checklist, use checkbox lists. Keep it thorough but scannable.`;
+Return the document as GitHub-flavored MARKDOWN ONLY — no JSON, no code fences, no preamble. The FIRST line MUST be a single H1 title (e.g. "# Fire Safety & Evacuation Policy"). Then structure appropriately for the document type — typically: Purpose & Scope; Policy/Procedure; Roles & Responsibilities; step-by-step procedure (numbered); references/citations; review cadence. For a checklist, use checkbox lists. Keep it thorough but scannable.`;
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -39,11 +37,13 @@ ${body.complianceArea ? `Compliance area: ${body.complianceArea}` : ""}
 ${body.spec && body.title ? `Details: ${body.spec}` : ""}
 ${body.pageTitle ? `Context: requested from the ${body.pageTitle} page.` : ""}
 
-Return the JSON with title and full markdown content.` }],
+Return the markdown document now (H1 title first).` }],
     });
-    const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
-    const match = raw.match(/\{[\s\S]*\}/);
-    return NextResponse.json(JSON.parse(match ? match[0] : raw));
+    // Plain markdown (robust — large documents can't break JSON parsing).
+    let raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("").trim();
+    raw = raw.replace(/^```(?:markdown|md)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    const m = raw.match(/^#\s+(.+?)\s*$/m);
+    return NextResponse.json({ title: (m?.[1] ?? body.title ?? "New document").trim(), content: raw });
   } catch {
     return NextResponse.json({ error: "The document writer is temporarily unavailable — please try again." }, { status: 502 });
   }

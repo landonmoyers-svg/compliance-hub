@@ -11,9 +11,7 @@ const DRAFT_SYSTEM = `You are an emergency-preparedness planner for a behavioral
 
 Ground the plan in the CMS Emergency Preparedness Rule core elements (risk assessment, communication plan, policies & procedures, training & testing), OSHA, and behavioral-health specifics (patient crisis, de-escalation, elopement, workplace violence). Be specific and operational — real roles, thresholds, and steps, not platitudes.
 
-Return ONLY valid JSON: {"title": string, "content": string}
-- "title": a clear plan title (e.g. "Fire & Smoke Emergency Response Plan").
-- "content": GitHub-flavored MARKDOWN with these sections, in order:
+Return the plan as GitHub-flavored MARKDOWN ONLY — no JSON, no code fences, no preamble. The FIRST line MUST be a single H1 title, e.g. "# Fire & Smoke Emergency Response Plan". Then the sections below, in order:
   1. "## Purpose & Scope"
   2. "## Roles & Responsibilities" (name roles: Incident Lead, Safety Officer, Clinical Lead, Front Desk — not individuals)
   3. "## Prevention & Preparedness" (equipment, signage, supplies, training cadence)
@@ -72,14 +70,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(parseJson(res));
     }
 
-    // draft
+    // draft — return plain markdown (robust; large plans can't break JSON parsing)
     const res = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2400,
       system: DRAFT_SYSTEM,
-      messages: [{ role: "user", content: `Practice: ${orgName} (behavioral-health outpatient clinic in Utah).\nWrite the emergency plan for this scenario: ${body.planLabel ?? body.planType}.${cites}${reqs}${sops}\n\nReturn the JSON with title and full markdown content.` }],
+      messages: [{ role: "user", content: `Practice: ${orgName} (behavioral-health outpatient clinic in Utah).\nWrite the emergency plan for this scenario: ${body.planLabel ?? body.planType}.${cites}${reqs}${sops}\n\nReturn the markdown plan now (H1 title first).` }],
     });
-    return NextResponse.json(parseJson(res));
+    return NextResponse.json(parseMarkdown(res, `${body.planLabel ?? body.planType} Emergency Response Plan`));
   } catch {
     return NextResponse.json({ error: "The planner is temporarily unavailable — please try again." }, { status: 502 });
   }
@@ -89,4 +87,13 @@ function parseJson(res: Anthropic.Messages.Message): unknown {
   const raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
   const match = raw.match(/\{[\s\S]*\}/);
   return JSON.parse(match ? match[0] : raw);
+}
+
+/** Parse a plain-markdown reply into { title, content }. Strips any accidental
+ *  code fence; the title is the first H1 line (falls back to the given default). */
+function parseMarkdown(res: Anthropic.Messages.Message, fallbackTitle: string): { title: string; content: string } {
+  let raw = res.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("").trim();
+  raw = raw.replace(/^```(?:markdown|md)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  const m = raw.match(/^#\s+(.+?)\s*$/m);
+  return { title: (m?.[1] ?? fallbackTitle).trim(), content: raw };
 }

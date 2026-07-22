@@ -78,11 +78,18 @@ export function EmergencyScenarios({ onScheduleDrill }: { onScheduleDrill?: (lab
 
   async function buildFromSops() {
     const candidates = statuses.filter((s) => !s.plan && s.sops.length > 0);
-    if (candidates.length === 0) { toast.info("No un-built scenario has a matching SOP on file yet."); return; }
-    if (!window.confirm(`Analyze your SOPs and build ${candidates.length} plan${candidates.length === 1 ? "" : "s"} from them? Each is saved as a draft to review.`)) return;
+    if (candidates.length === 0) {
+      const anySops = statuses.some((s) => s.sops.length > 0);
+      toast.info(anySops
+        ? "Every scenario with a matching SOP already has a plan. Open one to draft from scratch."
+        : "No SOP on file matches an emergency scenario yet. Add SOPs to the SOP Library, or open a scenario and use “Draft”.");
+      return;
+    }
+    if (!window.confirm(`Build ${candidates.length} plan${candidates.length === 1 ? "" : "s"} from your matching SOPs? Each is saved as a DRAFT in the scenario list below for you to review.`)) return;
     setBuildingAll(true);
     const tId = toast.loading(`Building 0/${candidates.length} from SOPs…`);
     let made = 0;
+    let lastError = "";
     try {
       for (const s of candidates) {
         const meta = EMERGENCY_PLAN_META[s.planType];
@@ -92,12 +99,19 @@ export function EmergencyScenarios({ onScheduleDrill }: { onScheduleDrill?: (lab
             body: JSON.stringify({ mode: "draft", planType: s.planType, planLabel: s.label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(s.planType, docs, 2400), fromSops: true }),
           });
           if (res.status === 429) { toast.error("Daily AI limit reached — stopping.", { id: tId }); break; }
-          const d = await res.json() as { title?: string; content?: string };
-          if (res.ok && d.content) { await createMut.mutateAsync({ title: d.title ?? `${s.label} Plan`, planType: s.planType, content: d.content, status: "draft", reviewDate: null }); made++; }
-        } catch { /* skip */ }
+          const d = await res.json() as { title?: string; content?: string; error?: string };
+          if (res.ok && d.content) {
+            await createMut.mutateAsync({ title: d.title ?? `${s.label} Plan`, planType: s.planType, content: d.content, status: "draft", reviewDate: null });
+            made++;
+            void plansQ.refetch(); // surface each plan as it lands
+          } else {
+            lastError = d.error ?? `Sage didn't return a plan for ${s.label}.`;
+          }
+        } catch (e) { lastError = e instanceof Error ? e.message : "Network error."; }
         toast.loading(`Building ${made}/${candidates.length} from SOPs…`, { id: tId });
       }
-      toast.success(`Built ${made} plan${made === 1 ? "" : "s"} from your SOPs — review each.`, { id: tId });
+      if (made > 0) toast.success(`Built ${made} plan${made === 1 ? "" : "s"} — they're in the scenario list below as drafts. Review & activate each.`, { id: tId });
+      else toast.error(`Couldn't build any plans. ${lastError || "Try opening a scenario and using “Draft”."}`, { id: tId });
       void plansQ.refetch();
     } finally { setBuildingAll(false); }
   }
@@ -159,8 +173,11 @@ export function EmergencyScenarios({ onScheduleDrill }: { onScheduleDrill?: (lab
       <Card>
         <CardContent className="p-0">
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <div className="text-sm font-semibold">Emergency scenarios</div>
-            <div className="flex gap-2">
+            <div>
+              <div className="text-sm font-semibold">Emergency scenarios</div>
+              <div className="text-xs text-muted-foreground">Each scenario&apos;s plan lives here. Open one to write or edit it; “Build from SOPs” turns matching policies into draft plans below.</div>
+            </div>
+            <div className="flex shrink-0 gap-2">
               <Button size="sm" variant="outline" disabled={buildingAll} onClick={() => void buildFromSops()}>
                 <BookText className="size-4" /> {buildingAll ? "Building…" : "Build from SOPs"}
               </Button>
