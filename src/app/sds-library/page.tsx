@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload, Printer, Database } from "lucide-react";
+import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload, Printer, Database, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { PageHeader } from "@/components/shared/page-header";
@@ -56,6 +56,17 @@ const EMPTY: SDSForm = {
   productName: "", manufacturer: "", upc: "", casNumber: "", signalWord: "NONE", status: "active",
   hazardSummary: "", hazardStatements: "", firstAid: "", handling: "", ppe: "", revisionDate: "", fileUrl: "",
 };
+
+/** Deep-link to the CPID consumer-product SDS database (whatsinproducts.com) for
+ *  a product. It has no GET search endpoint, so we scope a web search to the
+ *  site, which reliably lands on the product's SDS page. */
+function cpidSearchUrl(product: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(`site:whatsinproducts.com ${product} SDS`)}`;
+}
+function openCpid(product: string) {
+  if (!product.trim()) { toast.error("Enter a product name first."); return; }
+  window.open(cpidSearchUrl(product.trim()), "_blank", "noopener,noreferrer");
+}
 
 interface LookupResult {
   productName: string;
@@ -216,7 +227,10 @@ function AILookupDialog({
                   onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) void lookup(); }}
                   autoFocus
                 />
-                <p className="text-xs text-muted-foreground">Pulls the authoritative GHS hazard classification (signal word + H-statements) from PubChem (NIH). Best for chemicals and CAS numbers; branded consumer products may not be listed — use AI lookup for those.</p>
+                <p className="text-xs text-muted-foreground">Pulls the authoritative GHS hazard classification (signal word + H-statements) from PubChem (NIH). Best for chemicals and CAS numbers.</p>
+                <button type="button" onClick={() => openCpid(nameInput)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ExternalLink className="size-3" /> Branded consumer product? Find its SDS on CPID (whatsinproducts.com)
+                </button>
               </div>
             </div>
           )}
@@ -453,6 +467,11 @@ function SDSDialog({
             </div>
             {form.fileUrl && !file && <FileLink path={form.fileUrl} label="Current SDS file" className="text-primary hover:underline" />}
             <p className="text-xs text-muted-foreground">Upload the manufacturer&apos;s Safety Data Sheet so the real document is on file (OSHA HazCom).</p>
+            {!form.fileUrl && !file && (
+              <button type="button" onClick={() => openCpid(form.productName)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                <ExternalLink className="size-3" /> Don&apos;t have it? Find this product&apos;s SDS on CPID (whatsinproducts.com)
+              </button>
+            )}
           </div>
         </div>
 
@@ -721,6 +740,11 @@ export default function SDSLibraryPage() {
                       </td>
                       <td data-label="" className="py-3">
                         <div className="flex items-center gap-1 md:justify-end">
+                          {!r.fileUrl && (
+                            <Button size="sm" variant="ghost" title="Find the SDS PDF on CPID (whatsinproducts.com)" onClick={() => openCpid(r.productName)}>
+                              <ExternalLink className="size-4" />
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" title="Print full MSDS" onClick={() => { if (!openSdsSheet(r)) toast.error("Allow pop-ups to print the MSDS."); }}>
                             <Printer className="size-4" />
                           </Button>
