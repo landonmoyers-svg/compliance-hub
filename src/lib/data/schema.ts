@@ -248,6 +248,15 @@ export const SDSRecord = z.object({
   upc: z.string().optional(),
   signalWord: z.enum(["DANGER", "WARNING", "CAUTION", "NONE"]).default("NONE"),
   status: z.enum(["active", "missing", "needs_review", "archived"]).default("active"),
+  // The actual SDS content (from AI lookup or manual entry) + the real SDS document.
+  casNumber: z.string().nullable().optional(),
+  hazardSummary: z.string().nullable().optional(),
+  hazardStatements: z.string().nullable().optional(), // GHS H-statements / key hazards
+  firstAid: z.string().nullable().optional(),
+  handling: z.string().nullable().optional(),         // handling & storage
+  ppe: z.string().nullable().optional(),              // required PPE
+  revisionDate: z.string().nullable().optional(),
+  fileUrl: z.string().nullable().optional(),          // uploaded SDS PDF
 });
 export type SDSRecord = z.infer<typeof SDSRecord>;
 

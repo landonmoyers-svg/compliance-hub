@@ -21,15 +21,20 @@ export async function POST(request: NextRequest) {
   }
 
   const systemPrompt = `You are an expert in chemical safety and OSHA Hazard Communication (HazCom).
-Given a product UPC, barcode, or image of a product label, identify the chemical product and return its Safety Data Sheet (SDS) information.
+Given a product UPC, barcode, or image of a product label, identify the chemical product and return its Safety Data Sheet (SDS) information — the practical, actionable content of the SDS.
 
 Return ONLY valid JSON with these exact fields:
 {
   "productName": "exact product name",
   "manufacturer": "manufacturer name",
-  "upc": "UPC or product code if known",
+  "upc": "UPC or product code if known, else empty string",
+  "casNumber": "primary CAS number if applicable, else empty string",
   "signalWord": "DANGER" | "WARNING" | "CAUTION" | "NONE",
-  "hazardSummary": "brief description of main hazards (1-2 sentences)",
+  "hazardSummary": "1-2 sentence plain-language summary of the main hazards",
+  "hazardStatements": "the key GHS hazard (H) statements, one per line (e.g. 'H225 Highly flammable liquid and vapor'). Empty string if non-hazardous.",
+  "firstAid": "concise first-aid measures by route (eyes / skin / inhalation / ingestion), one per line",
+  "handling": "key handling & storage precautions, one per line",
+  "ppe": "recommended personal protective equipment (e.g. 'Gloves; safety glasses; ventilation')",
   "confidence": "high" | "medium" | "low"
 }
 
@@ -39,8 +44,7 @@ Signal word rules:
 - CAUTION: slightly hazardous (minor irritants)
 - NONE: non-hazardous
 
-If you cannot identify the product with reasonable confidence, return confidence: "low" and your best guess.
-Return only the JSON object, no other text.`;
+Base the content on the standard, well-established SDS for this product/chemical. If a field genuinely doesn't apply, use an empty string. Do NOT invent a CAS number or precise values you're unsure of — leave uncertain fields empty and set confidence accordingly. If you cannot identify the product, set confidence "low" with your best guess. Return only the JSON object, no other text.`;
 
   try {
     let messageContent: Anthropic.MessageParam["content"];
@@ -77,15 +81,7 @@ Return only the JSON object, no other text.`;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
 
-    const result = JSON.parse(jsonMatch[0]) as {
-      productName: string;
-      manufacturer: string;
-      upc: string;
-      signalWord: string;
-      hazardSummary: string;
-      confidence: string;
-    };
-
+    const result = JSON.parse(jsonMatch[0]) as Record<string, string>;
     return NextResponse.json(result);
   } catch (err) {
     console.error("SDS lookup error:", err);

@@ -14,6 +14,8 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -37,18 +39,34 @@ interface SDSForm {
   productName: string;
   manufacturer: string;
   upc: string;
+  casNumber: string;
   signalWord: SDSRecord["signalWord"];
   status: SDSRecord["status"];
+  hazardSummary: string;
+  hazardStatements: string;
+  firstAid: string;
+  handling: string;
+  ppe: string;
+  revisionDate: string;
+  fileUrl: string;
 }
 
-const EMPTY: SDSForm = { productName: "", manufacturer: "", upc: "", signalWord: "NONE", status: "active" };
+const EMPTY: SDSForm = {
+  productName: "", manufacturer: "", upc: "", casNumber: "", signalWord: "NONE", status: "active",
+  hazardSummary: "", hazardStatements: "", firstAid: "", handling: "", ppe: "", revisionDate: "", fileUrl: "",
+};
 
 interface LookupResult {
   productName: string;
   manufacturer: string;
   upc: string;
+  casNumber?: string;
   signalWord: string;
   hazardSummary: string;
+  hazardStatements?: string;
+  firstAid?: string;
+  handling?: string;
+  ppe?: string;
   confidence: "high" | "medium" | "low";
 }
 
@@ -251,12 +269,32 @@ function SDSDialog({
 }) {
   const [form, setForm] = useState<SDSForm>(
     initial
-      ? { productName: initial.productName, manufacturer: initial.manufacturer ?? "", upc: initial.upc ?? "", signalWord: initial.signalWord, status: initial.status }
+      ? {
+          productName: initial.productName, manufacturer: initial.manufacturer ?? "", upc: initial.upc ?? "",
+          casNumber: initial.casNumber ?? "", signalWord: initial.signalWord, status: initial.status,
+          hazardSummary: initial.hazardSummary ?? "", hazardStatements: initial.hazardStatements ?? "",
+          firstAid: initial.firstAid ?? "", handling: initial.handling ?? "", ppe: initial.ppe ?? "",
+          revisionDate: initial.revisionDate ?? "", fileUrl: initial.fileUrl ?? "",
+        }
       : { ...EMPTY, ...prefill },
   );
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const set = (k: keyof SDSForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof SDSForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  async function handleSaveClick() {
+    let fileUrl = form.fileUrl;
+    if (file) {
+      setUploading(true);
+      try { fileUrl = await uploadFile(file, "sds"); }
+      catch { toast.error("SDS file upload failed."); setUploading(false); return; }
+      setUploading(false);
+    }
+    onSave({ ...form, fileUrl });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -290,9 +328,15 @@ function SDSDialog({
             <label className="text-sm font-medium">Manufacturer</label>
             <input className="input w-full" value={form.manufacturer} onChange={set("manufacturer")} placeholder="Manufacturer name" />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">UPC / Product ID</label>
-            <input className="input w-full" value={form.upc} onChange={set("upc")} placeholder="Barcode or product ID" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">UPC / Product ID</label>
+              <input className="input w-full" value={form.upc} onChange={set("upc")} placeholder="Barcode or product ID" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">CAS number</label>
+              <input className="input w-full" value={form.casNumber} onChange={set("casNumber")} placeholder="e.g. 64-17-5" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -313,12 +357,55 @@ function SDSDialog({
               </select>
             </div>
           </div>
+
+          {/* The actual SDS content */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Hazard summary</label>
+            <textarea className="input w-full" rows={2} value={form.hazardSummary} onChange={set("hazardSummary")} placeholder="Main hazards in plain language" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Hazard (H) statements</label>
+            <textarea className="input w-full" rows={2} value={form.hazardStatements} onChange={set("hazardStatements")} placeholder="e.g. H225 Highly flammable liquid and vapor" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">First aid</label>
+            <textarea className="input w-full" rows={2} value={form.firstAid} onChange={set("firstAid")} placeholder="Eyes / skin / inhalation / ingestion" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Handling & storage</label>
+              <textarea className="input w-full" rows={2} value={form.handling} onChange={set("handling")} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">PPE</label>
+              <textarea className="input w-full" rows={2} value={form.ppe} onChange={set("ppe")} placeholder="Gloves; safety glasses; ventilation" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">SDS revision date</label>
+            <input type="date" className="input w-full" value={form.revisionDate} onChange={set("revisionDate")} />
+          </div>
+
+          {/* The actual SDS document */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Actual SDS document (PDF)</label>
+            <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ""; }} />
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                <Upload className="size-4" /> {file ? file.name : (form.fileUrl ? "Replace SDS file" : "Attach SDS file")}
+              </Button>
+              {file && <button onClick={() => setFile(null)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
+            </div>
+            {form.fileUrl && !file && <FileLink path={form.fileUrl} label="Current SDS file" className="text-primary hover:underline" />}
+            <p className="text-xs text-muted-foreground">Upload the manufacturer&apos;s Safety Data Sheet so the real document is on file (OSHA HazCom).</p>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.productName.trim() || saving}>
-            {saving ? "Saving…" : <><Check className="size-3" /> Save</>}
+          <Button variant="outline" onClick={onClose} disabled={saving || uploading}>Cancel</Button>
+          <Button onClick={() => void handleSaveClick()} disabled={!form.productName.trim() || saving || uploading}>
+            {uploading ? "Uploading…" : saving ? "Saving…" : <><Check className="size-3" /> Save</>}
           </Button>
         </div>
       </div>
@@ -376,14 +463,22 @@ export default function SDSLibraryPage() {
         productName: result.productName ?? "",
         manufacturer: result.manufacturer ?? "",
         upc: result.upc ?? "",
+        casNumber: result.casNumber ?? "",
         signalWord,
         status: "active",
+        hazardSummary: result.hazardSummary ?? "",
+        hazardStatements: result.hazardStatements ?? "",
+        firstAid: result.firstAid ?? "",
+        handling: result.handling ?? "",
+        ppe: result.ppe ?? "",
+        revisionDate: "",
+        fileUrl: "",
       },
       hazardSummary: result.hazardSummary ?? "",
       confidence: result.confidence ?? "medium",
     });
     setEditing("new");
-    toast.success("Product identified — review and save");
+    toast.success("SDS details filled in — review, attach the SDS PDF, and save");
   }
 
   async function handleSave(form: SDSForm) {
@@ -393,8 +488,16 @@ export default function SDSLibraryPage() {
         productName: form.productName.trim(),
         manufacturer: form.manufacturer.trim() || undefined,
         upc: form.upc.trim() || undefined,
+        casNumber: form.casNumber.trim() || null,
         signalWord: form.signalWord,
         status: form.status,
+        hazardSummary: form.hazardSummary.trim() || null,
+        hazardStatements: form.hazardStatements.trim() || null,
+        firstAid: form.firstAid.trim() || null,
+        handling: form.handling.trim() || null,
+        ppe: form.ppe.trim() || null,
+        revisionDate: form.revisionDate || null,
+        fileUrl: form.fileUrl || null,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -521,6 +624,7 @@ export default function SDSLibraryPage() {
                     <SortHeader label="Manufacturer" sortKey="manufacturer" sort={sort} onToggle={toggle} />
                     <SortHeader label="UPC / ID" sortKey="upc" sort={sort} onToggle={toggle} />
                     <SortHeader label="Signal" sortKey="signal" sort={sort} onToggle={toggle} />
+                    <th className="pb-2 font-medium">SDS</th>
                     <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
@@ -536,6 +640,15 @@ export default function SDSLibraryPage() {
                           <Badge variant={SIGNAL_VARIANT[r.signalWord]}>{r.signalWord}</Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td data-label="SDS" className="py-3 pr-4">
+                        {r.fileUrl ? (
+                          <FileLink path={r.fileUrl} label="View SDS" className="inline-flex items-center gap-1 text-primary hover:underline" />
+                        ) : (r.hazardSummary || r.hazardStatements) ? (
+                          <span className="text-xs text-muted-foreground">Details · no PDF</span>
+                        ) : (
+                          <span className="text-xs text-warning">Not on file</span>
                         )}
                       </td>
                       <td data-label="Status" className="py-3 pr-4">

@@ -385,6 +385,14 @@ function sdsFrom(r: Record<string, unknown>): SDSRecord {
     upc: r.upc as string | undefined,
     signalWord: r.signal_word as SDSRecord["signalWord"],
     status: r.status as SDSRecord["status"],
+    casNumber: r.cas_number as string | undefined,
+    hazardSummary: r.hazard_summary as string | undefined,
+    hazardStatements: r.hazard_statements as string | undefined,
+    firstAid: r.first_aid as string | undefined,
+    handling: r.handling as string | undefined,
+    ppe: r.ppe as string | undefined,
+    revisionDate: r.revision_date as string | undefined,
+    fileUrl: r.file_url as string | undefined,
   };
 }
 function sdsTo(d: Partial<SDSRecord>) {
@@ -394,6 +402,14 @@ function sdsTo(d: Partial<SDSRecord>) {
     ...(d.upc !== undefined && { upc: d.upc }),
     ...(d.signalWord !== undefined && { signal_word: d.signalWord }),
     ...(d.status !== undefined && { status: d.status }),
+    ...(d.casNumber !== undefined && { cas_number: d.casNumber }),
+    ...(d.hazardSummary !== undefined && { hazard_summary: d.hazardSummary }),
+    ...(d.hazardStatements !== undefined && { hazard_statements: d.hazardStatements }),
+    ...(d.firstAid !== undefined && { first_aid: d.firstAid }),
+    ...(d.handling !== undefined && { handling: d.handling }),
+    ...(d.ppe !== undefined && { ppe: d.ppe }),
+    ...(d.revisionDate !== undefined && { revision_date: d.revisionDate }),
+    ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
   };
 }
 
