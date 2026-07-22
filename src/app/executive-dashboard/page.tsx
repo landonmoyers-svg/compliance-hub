@@ -25,9 +25,9 @@ import {
   bySoonest,
   computeComplianceScore,
   credentialStatus,
-  scoreBand,
 } from "@/lib/compliance";
 import { staffRequirementStats } from "@/lib/credential-requirements";
+import { ComplianceProgressCard } from "@/components/shared/compliance-progress-card";
 
 const CHART = {
   primary: "hsl(210 100% 56%)",
@@ -172,7 +172,8 @@ export default function ExecutiveDashboardPage() {
       }),
     [tasks, credentials, training, documents, risk, insurance, employees, screenings],
   );
-  const band = scoreBand(score.score);
+  // Same "configured" gate as Home so the progress card matches exactly.
+  const configured = credentials.length + training.length + tasks.length + risk.length > 0;
 
   // Credential status distribution (derived from expiration dates).
   const credSegments = useMemo(() => {
@@ -319,33 +320,11 @@ export default function ExecutiveDashboardPage() {
         }
       />
 
-      {/* Health + key metrics */}
+      {/* Progress + key metrics — same gamified card as the home dashboard */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">
-              Compliance health
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading ? (
-              <Skeleton className="h-12 w-28" />
-            ) : (
-              <div className="flex items-end gap-3">
-                <span className="text-5xl font-semibold tabular-nums">{score.score}</span>
-                <Badge variant={band.tone} className="mb-1.5">
-                  {band.label}
-                </Badge>
-              </div>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {score.criticalCount} critical · {score.highCount} high-priority items
-              across the organization.
-            </p>
-          </CardContent>
-        </Card>
+        <ComplianceProgressCard score={score} loading={loading} configured={configured} />
 
-        <div className="grid grid-cols-2 gap-4 lg:col-span-2">
+        <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:auto-rows-min">
           <StatCard label="Active employees" value={activeEmployees} icon={Users} loading={loading} />
           <StatCard label="Open risk cases" value={openRisk.length} icon={ShieldAlert} tone={openRisk.length ? "warning" : "default"} loading={loading} />
           <StatCard label="Documents under review" value={docsUnderReview} icon={FileText} loading={loading} />

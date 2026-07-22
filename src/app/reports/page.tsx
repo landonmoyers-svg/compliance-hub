@@ -16,6 +16,7 @@ import {
   buildHolderIndex,
   holderIsActive, credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
 import { staffRequirementStats } from "@/lib/credential-requirements";
+import { ComplianceProgressCard } from "@/components/shared/compliance-progress-card";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
@@ -55,6 +56,8 @@ export default function ReportsPage() {
     () => computeComplianceScore({ tasks, credentials, trainingAssignments: training, documents, riskCases: risk, insurancePolicies, requirements: staffRequirementStats(employees, credentials, insurancePolicies), employees, exclusionScreenings: screenings }),
     [tasks, credentials, training, documents, risk, insurancePolicies, employees, screenings],
   );
+  // Same "configured" gate as the dashboards so the progress card matches.
+  const configured = credentials.length + training.length + tasks.length + risk.length > 0;
 
   // Context: former employees' items are history, not warnings.
   const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
@@ -214,7 +217,12 @@ export default function ReportsPage() {
     doc.setFontSize(20);
     doc.setTextColor(20);
     doc.text(`Overall score: ${score.score}/100`, margin, y);
-    y += 24;
+    y += 20;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(90);
+    doc.text(`Readiness: ${score.readiness}%  ·  Level ${score.level.tier} — ${score.level.name}`, margin, y);
+    y += 22;
 
     const summaryRows: [string, string][] = [
       ["Overdue tasks", String(overdueTasks)],
@@ -413,37 +421,8 @@ export default function ReportsPage() {
 
       {tab === "overview" && (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard label="Compliance score" value={score.score} icon={TrendingUp} tone={score.score >= 85 ? "success" : score.score >= 70 ? "warning" : "destructive"} loading={loading} />
-            <StatCard label="Critical items" value={score.criticalCount} icon={TrendingUp} tone="destructive" loading={loading} />
-            <StatCard label="High priority" value={score.highCount} icon={TrendingUp} tone="warning" loading={loading} />
-            <StatCard label="Active employees" value={employees.filter((e) => e.employmentStatus === "active").length} icon={TrendingUp} loading={loading} />
-          </div>
-
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle>Score breakdown</CardTitle></CardHeader>
-              <CardContent>
-                {loading ? <Skeleton className="h-32 w-full" /> : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Starting score</span>
-                      <span className="tabular-nums font-medium text-foreground">100</span>
-                    </div>
-                    {score.factors.map((f) => (
-                      <div key={f.key} className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{f.label} ({f.count})</span>
-                        <span className="tabular-nums text-destructive">{f.impact}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
-                      <span>Final score</span>
-                      <span className="tabular-nums">{score.score}</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ComplianceProgressCard score={score} loading={loading} configured={configured} />
 
             <Card>
               <CardHeader><CardTitle>Quick summary</CardTitle></CardHeader>
