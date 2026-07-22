@@ -20,6 +20,7 @@ import type {
   FormAssignment,
   InsurancePolicyRecord,
   BusinessRecord,
+  LifecycleTask,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -102,6 +103,7 @@ export interface DataClient {
   recordVersions: Collection<RecordVersion>;
   insurancePolicies: Collection<InsurancePolicyRecord>;
   businessRecords: Collection<BusinessRecord>;
+  lifecycleTasks: Collection<LifecycleTask>;
   emergencyDrills: Collection<EmergencyDrill>;
   employees: Collection<Employee>;
   inventory: Collection<InventoryItem>;

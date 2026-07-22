@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertTriangle,
+  ListChecks,
   Award,
   BadgeCheck,
   BookOpen,
@@ -120,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "HR & Payroll",
     items: [
       { label: "Employees", href: "/hr/employees", icon: Users, adminOnly: true },
+      { label: "Onboarding & Offboarding", href: "/employee-lifecycle", icon: ListChecks, adminOnly: true },
       { label: "Employee Vault", href: "/employee-vault", icon: FolderLock, adminOnly: true },
       { label: "Org Chart & Roles", href: "/org-chart", icon: Network, adminOnly: true },
       { label: "Payroll", href: "/hr/payroll", icon: DollarSign, adminOnly: true },

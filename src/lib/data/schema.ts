@@ -556,6 +556,28 @@ export const BusinessRecord = z.object({
 });
 export type BusinessRecord = z.infer<typeof BusinessRecord>;
 
+/* -------- Employee lifecycle checklists (onboarding / offboarding) -------- */
+export const lifecycleKinds = ["onboarding", "offboarding"] as const;
+export type LifecycleKind = (typeof lifecycleKinds)[number];
+export const lifecycleTaskCategories = ["access", "credentials", "hr_documents", "equipment", "training", "compliance", "other"] as const;
+export const lifecycleTaskStatuses = ["pending", "done", "na"] as const;
+
+export const LifecycleTask = z.object({
+  ...base,
+  employeeId: z.string(),
+  employeeName: z.string(),
+  kind: z.enum(lifecycleKinds),
+  itemKey: z.string(),
+  label: z.string(),
+  category: z.enum(lifecycleTaskCategories).default("other"),
+  status: z.enum(lifecycleTaskStatuses).default("pending"),
+  dueDate: z.string().nullable().optional(),
+  completedDate: z.string().nullable().optional(),
+  completedBy: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type LifecycleTask = z.infer<typeof LifecycleTask>;
+
 /* --------------------------- emergency ----------------------------- */
 
 export const EmergencyDrill = z.object({

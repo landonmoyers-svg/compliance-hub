@@ -142,6 +142,7 @@ export function buildSeed(): SeedData {
     ],
     recordVersions: [],
     businessRecords: [],
+    lifecycleTasks: [],
     insurancePolicies: [
       { id: "ins-1", createdDate: days(-300), policyName: "Professional Liability", policyType: "malpractice", carrierName: "MedPro", policyNumber: "MP-10293", coverageAmountCents: 300000000, annualPremiumCents: 1850000, renewalDate: days(22) },
       { id: "ins-2", createdDate: days(-300), policyName: "Business Owners Policy", policyType: "bop", carrierName: "Hartford", policyNumber: "BOP-55821", coverageAmountCents: 200000000, annualPremiumCents: 940000, renewalDate: days(95) },

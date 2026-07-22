@@ -96,6 +96,7 @@ export function createMockDataClient(): DataClient {
     recordVersions: new MemoryCollection(seed.recordVersions),
     insurancePolicies: new MemoryCollection(seed.insurancePolicies),
     businessRecords: new MemoryCollection(seed.businessRecords),
+    lifecycleTasks: new MemoryCollection(seed.lifecycleTasks),
     emergencyDrills: new MemoryCollection(seed.emergencyDrills),
     employees: new MemoryCollection(seed.employees),
     inventory: new MemoryCollection(seed.inventory),

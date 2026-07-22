@@ -34,6 +34,7 @@ import type {
   FormField,
   InsurancePolicyRecord,
   BusinessRecord,
+  LifecycleTask,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -816,6 +817,37 @@ function businessRecordFrom(r: Record<string, unknown>): BusinessRecord {
     locationId: r.location_id as string | undefined,
     notes: r.notes as string | undefined,
     documentUrl: r.document_url as string | undefined,
+  };
+}
+function lifecycleTaskFrom(r: Record<string, unknown>): LifecycleTask {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeId: r.employee_id as string,
+    employeeName: r.employee_name as string,
+    kind: r.kind as LifecycleTask["kind"],
+    itemKey: r.item_key as string,
+    label: r.label as string,
+    category: (r.category as LifecycleTask["category"]) ?? "other",
+    status: (r.status as LifecycleTask["status"]) ?? "pending",
+    dueDate: r.due_date as string | undefined,
+    completedDate: r.completed_date as string | undefined,
+    completedBy: r.completed_by as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function lifecycleTaskTo(d: Partial<LifecycleTask>) {
+  return {
+    ...(d.employeeId !== undefined && { employee_id: d.employeeId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.kind !== undefined && { kind: d.kind }),
+    ...(d.itemKey !== undefined && { item_key: d.itemKey }),
+    ...(d.label !== undefined && { label: d.label }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.dueDate !== undefined && { due_date: d.dueDate }),
+    ...(d.completedDate !== undefined && { completed_date: d.completedDate }),
+    ...(d.completedBy !== undefined && { completed_by: d.completedBy }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 function businessRecordTo(d: Partial<BusinessRecord>) {
@@ -1881,6 +1913,7 @@ export function createSupabaseDataClient(): DataClient {
     recordVersions:     makeCollection(supabase, "record_versions",      recordVersionFrom,      recordVersionTo),
     insurancePolicies:  makeCollection(supabase, "insurance_policies",  insuranceFrom,          insuranceTo),
     businessRecords:    makeCollection(supabase, "business_records",     businessRecordFrom,     businessRecordTo),
+    lifecycleTasks:     makeCollection(supabase, "lifecycle_tasks",       lifecycleTaskFrom,      lifecycleTaskTo),
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),
     inventory:          makeCollection(supabase, "inventory",           inventoryFrom,          inventoryTo),

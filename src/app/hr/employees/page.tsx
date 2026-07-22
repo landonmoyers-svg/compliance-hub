@@ -16,6 +16,7 @@ import { PersonRecordsPanel } from "@/components/shared/person-records-panel";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { provisionLogin, deactivateLogin } from "@/lib/admin";
+import { ensureChecklist } from "@/lib/lifecycle";
 import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
 import { accountRoles } from "@/lib/data/schema";
@@ -244,6 +245,8 @@ function EmployeeDialog({
 export default function EmployeesPage() {
   const { data, isLoading, isError, refetch } = useCollection("employees");
   const reqsQ = useCollection("roleRequirements");
+  const lifecycleQ = useCollection("lifecycleTasks");
+  const createLifecycle = useCreate("lifecycleTasks");
   const createMut = useCreate("employees");
   const updateMut = useUpdate("employees");
 
@@ -345,10 +348,21 @@ export default function EmployeesPage() {
         const FORMER = new Set(["terminated", "resigned", "laid_off"]);
         const nowFormer = FORMER.has(form.employmentStatus);
         const wasActive = !FORMER.has(editing.employmentStatus);
-        if (nowFormer && wasActive && editing.userId) {
-          const r = await deactivateLogin(editing.userId);
-          if (r.ok) toast.success("Employee updated — their app login was deactivated.");
-          else toast.error(`Employee updated, but deactivating the login failed: ${r.error}`);
+        if (nowFormer && wasActive) {
+          if (editing.userId) {
+            const r = await deactivateLogin(editing.userId);
+            if (r.ok) toast.success("Employee updated — their app login was deactivated.");
+            else toast.error(`Employee updated, but deactivating the login failed: ${r.error}`);
+          } else {
+            toast.success("Employee updated");
+          }
+          // Auto-start the offboarding checklist so nothing is silently missed.
+          try {
+            const n = await ensureChecklist("offboarding",
+              { id: editing.id, firstName: payload.firstName, lastName: payload.lastName, jobRole: payload.jobRole, title: payload.title },
+              lifecycleQ.data ?? [], (d) => createLifecycle.mutateAsync(d));
+            if (n > 0) toast.info(`Offboarding checklist started (${n} steps) — see Onboarding & Offboarding.`);
+          } catch { /* best-effort — never block the save */ }
         } else {
           toast.success("Employee updated");
         }
@@ -372,6 +386,11 @@ export default function EmployeesPage() {
         } else {
           toast.success("Employee added");
         }
+        // Auto-start the onboarding checklist for the new hire (role-aware).
+        try {
+          const n = await ensureChecklist("onboarding", created, lifecycleQ.data ?? [], (d) => createLifecycle.mutateAsync(d));
+          if (n > 0) toast.info(`Onboarding checklist started (${n} steps) — see Onboarding & Offboarding.`);
+        } catch { /* best-effort — never block the save */ }
       }
       setEditing(null);
       void refetch();
