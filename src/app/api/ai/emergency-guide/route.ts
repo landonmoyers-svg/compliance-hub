@@ -49,11 +49,16 @@ export async function POST(request: NextRequest) {
     requiredElements?: string[];
     citations?: string[];
     sopContext?: string; // titles + excerpts of the practice's related SOPs
+    fromSops?: boolean;   // build the plan primarily FROM the SOP content below
   };
   const orgName = await getOrgName(supabase);
   const reqs = body.requiredElements?.length ? `\n\nThis plan MUST cover these required elements: ${body.requiredElements.join("; ")}.` : "";
   const cites = body.citations?.length ? `\nApplicable rules: ${body.citations.join("; ")}.` : "";
-  const sops = body.sopContext ? `\n\nAlign with the practice's EXISTING related policies (reference and stay consistent with them; don't contradict):\n${body.sopContext.slice(0, 6000)}` : "";
+  const sops = body.sopContext
+    ? (body.fromSops
+        ? `\n\nBUILD THIS PLAN PRIMARILY FROM the practice's EXISTING SOPs below. Convert and organize THEIR actual procedures, roles, and specifics into the plan structure and the step-by-step response algorithm — preserve what they already say (don't replace it with generic content). Only fill genuine gaps with best practice, and note any gap you had to fill. The practice's SOPs:\n${body.sopContext.slice(0, 9000)}`
+        : `\n\nAlign with the practice's EXISTING related policies (reference and stay consistent with them; don't contradict):\n${body.sopContext.slice(0, 6000)}`)
+    : (body.fromSops ? "\n\n(No matching SOP content was found — draft from best practice and note that no source SOP existed.)" : "");
 
   try {
     if (body.mode === "review") {

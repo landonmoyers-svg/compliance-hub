@@ -32,11 +32,12 @@ const SOP_BADGE: Record<SopState, { label: string; variant: "success" | "warning
 
 interface Draft { planType: EmergencyPlanType; title: string; content: string; status: EmergencyPlan["status"]; reviewDate: string; }
 
-/** Gather related-SOP context to ground an AI draft in the practice's own policies. */
-function sopContextFor(planType: EmergencyPlanType, docs: ComplianceDocument[]): string {
+/** Gather related-SOP context to ground an AI draft in the practice's own policies.
+ *  Pass a larger perDoc when the plan is being BUILT from the SOPs (not just aligned). */
+function sopContextFor(planType: EmergencyPlanType, docs: ComplianceDocument[], perDoc = 700): string {
   const related = relatedSops(planType, docs);
   if (related.length === 0) return "";
-  return related.slice(0, 4).map((d) => `- ${d.title}: ${((d.content ?? d.summary) ?? "").slice(0, 700)}`).join("\n");
+  return related.slice(0, 4).map((d) => `### ${d.title}\n${((d.content ?? d.summary) ?? "").slice(0, perDoc)}`).join("\n\n");
 }
 
 export function EmergencyPlansSection() {
@@ -50,6 +51,7 @@ export function EmergencyPlansSection() {
   const [draftingType, setDraftingType] = useState<string | null>(null);
   const [openType, setOpenType] = useState<Set<string>>(new Set());
   const [creatingSop, setCreatingSop] = useState<string | null>(null);
+  const [buildingAll, setBuildingAll] = useState(false);
 
   const plans = useMemo(() => plansQ.data ?? [], [plansQ.data]);
   const docs = useMemo(() => docsQ.data ?? [], [docsQ.data]);
@@ -59,14 +61,15 @@ export function EmergencyPlansSection() {
 
   const toggle = (k: string) => setOpenType((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
-  async function draftFor(cov: PlanCoverage) {
+  /** Draft one plan and open it for review. fromSops = build it from the matching SOP content. */
+  async function draftFor(cov: PlanCoverage, fromSops = false) {
     setDraftingType(cov.planType);
-    const tId = toast.loading(`Drafting a ${cov.label} plan…`);
+    const tId = toast.loading(fromSops ? `Building a ${cov.label} plan from your SOPs…` : `Drafting a ${cov.label} plan…`);
     try {
       const meta = EMERGENCY_PLAN_META[cov.planType];
       const res = await fetch("/api/ai/emergency-guide", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "draft", planType: cov.planType, planLabel: cov.label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(cov.planType, docs) }),
+        body: JSON.stringify({ mode: "draft", planType: cov.planType, planLabel: cov.label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(cov.planType, docs, fromSops ? 2400 : 700), fromSops }),
       });
       const d = await res.json() as { title?: string; content?: string; error?: string };
       if (!res.ok || !d.content) { toast.error(d.error ?? "Couldn't draft the plan.", { id: tId }); return; }
@@ -74,6 +77,40 @@ export function EmergencyPlansSection() {
       setEditing({ planType: cov.planType, title: d.title ?? `${cov.label} Plan`, content: d.content, status: "draft", reviewDate: "" });
     } catch { toast.error("Couldn't reach the planner.", { id: tId }); }
     finally { setDraftingType(null); }
+  }
+
+  /** Analyze existing SOPs and build a plan for every scenario that has matching
+   *  SOPs but no plan yet — each saved as a draft to review. */
+  async function buildFromSops() {
+    const candidates = coverage.filter((c) => !c.plan && relatedSops(c.planType, docs).length > 0);
+    if (candidates.length === 0) {
+      toast.info("No un-built scenario has a matching SOP on file. Add/link SOPs first, or use “Draft with AI”.");
+      return;
+    }
+    if (!window.confirm(`Analyze your SOPs and build ${candidates.length} plan${candidates.length === 1 ? "" : "s"} from them? Each is saved as a draft for you to review.`)) return;
+    setBuildingAll(true);
+    const tId = toast.loading(`Building 0/${candidates.length} from SOPs…`);
+    let made = 0;
+    try {
+      for (const cov of candidates) {
+        const meta = EMERGENCY_PLAN_META[cov.planType];
+        try {
+          const res = await fetch("/api/ai/emergency-guide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "draft", planType: cov.planType, planLabel: cov.label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(cov.planType, docs, 2400), fromSops: true }),
+          });
+          if (res.status === 429) { toast.error("Daily AI limit reached — stopping.", { id: tId }); break; }
+          const d = await res.json() as { title?: string; content?: string };
+          if (res.ok && d.content) {
+            await createMut.mutateAsync({ title: d.title ?? `${cov.label} Plan`, planType: cov.planType, content: d.content, status: "draft", reviewDate: null });
+            made++;
+          }
+        } catch { /* skip this scenario */ }
+        toast.loading(`Building ${made}/${candidates.length} from SOPs…`, { id: tId });
+      }
+      toast.success(`Built ${made} plan${made === 1 ? "" : "s"} from your SOPs — review each.`, { id: tId });
+      void plansQ.refetch();
+    } finally { setBuildingAll(false); }
   }
 
   /** Draft an emergency SOP (policy) and save it to the SOP Library. */
@@ -103,12 +140,17 @@ export function EmergencyPlansSection() {
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="size-4 text-primary" /> Emergency plans — AI guide</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Each required scenario shows the rule behind it and what a complete plan must cover. Draft or write plans (with or without AI), and the guide flags which underlying SOPs are missing or overdue.
+              Each required scenario shows the rule behind it and what a complete plan must cover. <span className="font-medium text-foreground">Build from SOPs</span> analyzes your existing policies and turns them into plans; or draft/write plans yourself. The guide also flags which underlying SOPs are missing or overdue.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setEditing({ planType: "other", title: "", content: "", status: "draft", reviewDate: "" })}>
-            <Plus className="size-4" /> New plan
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="outline" disabled={buildingAll} onClick={() => void buildFromSops()}>
+              <BookText className="size-4" /> {buildingAll ? "Building…" : "Build from SOPs"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing({ planType: "other", title: "", content: "", status: "draft", reviewDate: "" })}>
+              <Plus className="size-4" /> New plan
+            </Button>
+          </div>
         </div>
 
         {/* Coverage summary */}
@@ -147,6 +189,15 @@ export function EmergencyPlansSection() {
                   <Badge variant={badge.variant}>{badge.label}</Badge>
                   {cov.plan ? (
                     <Button size="sm" variant="ghost" onClick={() => setEditing(cov.plan!)}>Open</Button>
+                  ) : related.length > 0 ? (
+                    <>
+                      <Button size="sm" variant="outline" disabled={draftingType === cov.planType} onClick={() => void draftFor(cov, true)} title={`Build from ${related.length} matching SOP${related.length === 1 ? "" : "s"}`}>
+                        <BookText className="size-3.5" /> {draftingType === cov.planType ? "Building…" : "From SOPs"}
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={draftingType === cov.planType} onClick={() => void draftFor(cov)} title="Draft from best practice">
+                        <Wand2 className="size-3.5" />
+                      </Button>
+                    </>
                   ) : (
                     <Button size="sm" variant="outline" disabled={draftingType === cov.planType} onClick={() => void draftFor(cov)}>
                       <Wand2 className="size-3.5" /> {draftingType === cov.planType ? "Drafting…" : "Draft with AI"}
@@ -264,11 +315,11 @@ function PlanEditor({ initial, docs, onClose, onSaved, createMut, updateMut }: {
   const meta = EMERGENCY_PLAN_META[planType];
   const label = meta?.label ?? planType;
 
-  async function aiDraft() {
+  async function aiDraft(fromSops = false) {
     setBusyAi("draft");
-    const tId = toast.loading("Drafting the plan…");
+    const tId = toast.loading(fromSops ? "Building from your SOPs…" : "Drafting the plan…");
     try {
-      const res = await fetch("/api/ai/emergency-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "draft", planType, planLabel: label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(planType, docs) }) });
+      const res = await fetch("/api/ai/emergency-guide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "draft", planType, planLabel: label, requiredElements: meta?.requiredElements, citations: meta?.citations, sopContext: sopContextFor(planType, docs, fromSops ? 2400 : 700), fromSops }) });
       const d = await res.json() as { title?: string; content?: string; error?: string };
       if (!res.ok || !d.content) { toast.error(d.error ?? "Draft failed.", { id: tId }); return; }
       setContent(d.content);
@@ -361,6 +412,9 @@ function PlanEditor({ initial, docs, onClose, onSaved, createMut, updateMut }: {
             <div className="mb-1 flex items-center justify-between">
               <label className="text-xs font-medium text-muted-foreground">Plan (markdown — includes the step-by-step response algorithm)</label>
               <div className="flex gap-1">
+                {related.length > 0 && (
+                  <Button size="sm" variant="outline" disabled={busyAi !== null} onClick={() => void aiDraft(true)} title={`Build from ${related.length} matching SOP${related.length === 1 ? "" : "s"}`}><BookText className="size-3.5" /> {busyAi === "draft" ? "Building…" : "From SOPs"}</Button>
+                )}
                 <Button size="sm" variant="outline" disabled={busyAi !== null} onClick={() => void aiDraft()}><Wand2 className="size-3.5" /> {busyAi === "draft" ? "Drafting…" : content ? "Redraft" : "Draft with AI"}</Button>
                 <Button size="sm" variant="outline" disabled={busyAi !== null} onClick={() => void aiReview()}><Sparkles className="size-3.5" /> {busyAi === "review" ? "Reviewing…" : "Review with AI"}</Button>
               </div>
