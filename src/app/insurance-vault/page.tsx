@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useMemo, useRef } from "react";
+import { Fragment, useState, useMemo, useRef, useEffect } from "react";
 import { Shield, Plus, Search, Upload, FileText, Sparkles, X, ChevronRight } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { uploadFile, getSignedUrl } from "@/lib/storage";
@@ -157,11 +157,13 @@ const EMPTY: PolicyForm = {
 
 function PolicyDialog({
   initial,
+  prefill,
   onClose,
   onSave,
   saving,
 }: {
   initial?: InsurancePolicyRecord;
+  prefill?: Partial<PolicyForm>;
   onClose: () => void;
   onSave: (data: PolicyForm, file: File | null) => void;
   saving: boolean;
@@ -179,7 +181,7 @@ function PolicyDialog({
           holderUserId: initial.holderUserId ?? null,
           holderName: initial.holderName ?? "",
         }
-      : EMPTY,
+      : { ...EMPTY, ...prefill },
   );
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -438,10 +440,27 @@ export default function InsuranceVaultPage() {
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [groupBy, setGroupBy] = useState<PolicyGroupBy>("provider_file");
   const [editing, setEditing] = useState<InsurancePolicyRecord | null | "new">(null);
+  const [prefill, setPrefill] = useState<Partial<PolicyForm> | null>(null);
   const [saving, setSaving] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
 
   const policies = useMemo(() => data ?? [], [data]);
+
+  // Deep-link from an insurance-renewal alert: /insurance-vault?add=policy&holder=…&type=…&name=…
+  // opens the pre-scoped Add dialog so the user can upload the renewal in one click.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("add") !== "policy") return;
+    setPrefill({
+      holderName: p.get("holder") ?? "",
+      holderUserId: p.get("holderId") || null,
+      policyType: p.get("type") || "malpractice",
+      policyName: p.get("name") ?? "",
+    });
+    setEditing("new");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   // A policy whose individual holder has left the practice is history, not an
   // alarm — mark those files "Former" (mirrors the Credentials page).
@@ -659,7 +678,8 @@ export default function InsuranceVaultPage() {
       {editing && (
         <PolicyDialog
           initial={editing === "new" ? undefined : editing}
-          onClose={() => setEditing(null)}
+          prefill={editing === "new" ? (prefill ?? undefined) : undefined}
+          onClose={() => { setEditing(null); setPrefill(null); }}
           onSave={handleSave}
           saving={saving}
         />

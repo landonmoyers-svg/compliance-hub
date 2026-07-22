@@ -87,8 +87,15 @@ async function runScan(): Promise<{ created: number }> {
     if (supersededIds.has(c.id)) continue;
     const d = daysUntil(c.expiration_date);
     if (d === null) continue;
-    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
-    else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: "/credentials" });
+    // Deep-link straight into the pre-scoped "Add credential" dialog so clicking
+    // the alert lets the user upload the renewal (which supersedes this copy and
+    // clears the alert) instead of hunting for the record.
+    const q = new URLSearchParams({ add: "credential", type: c.credential_type ?? "license", name: c.credential_name ?? "" });
+    if (c.employee_name) q.set("holder", c.employee_name);
+    if (c.employee_user_id) q.set("holderId", c.employee_user_id);
+    const credLink = `/credentials?${q.toString()}`;
+    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: credLink });
+    else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: credLink });
   }
 
   // Training overdue or due within the configured window (active staff only)
@@ -110,12 +117,17 @@ async function runScan(): Promise<{ created: number }> {
   }
 
   // Insurance renewals ≤60 days or expired
-  const { data: policies } = await admin.from("insurance_policies").select("id, policy_name, renewal_date");
+  const { data: policies } = await admin.from("insurance_policies").select("id, policy_name, policy_type, holder_name, holder_user_id, renewal_date");
   for (const p of policies ?? []) {
     const d = daysUntil(p.renewal_date);
     if (d === null) continue;
-    if (d < 0) candidates.push({ title: `Insurance lapsed: ${p.policy_name}`, body: `${p.policy_name} renewal was due ${Math.abs(d)} day(s) ago.`, category: "insurance", severity: "critical", entity_type: "insurance_policies", entity_id: p.id, link: "/insurance-vault" });
-    else if (d <= insWindow) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: "/insurance-vault" });
+    // Deep-link into the pre-scoped "Add policy" dialog to upload the renewal.
+    const q = new URLSearchParams({ add: "policy", type: p.policy_type ?? "malpractice", name: p.policy_name ?? "" });
+    if (p.holder_name) q.set("holder", p.holder_name);
+    if (p.holder_user_id) q.set("holderId", p.holder_user_id);
+    const insLink = `/insurance-vault?${q.toString()}`;
+    if (d < 0) candidates.push({ title: `Insurance lapsed: ${p.policy_name}`, body: `${p.policy_name} renewal was due ${Math.abs(d)} day(s) ago.`, category: "insurance", severity: "critical", entity_type: "insurance_policies", entity_id: p.id, link: insLink });
+    else if (d <= insWindow) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: insLink });
   }
 
   // Vendor BAA gaps
