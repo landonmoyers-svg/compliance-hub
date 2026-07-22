@@ -1,5 +1,5 @@
-import type { ComplianceDocument, EmergencyPlan, EmergencyPlanType } from "./data/schema";
-import { isExpired } from "./dates";
+import type { ComplianceDocument, EmergencyDrill, EmergencyPlan, EmergencyPlanType } from "./data/schema";
+import { isExpired, parseDate } from "./dates";
 
 /**
  * The emergency scenarios a behavioral-health practice should hold a written
@@ -210,4 +210,104 @@ export function emergencySopGaps<T extends SopDoc>(docs: T[]): (SopGap & { doc?:
     const stale = best.reviewDate ? isExpired(best.reviewDate) : false;
     return { sop, state: stale ? ("stale" as const) : ("present" as const), doc: best };
   });
+}
+
+/* --------------------- scenario-centric view (readiness) --------------------- */
+
+type DrillLite = Pick<EmergencyDrill, "id" | "drillTitle" | "drillType" | "scheduledDate" | "status">;
+export type DrillState = "recent" | "overdue" | "never";
+
+/** The suggested drill type (the drill catalog is narrower than the plan catalog). */
+export function suggestedDrillType(planType: EmergencyPlanType): string {
+  switch (planType) {
+    case "fire": return "fire";
+    case "severe_weather": case "natural_disaster": return "tornado";
+    case "active_threat": case "workplace_violence": return "lockdown";
+    case "medical_emergency": case "behavioral_crisis": return "medical";
+    case "evacuation_shelter": return "evacuation";
+    default: return "other";
+  }
+}
+
+/** Everything about one scenario, in one place: its plan, backing SOP, and last drill. */
+export interface ScenarioStatus {
+  planType: EmergencyPlanType;
+  label: string;
+  required: boolean;
+  why: string;
+  citations: string[];
+  requiredElements: string[];
+  plan?: EmergencyPlan;
+  planState: PlanCoverageState;                 // active | draft | needs_review | missing
+  sops: SopDoc[];
+  sopState: SopState;                           // present | stale | missing
+  lastDrill?: { date: string; title: string };
+  drillState: DrillState;                       // recent (≤1yr) | overdue | never
+}
+
+export function scenarioStatuses(
+  plans: EmergencyPlan[],
+  docs: ComplianceDocument[],
+  drills: DrillLite[],
+): ScenarioStatus[] {
+  const now = Date.now();
+  return planCoverage(plans).map((c) => {
+    const meta = EMERGENCY_PLAN_META[c.planType];
+    const sops = relatedSops(c.planType, docs);
+    const bestSop = sops.find((d) => (d.status ?? "").toLowerCase() === "active") ?? sops[0];
+    const sopState: SopState = !bestSop ? "missing" : (bestSop.reviewDate && isExpired(bestSop.reviewDate) ? "stale" : "present");
+
+    const kw = meta?.keywords ?? [];
+    const matched = drills
+      .filter((d) => d.status === "completed" && d.scheduledDate && (kw.some((k) => `${d.drillTitle} ${d.drillType}`.toLowerCase().includes(k.toLowerCase()))))
+      .sort((a, b) => (b.scheduledDate ?? "").localeCompare(a.scheduledDate ?? ""));
+    const last = matched[0];
+    let drillState: DrillState = "never";
+    if (last?.scheduledDate) {
+      const t = parseDate(last.scheduledDate);
+      const ageDays = t ? (now - t.getTime()) / 86_400_000 : Infinity;
+      drillState = ageDays <= 365 ? "recent" : "overdue";
+    }
+
+    return {
+      planType: c.planType, label: c.label, required: c.required, why: c.why,
+      citations: meta?.citations ?? [], requiredElements: meta?.requiredElements ?? [],
+      plan: c.plan, planState: c.state, sops, sopState,
+      lastDrill: last?.scheduledDate ? { date: last.scheduledDate, title: last.drillTitle } : undefined,
+      drillState,
+    };
+  });
+}
+
+export interface EmergencyReadiness {
+  pct: number;
+  planPct: number; sopPct: number; testPct: number;
+  gaps: { planType: EmergencyPlanType; label: string; need: string }[];
+}
+
+/** Overall readiness across REQUIRED scenarios: the mean of plan / SOP / testing
+ *  coverage, plus a prioritized list of the specific gaps to close. */
+export function emergencyReadiness(statuses: ScenarioStatus[]): EmergencyReadiness {
+  const req = statuses.filter((s) => s.required);
+  const n = req.length || 1;
+  const planReady = req.filter((s) => s.planState === "active").length;
+  const sopReady = req.filter((s) => s.sopState === "present").length;
+  const tested = req.filter((s) => s.drillState === "recent").length;
+  const planPct = Math.round((planReady / n) * 100);
+  const sopPct = Math.round((sopReady / n) * 100);
+  const testPct = Math.round((tested / n) * 100);
+
+  const gaps: EmergencyReadiness["gaps"] = [];
+  for (const s of req) {
+    let need = "";
+    if (s.planState === "missing") need = "No written plan";
+    else if (s.planState !== "active") need = "Plan is a draft — review & activate";
+    else if (s.sopState === "missing") need = "No backing SOP on file";
+    else if (s.sopState === "stale") need = "Backing SOP past review";
+    else if (s.drillState === "never") need = "Never drilled";
+    else if (s.drillState === "overdue") need = "Drill overdue (>1 year)";
+    if (need) gaps.push({ planType: s.planType, label: s.label, need });
+  }
+
+  return { pct: Math.round((planPct + sopPct + testPct) / 3), planPct, sopPct, testPct, gaps };
 }
