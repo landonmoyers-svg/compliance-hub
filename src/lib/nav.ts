@@ -78,6 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Training", href: "/training", icon: GraduationCap },
       { label: "Credentials", href: "/credentials", icon: BadgeCheck },
+      { label: "Continuing Education", href: "/continuing-education", icon: GraduationCap, adminOnly: true },
       { label: "Payer Enrollment", href: "/payer-enrollment", icon: Handshake, adminOnly: true },
       { label: "Competency Tracker", href: "/competency-tracker", icon: Award, adminOnly: true },
     ],

@@ -35,6 +35,7 @@ import type {
   InsurancePolicyRecord,
   BusinessRecord,
   LifecycleTask,
+  CeRecord,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -817,6 +818,35 @@ function businessRecordFrom(r: Record<string, unknown>): BusinessRecord {
     locationId: r.location_id as string | undefined,
     notes: r.notes as string | undefined,
     documentUrl: r.document_url as string | undefined,
+  };
+}
+function ceRecordFrom(r: Record<string, unknown>): CeRecord {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    employeeUserId: r.employee_user_id as string | undefined,
+    employeeName: r.employee_name as string,
+    title: r.title as string,
+    provider: r.provider as string | undefined,
+    hours: Number(r.hours ?? 0),
+    category: (r.category as CeRecord["category"]) ?? "general",
+    appliesTo: r.applies_to as string | undefined,
+    completedDate: r.completed_date as string | undefined,
+    documentUrl: r.document_url as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function ceRecordTo(d: Partial<CeRecord>) {
+  return {
+    ...(d.employeeUserId !== undefined && { employee_user_id: d.employeeUserId }),
+    ...(d.employeeName !== undefined && { employee_name: d.employeeName }),
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.hours !== undefined && { hours: d.hours }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.appliesTo !== undefined && { applies_to: d.appliesTo }),
+    ...(d.completedDate !== undefined && { completed_date: d.completedDate }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 function lifecycleTaskFrom(r: Record<string, unknown>): LifecycleTask {
@@ -1914,6 +1944,7 @@ export function createSupabaseDataClient(): DataClient {
     insurancePolicies:  makeCollection(supabase, "insurance_policies",  insuranceFrom,          insuranceTo),
     businessRecords:    makeCollection(supabase, "business_records",     businessRecordFrom,     businessRecordTo),
     lifecycleTasks:     makeCollection(supabase, "lifecycle_tasks",       lifecycleTaskFrom,      lifecycleTaskTo),
+    ceRecords:          makeCollection(supabase, "ce_records",            ceRecordFrom,           ceRecordTo),
     emergencyDrills:    makeCollection(supabase, "emergency_drills",    drillFrom,              drillTo),
     employees:          makeCollection(supabase, "employees",           employeeFrom,           employeeTo),
     inventory:          makeCollection(supabase, "inventory",           inventoryFrom,          inventoryTo),

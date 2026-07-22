@@ -578,6 +578,26 @@ export const LifecycleTask = z.object({
 });
 export type LifecycleTask = z.infer<typeof LifecycleTask>;
 
+/* -------- Continuing education (CE) hours -------- */
+export const ceCategories = ["general", "pharmacology", "ethics", "controlled_substance", "infection_control", "other"] as const;
+export type CeCategory = (typeof ceCategories)[number];
+
+export const CeRecord = z.object({
+  ...base,
+  employeeUserId: z.string().nullable().optional(),
+  employeeName: z.string(),
+  title: z.string(),
+  provider: z.string().nullable().optional(),        // accrediting body / sponsor
+  hours: z.number().default(0),
+  category: z.enum(ceCategories).default("general"),
+  // Which license/credential this counts toward (free text: "APRN", "RN", "DEA", "all").
+  appliesTo: z.string().nullable().optional(),
+  completedDate: z.string().nullable().optional(),
+  documentUrl: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CeRecord = z.infer<typeof CeRecord>;
+
 /* --------------------------- emergency ----------------------------- */
 
 export const EmergencyDrill = z.object({

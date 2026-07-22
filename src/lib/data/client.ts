@@ -21,6 +21,7 @@ import type {
   InsurancePolicyRecord,
   BusinessRecord,
   LifecycleTask,
+  CeRecord,
   InventoryItem,
   Notification,
   OrganizationSettings,
@@ -104,6 +105,7 @@ export interface DataClient {
   insurancePolicies: Collection<InsurancePolicyRecord>;
   businessRecords: Collection<BusinessRecord>;
   lifecycleTasks: Collection<LifecycleTask>;
+  ceRecords: Collection<CeRecord>;
   emergencyDrills: Collection<EmergencyDrill>;
   employees: Collection<Employee>;
   inventory: Collection<InventoryItem>;
