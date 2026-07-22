@@ -76,7 +76,32 @@ function FindingRow({ finding, owners, onSave }: { finding: SraFinding; owners: 
   const [response, setResponse] = useState(finding.response ?? "");
   const [remediation, setRemediation] = useState(finding.remediation ?? "");
   const [due, setDue] = useState(finding.remediationDue?.slice(0, 10) ?? "");
+  const [draftingRem, setDraftingRem] = useState(false);
   const showRemediation = status === "partial" || status === "no";
+
+  async function draftRemediation() {
+    setDraftingRem(true);
+    const tId = toast.loading("Drafting remediation…");
+    try {
+      const res = await fetch("/api/ai/sra-remediation", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: finding.question, cfr: tpl?.cfr ?? "", status, response }),
+      });
+      const d = await res.json() as { remediation?: string; owner?: string; dueWeeks?: number; error?: string };
+      if (!res.ok || !d.remediation) { toast.error(d.error ?? "Draft failed.", { id: tId }); return; }
+      setRemediation(d.remediation);
+      const patch: Partial<SraFinding> = { remediation: d.remediation };
+      if (d.owner && !finding.remediationOwner) patch.remediationOwner = d.owner;
+      if (typeof d.dueWeeks === "number" && d.dueWeeks > 0 && !finding.remediationDue) {
+        const dt = new Date(Date.now() + d.dueWeeks * 7 * 86400000).toISOString().slice(0, 10);
+        setDue(dt); patch.remediationDue = dateInputToISO(dt);
+      }
+      if (finding.remediationStatus === "none") patch.remediationStatus = "open";
+      onSave(patch);
+      toast.success("Remediation drafted — review and adjust.", { id: tId });
+    } catch { toast.error("Couldn't reach the planner.", { id: tId }); }
+    finally { setDraftingRem(false); }
+  }
   const label = finding.question.replace(/\s*\(§.*\)$/, "");
 
   function setStatus(value: Status) {
@@ -158,8 +183,13 @@ function FindingRow({ finding, owners, onSave }: { finding: SraFinding; owners: 
 
       {showRemediation && (
         <div className="mt-2 space-y-2 rounded-md bg-warning/5 p-2">
-          <p className="text-xs font-medium text-muted-foreground">Remediation plan</p>
-          <textarea className="input w-full resize-none text-sm" rows={2} placeholder="What will be done to reduce this risk?" value={remediation} onChange={(e) => setRemediation(e.target.value)} onBlur={() => remediation !== (finding.remediation ?? "") && onSave({ remediation })} />
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Remediation plan</p>
+            <Button size="sm" variant="outline" disabled={draftingRem} onClick={() => void draftRemediation()}>
+              <Sparkles className="size-3.5" /> {draftingRem ? "Drafting…" : "Draft with AI"}
+            </Button>
+          </div>
+          <textarea className="input w-full resize-none text-sm" rows={3} placeholder="What will be done to reduce this risk? — or draft it with AI" value={remediation} onChange={(e) => setRemediation(e.target.value)} onBlur={() => remediation !== (finding.remediation ?? "") && onSave({ remediation })} />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <input className="input text-sm" list="sra-owners" placeholder="Owner" defaultValue={finding.remediationOwner ?? ""} onBlur={(e) => e.target.value !== (finding.remediationOwner ?? "") && onSave({ remediationOwner: e.target.value })} />
             <input type="date" className="input text-sm" value={due} onChange={(e) => setDue(e.target.value)} onBlur={() => onSave({ remediationDue: due ? dateInputToISO(due) : null })} />
