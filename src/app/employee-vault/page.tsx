@@ -11,6 +11,8 @@ import {
   FileText,
   ShieldAlert,
   Trash2,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
@@ -21,7 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
-import { uploadFile } from "@/lib/storage";
+import { uploadFile, getSignedUrl } from "@/lib/storage";
+import { analyzableMedia, blobToBase64, mediaFromName } from "@/lib/ai/file-bytes";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
@@ -105,9 +108,10 @@ function DocumentDialog({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const busy = saving || uploading;
+  const busy = saving || uploading || analyzing;
   const existingFileUrl = initial?.fileUrl ?? null;
 
   function pickFile(f: File) {
@@ -116,6 +120,43 @@ function DocumentDialog({
       return;
     }
     setFile(f);
+    void analyze(f);
+  }
+
+  /** Read the picked file with AI and fill in the type/title/sensitivity/employee
+   *  — only where the user hasn't already set a value, so nothing is clobbered. */
+  async function analyze(f: File) {
+    const media = analyzableMedia(f);
+    if (!media) return;
+    setAnalyzing(true);
+    try {
+      const fileBase64 = await blobToBase64(f);
+      const res = await fetch("/api/ai/employee-doc-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title, documentType: form.documentType,
+          employeeName: employees.find((e) => e.id === form.employeeId) ? employeeFullName(employees.find((e) => e.id === form.employeeId)!) : "",
+          fileBase64, mediaType: media,
+          people: employees.map((e) => ({ id: e.id, name: employeeFullName(e) })),
+        }),
+      });
+      if (res.status === 429) { toast.error("Daily AI limit reached."); return; }
+      if (!res.ok) return;
+      const d = await res.json() as { documentType?: string; title?: string; sensitive?: boolean; matchedEmployeeId?: string | null };
+      setForm((p) => ({
+        ...p,
+        documentType: (p.documentType === "other" && d.documentType && (employeeDocTypes as readonly string[]).includes(d.documentType)) ? d.documentType as EmployeeDocType : p.documentType,
+        title: !p.title.trim() && d.title ? d.title : p.title,
+        sensitive: p.sensitive || d.sensitive === true,
+        employeeId: !p.employeeId && d.matchedEmployeeId && employees.some((e) => e.id === d.matchedEmployeeId) ? d.matchedEmployeeId : p.employeeId,
+      }));
+      toast.success("Filled from the document — review before saving.");
+    } catch {
+      /* silent — manual entry still works */
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   async function handleSave() {
@@ -269,7 +310,11 @@ function DocumentDialog({
               </Button>
             )}
             {existingFileUrl && !file && <FileLink path={existingFileUrl} label="Current file" />}
-            <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, PNG, or JPG · max 25MB</p>
+            {analyzing ? (
+              <p className="flex items-center gap-1.5 text-xs text-primary"><Sparkles className="size-3.5 animate-pulse" /> Reading the document…</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, PNG, or JPG · max 25MB · AI reads PDFs/images to fill the fields</p>
+            )}
           </div>
 
           <label className="flex items-start gap-2 rounded-md border border-border px-3 py-2.5">
@@ -310,6 +355,36 @@ function DocumentDialog({
   );
 }
 
+/* ─── grouped-view row ──────────────────────────────────────── */
+
+function DocLine({ d, hideEmployee, hideType, onEdit, onDelete, isAdmin }: {
+  d: EmployeeDocument; hideEmployee?: boolean; hideType?: boolean;
+  onEdit: (d: EmployeeDocument) => void; onDelete: (d: EmployeeDocument) => void; isAdmin: boolean;
+}) {
+  const restricted = d.sensitive || RESTRICTED_EMPLOYEE_DOC_TYPES.includes(d.documentType);
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{d.title}</div>
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          {!hideType && <span>{DOC_TYPE_LABEL[d.documentType]}</span>}
+          {!hideEmployee && <><span aria-hidden>·</span><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></>}
+          <span aria-hidden>·</span><span>{formatDate(d.createdDate)}</span>
+          {d.uploadedByName && <><span aria-hidden>·</span><span>by {d.uploadedByName}</span></>}
+        </div>
+      </div>
+      {d.sensitive && <Badge variant="warning">Sensitive</Badge>}
+      {d.fileUrl && (
+        <FileLink path={d.fileUrl} iconOnly label="View file" className="text-muted-foreground hover:text-primary"
+          audit={restricted ? { entityType: "employee_documents", entityId: d.id, entityLabel: `${d.title} — ${d.employeeName}`, details: `Opened restricted personnel document (${DOC_TYPE_LABEL[d.documentType]})` } : undefined} />
+      )}
+      <VersionHistoryButton entityType="employee_documents" entityId={d.id} title={`${d.title} — ${d.employeeName}`} />
+      <button type="button" onClick={() => onEdit(d)} className="text-muted-foreground hover:text-primary" title="Edit">Edit</button>
+      {isAdmin && <button type="button" onClick={() => onDelete(d)} className="text-muted-foreground hover:text-destructive" title="Delete document (admin)"><Trash2 className="size-4" /></button>}
+    </div>
+  );
+}
+
 /* ─── page ──────────────────────────────────────────────────── */
 
 export default function EmployeeVaultPage() {
@@ -326,9 +401,71 @@ export default function EmployeeVaultPage() {
   const [filterEmployee, setFilterEmployee] = useState<string>("all");
   const [filterType, setFilterType] = useState<EmployeeDocType | "all">("all");
   const [editing, setEditing] = useState<EmployeeDocument | null | "new">(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [viewMode, setViewMode] = useState<"employee" | "type" | "flat">("employee");
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   const documents = useMemo(() => docsQ.data ?? [], [docsQ.data]);
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
+
+  const toggleGroup = (k: string) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
+  // Bulk "Auto-fill from files": re-read every attached document with AI and fill
+  // in what's missing — type (when still "Other"), a generic/blank title, the
+  // sensitive flag, and the employee when unassigned. Existing values are kept.
+  async function reanalyze() {
+    const withDocs = documents.filter((d) => d.fileUrl);
+    if (withDocs.length === 0) { toast.info("No documents have a file attached to analyze."); return; }
+    if (!window.confirm(`Analyze ${withDocs.length} attached document${withDocs.length === 1 ? "" : "s"} with AI? It fills the type, a missing title, the sensitive flag, and the employee when unassigned. Existing values are never overwritten.`)) return;
+    const roster = employees.map((e) => ({ id: e.id, name: employeeFullName(e) }));
+    const empById = new Map(employees.map((e) => [e.id, e] as const));
+    setReanalyzing(true);
+    const tId = toast.loading(`Analyzing 0/${withDocs.length} documents…`);
+    let done = 0, updated = 0;
+    try {
+      for (const d of withDocs) {
+        let fileBase64: string | undefined, mediaType: string | undefined;
+        try {
+          const url = await getSignedUrl(d.fileUrl as string);
+          if (url) {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const mt = blob.type && blob.type !== "application/octet-stream" ? blob.type : mediaFromName(d.fileUrl as string);
+            if (blob.size <= 8 * 1024 * 1024 && (mt === "application/pdf" || mt.startsWith("image/"))) {
+              fileBase64 = await blobToBase64(blob); mediaType = mt;
+            }
+          }
+        } catch { /* text-only fallback */ }
+        if (!fileBase64) { done++; toast.loading(`Analyzing ${done}/${withDocs.length} documents…`, { id: tId }); continue; }
+
+        try {
+          const res = await fetch("/api/ai/employee-doc-analyze", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: d.title, documentType: d.documentType, employeeName: d.employeeName, fileBase64, mediaType, people: roster }),
+          });
+          if (res.status === 429) { toast.error("Daily AI limit reached — stopping.", { id: tId }); break; }
+          if (res.ok) {
+            const a = await res.json() as { documentType?: string; title?: string; sensitive?: boolean; matchedEmployeeId?: string | null };
+            const patch: Partial<EmployeeDocument> = {};
+            if (d.documentType === "other" && a.documentType && (employeeDocTypes as readonly string[]).includes(a.documentType) && a.documentType !== "other") patch.documentType = a.documentType as EmployeeDocType;
+            if ((!d.title?.trim() || /^document|^scan|^img|^untitled/i.test(d.title.trim())) && a.title) patch.title = a.title;
+            if (!d.sensitive && a.sensitive === true) patch.sensitive = true;
+            if ((!d.employeeId || !d.employeeName?.trim()) && a.matchedEmployeeId && empById.has(a.matchedEmployeeId)) {
+              const e = empById.get(a.matchedEmployeeId)!;
+              patch.employeeId = e.id; patch.employeeName = employeeFullName(e);
+            }
+            if (Object.keys(patch).length > 0) { await updateMut.mutateAsync({ id: d.id, patch }); updated++; }
+          }
+        } catch { /* skip */ }
+        done++;
+        toast.loading(`Analyzing ${done}/${withDocs.length} documents…`, { id: tId });
+      }
+      toast.success(`Analyzed ${done} document${done === 1 ? "" : "s"} · updated ${updated}.`, { id: tId });
+      void docsQ.refetch();
+    } finally {
+      setReanalyzing(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -349,6 +486,21 @@ export default function EmployeeVaultPage() {
     by: (d) => d.uploadedByName ?? "",
     file: (d) => d.fileUrl ?? "",
   });
+
+  // Grouped "one-stop" views: by employee (a personnel file) or by document type.
+  const groups = useMemo(() => {
+    if (viewMode === "flat") return [];
+    const m = new Map<string, { key: string; label: string; docs: EmployeeDocument[]; restricted: number }>();
+    for (const d of filtered) {
+      const key = viewMode === "employee" ? (d.employeeId || d.employeeName || "unassigned") : d.documentType;
+      const label = viewMode === "employee" ? (d.employeeName || "Unassigned") : DOC_TYPE_LABEL[d.documentType];
+      const g = m.get(key);
+      const isRestricted = d.sensitive || RESTRICTED_EMPLOYEE_DOC_TYPES.includes(d.documentType);
+      if (g) { g.docs.push(d); g.restricted += isRestricted ? 1 : 0; }
+      else m.set(key, { key, label, docs: [d], restricted: isRestricted ? 1 : 0 });
+    }
+    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [filtered, viewMode]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -407,11 +559,16 @@ export default function EmployeeVaultPage() {
 
       <PageHeader
         title="Employee Vault"
-        description="Secure storage of HR documents per employee. Flag restricted records (offer letters, disciplinary, termination, medical) as sensitive."
+        description="Secure storage of HR documents per employee. Upload a file and AI reads it to fill the type, title, and sensitivity. Flag restricted records (offer letters, disciplinary, termination, medical) as sensitive."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="size-4" /> Add document
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => void reanalyze()} disabled={reanalyzing || loading}>
+              <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Auto-fill from files"}
+            </Button>
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> Add document
+            </Button>
+          </div>
         }
       />
 
@@ -465,6 +622,14 @@ export default function EmployeeVaultPage() {
                 <option key={t} value={t}>{DOC_TYPE_LABEL[t]}</option>
               ))}
             </select>
+            <div className="flex overflow-hidden rounded-md border border-border">
+              {([["employee", "By employee"], ["type", "By type"], ["flat", "Flat list"]] as const).map(([m, label]) => (
+                <button key={m} type="button" onClick={() => setViewMode(m)}
+                  className={`px-3 py-1.5 text-xs font-medium ${viewMode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -483,6 +648,29 @@ export default function EmployeeVaultPage() {
               }
               action={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add document</Button>}
             />
+          ) : viewMode !== "flat" ? (
+            <div className="space-y-2">
+              {groups.map((g) => {
+                const isOpen = openGroups.has(g.key);
+                return (
+                  <div key={g.key} className="rounded-lg border border-border">
+                    <button type="button" onClick={() => toggleGroup(g.key)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+                      <ChevronRight className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                      <span className="flex-1 truncate font-medium">{g.label}</span>
+                      {g.restricted > 0 && <Badge variant="warning">{g.restricted} restricted</Badge>}
+                      <Badge variant="secondary">{g.docs.length}</Badge>
+                    </button>
+                    {isOpen && (
+                      <div className="divide-y divide-border/50 border-t border-border px-3">
+                        {g.docs.map((d) => (
+                          <DocLine key={d.id} d={d} hideEmployee={viewMode === "employee"} hideType={viewMode === "type"} onEdit={setEditing} onDelete={handleDelete} isAdmin={isAdmin} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">
