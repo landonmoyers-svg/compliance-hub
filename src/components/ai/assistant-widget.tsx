@@ -192,6 +192,24 @@ export function AssistantWidget() {
         case "create_emergency_drill":
           created = await createDrill.mutateAsync({ drillTitle: str(d.drillTitle, "New drill"), drillType: str(d.drillType, "fire"), scheduledDate: str(d.scheduledDate) || null, status: "scheduled", participantCount: 0 }); entityType = "emergencyDrills";
           break;
+        case "draft_document": {
+          // Generate the FULL document content, then save it to the SOP Library.
+          const tId = toast.loading("Writing the document…");
+          try {
+            const res = await fetch("/api/ai/draft-document", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: str(d.title, "New document"), documentType: str(d.documentType) || undefined, complianceArea: str(d.complianceArea) || undefined, spec: str(d.spec) || undefined, pageTitle: page.title }),
+            });
+            const gen = await res.json() as { title?: string; content?: string; error?: string };
+            if (res.status === 429) { toast.error("Daily AI limit reached.", { id: tId }); return; }
+            if (!res.ok || !gen.content) { toast.error(gen.error ?? "Couldn't write the document.", { id: tId }); return; }
+            const doc = await createDocument.mutateAsync({ title: gen.title || str(d.title, "New document"), documentType: str(d.documentType, "policy"), complianceArea: str(d.complianceArea) || undefined, content: gen.content, status: "draft", accessLevel: "all_staff", version: "1.0", requiresAcknowledgment: false });
+            markDone(mi, ai);
+            toast.success("Drafted and saved to the SOP Library.", { id: tId });
+            void logAi("documents", doc.id, "create", `Drafted document: ${gen.title || str(d.title)}`, true);
+          } catch { toast.error("Couldn't write the document.", { id: tId }); }
+          return;
+        }
         case "create_employee": {
           const email = str(d.email).toLowerCase();
           if (email !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("That email isn't valid. Fix it, or leave it blank to add the person without a login."); return; }

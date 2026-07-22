@@ -165,12 +165,15 @@ const DEFAULT: PageCapability = {
   examples: ["What can I do on this page?", "Create a follow-up task"],
 };
 
-/** Resolve the capability for a pathname (longest known prefix, else default). */
+/** Resolve the capability for a pathname (longest known prefix, else default).
+ *  Every page also gets `draft_document` — the assistant can draft a real policy/
+ *  SOP/checklist/plan (full content) and save it to the SOP Library from anywhere. */
 export function capabilityForPath(path: string): PageCapability {
-  if (CAPABILITIES[path]) return CAPABILITIES[path];
-  // Longest-prefix match for nested routes.
-  const key = Object.keys(CAPABILITIES)
-    .filter((k) => k !== "/" && path.startsWith(k))
-    .sort((a, b) => b.length - a.length)[0];
-  return key ? CAPABILITIES[key] : DEFAULT;
+  const base = CAPABILITIES[path]
+    ?? (() => {
+      const key = Object.keys(CAPABILITIES).filter((k) => k !== "/" && path.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+      return key ? CAPABILITIES[key] : DEFAULT;
+    })();
+  const actions = base.actions.includes("draft_document") ? base.actions : [...base.actions, "draft_document"];
+  return { ...base, actions };
 }
