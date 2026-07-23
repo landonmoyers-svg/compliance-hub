@@ -83,14 +83,29 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const cap = await enforceAiCap(supabase);
-  if (!cap.ok) return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
-
-  const { productName, manufacturer, upc } = await request.json() as
-    { productName?: string; manufacturer?: string; upc?: string };
+  const { productName, manufacturer, upc, directUrl } = await request.json() as
+    { productName?: string; manufacturer?: string; upc?: string; directUrl?: string };
   if (!productName?.trim()) {
     return NextResponse.json({ error: "Enter a product name first." }, { status: 400 });
   }
+
+  // Fast path: if the lookup already found a source URL, fetch it directly
+  // (no AI call, no daily-cap use) before falling back to a web search.
+  const direct = directUrl ? isSafePublicUrl(directUrl) : null;
+  if (direct) {
+    const pdf = await fetchPdf(direct);
+    if (pdf) {
+      const dName = productName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 50) || "sds";
+      const path = `sds/${Date.now()}-auto-${dName}.pdf`;
+      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: "application/pdf", upsert: false });
+      if (!upErr) {
+        return NextResponse.json({ found: true, fileUrl: path, sourceUrl: direct.toString(), sourceName: direct.hostname, productName, note: "" });
+      }
+    }
+  }
+
+  const cap = await enforceAiCap(supabase);
+  if (!cap.ok) return NextResponse.json({ error: `Daily AI limit reached (${cap.limit} requests). It resets tomorrow.` }, { status: 429 });
 
   const target = [
     `Product: ${productName.trim()}`,

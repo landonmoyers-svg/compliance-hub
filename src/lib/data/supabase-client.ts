@@ -394,6 +394,7 @@ function sdsFrom(r: Record<string, unknown>): SDSRecord {
     ppe: r.ppe as string | undefined,
     revisionDate: r.revision_date as string | undefined,
     fileUrl: r.file_url as string | undefined,
+    locationIds: (r.location_ids as string[] | null) ?? [],
   };
 }
 function sdsTo(d: Partial<SDSRecord>) {
@@ -411,6 +412,7 @@ function sdsTo(d: Partial<SDSRecord>) {
     ...(d.ppe !== undefined && { ppe: d.ppe }),
     ...(d.revisionDate !== undefined && { revision_date: d.revisionDate }),
     ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
+    ...(d.locationIds !== undefined && { location_ids: d.locationIds }),
   };
 }
 

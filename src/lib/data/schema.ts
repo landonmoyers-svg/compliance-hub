@@ -257,6 +257,9 @@ export const SDSRecord = z.object({
   ppe: z.string().nullable().optional(),              // required PPE
   revisionDate: z.string().nullable().optional(),
   fileUrl: z.string().nullable().optional(),          // uploaded SDS PDF
+  // Locations that stock this product. A product can live at several sites, so
+  // each location's MSDS binder is the set of records tagged with its id.
+  locationIds: z.array(z.string()).optional(),
 });
 export type SDSRecord = z.infer<typeof SDSRecord>;
 

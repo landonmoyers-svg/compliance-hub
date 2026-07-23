@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload, Printer, Database, ExternalLink } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { FlaskConical, Plus, Search, Barcode, Camera, Bot, AlertCircle, X, Check, Upload, Printer, Database, ExternalLink, MapPin, FolderOpen } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,7 +16,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
-import { openSdsSheet } from "@/lib/sds-sheet";
+import { openSdsSheet, openSdsBinder } from "@/lib/sds-sheet";
 import type { SDSRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -50,11 +50,13 @@ interface SDSForm {
   ppe: string;
   revisionDate: string;
   fileUrl: string;
+  locationIds: string[];
 }
 
 const EMPTY: SDSForm = {
   productName: "", manufacturer: "", upc: "", casNumber: "", signalWord: "NONE", status: "active",
   hazardSummary: "", hazardStatements: "", firstAid: "", handling: "", ppe: "", revisionDate: "", fileUrl: "",
+  locationIds: [],
 };
 
 /** Deep-link to the CPID consumer-product SDS database (whatsinproducts.com) for
@@ -326,6 +328,7 @@ function SDSDialog({
   hazardSummary,
   confidence,
   foundSdsUrl,
+  locations,
   onClose,
   onSave,
   saving,
@@ -335,6 +338,7 @@ function SDSDialog({
   hazardSummary?: string;
   confidence?: string;
   foundSdsUrl?: string;
+  locations: { id: string; name: string }[];
   onClose: () => void;
   onSave: (data: SDSForm) => void;
   saving: boolean;
@@ -347,13 +351,20 @@ function SDSDialog({
           hazardSummary: initial.hazardSummary ?? "", hazardStatements: initial.hazardStatements ?? "",
           firstAid: initial.firstAid ?? "", handling: initial.handling ?? "", ppe: initial.ppe ?? "",
           revisionDate: initial.revisionDate ?? "", fileUrl: initial.fileUrl ?? "",
+          locationIds: initial.locationIds ?? [],
         }
       : { ...EMPTY, ...prefill },
   );
+  const toggleLocation = (id: string) =>
+    setForm((p) => ({
+      ...p,
+      locationIds: p.locationIds.includes(id) ? p.locationIds.filter((x) => x !== id) : [...p.locationIds, id],
+    }));
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [finding, setFinding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const autoRan = useRef(false);
 
   const set = (k: keyof SDSForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -369,21 +380,21 @@ function SDSDialog({
     onSave({ ...form, fileUrl });
   }
 
-  async function findSdsPdf() {
-    if (!form.productName.trim()) { toast.error("Enter a product name first."); return; }
+  async function findSdsPdf(directUrl?: string, auto = false) {
+    if (!form.productName.trim()) { if (!auto) toast.error("Enter a product name first."); return; }
     setFinding(true);
     try {
       const res = await fetch("/api/sds/find-pdf", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: form.productName, manufacturer: form.manufacturer, upc: form.upc }),
+        body: JSON.stringify({ productName: form.productName, manufacturer: form.manufacturer, upc: form.upc, directUrl: directUrl || undefined }),
       });
       const data = await res.json() as {
         found?: boolean; fileUrl?: string; sourceName?: string; message?: string; error?: string;
         manufacturer?: string; casNumber?: string; signalWord?: SDSRecord["signalWord"];
         hazardStatements?: string; revisionDate?: string;
       };
-      if (data.error) { toast.error(data.error); return; }
-      if (!data.found || !data.fileUrl) { toast.error(data.message || "No SDS PDF found. Try the CPID search below."); return; }
+      if (data.error) { if (!auto) toast.error(data.error); return; }
+      if (!data.found || !data.fileUrl) { if (!auto) toast.error(data.message || "No SDS PDF found. Use the buttons below."); return; }
       const foundUrl = data.fileUrl;
       setFile(null);
       // Store the fetched PDF; fill any hazard fields the user hasn't set yet.
@@ -396,13 +407,24 @@ function SDSDialog({
         hazardStatements: p.hazardStatements || data.hazardStatements || "",
         revisionDate: p.revisionDate || data.revisionDate || "",
       }));
-      toast.success(data.sourceName ? `SDS PDF fetched from ${data.sourceName}.` : "SDS PDF fetched and attached.");
+      toast.success(data.sourceName ? `SDS PDF imported from ${data.sourceName}.` : "SDS PDF imported and attached.");
     } catch {
-      toast.error("SDS search failed. Try again, or use the CPID search below.");
+      if (!auto) toast.error("SDS search failed. Try again, or use the CPID search below.");
     } finally {
       setFinding(false);
     }
   }
+
+  // Opened from the AI lookup (barcode/photo) → automatically find & attach the
+  // real SDS PDF, preferring the source URL the lookup already found.
+  useEffect(() => {
+    if (autoRan.current) return;
+    if (prefill && form.productName.trim() && !form.fileUrl && !file) {
+      autoRan.current = true;
+      void findSdsPdf(foundSdsUrl, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -466,6 +488,33 @@ function SDSDialog({
             </div>
           </div>
 
+          {/* Which locations stock this product — drives each site's MSDS binder */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Locations stocking this product</label>
+            {locations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No locations set up yet. Add locations in Settings to build per-site MSDS binders.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {locations.map((loc) => {
+                  const on = form.locationIds.includes(loc.id);
+                  return (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => toggleLocation(loc.id)}
+                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors ${
+                        on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      {on ? <Check className="size-3" /> : <MapPin className="size-3" />} {loc.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Tag every site that keeps this product on hand. A location&apos;s binder includes each product tagged to it.</p>
+          </div>
+
           {/* The actual SDS content */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Hazard summary</label>
@@ -513,7 +562,7 @@ function SDSDialog({
               </a>
             )}
             {!file && (
-              <Button type="button" variant="secondary" className="w-full" onClick={findSdsPdf} disabled={finding || uploading}>
+              <Button type="button" variant="secondary" className="w-full" onClick={() => void findSdsPdf()} disabled={finding || uploading}>
                 <Bot className={`size-4 ${finding ? "animate-pulse" : ""}`} />
                 {finding ? "Searching the web for the SDS…" : (form.fileUrl ? "Find a newer SDS PDF automatically" : "Find & attach the SDS PDF automatically")}
               </Button>
@@ -548,26 +597,56 @@ function SDSDialog({
 
 export default function SDSLibraryPage() {
   const { data, isLoading, isError, refetch } = useCollection("sdsRecords");
+  const { data: locationData } = useCollection("locations");
   const createMut = useCreate("sdsRecords");
   const updateMut = useUpdate("sdsRecords");
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<SDSRecord["status"] | "all">("all");
+  const [filterLocation, setFilterLocation] = useState<string>("all"); // location id | "all" | "none"
   const [editing, setEditing] = useState<SDSRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
   const [showAILookup, setShowAILookup] = useState(false);
   const [aiPrefill, setAiPrefill] = useState<{ form: Partial<SDSForm>; hazardSummary: string; confidence: string; sdsSourceUrl?: string } | null>(null);
 
   const records = useMemo(() => data ?? [], [data]);
+  const locations = useMemo(
+    () => (locationData ?? []).filter((l) => l.active !== false).map((l) => ({ id: l.id, name: l.name })),
+    [locationData],
+  );
+  const locationName = useMemo(() => {
+    const m = new Map(locations.map((l) => [l.id, l.name] as const));
+    return (id: string) => m.get(id) ?? "Unknown location";
+  }, [locations]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return records.filter((r) => {
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
+      if (filterLocation === "none" && (r.locationIds?.length ?? 0) > 0) return false;
+      if (filterLocation !== "all" && filterLocation !== "none" && !(r.locationIds ?? []).includes(filterLocation)) return false;
       if (q && !r.productName.toLowerCase().includes(q) && !(r.manufacturer ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [records, search, filterStatus]);
+  }, [records, search, filterStatus, filterLocation]);
+
+  // The current binder = every product matching the location filter (status/search
+  // ignored, so the printed binder is the site's complete SDS set).
+  const binderRecords = useMemo(() => {
+    if (filterLocation === "all") return records;
+    if (filterLocation === "none") return records.filter((r) => (r.locationIds?.length ?? 0) === 0);
+    return records.filter((r) => (r.locationIds ?? []).includes(filterLocation));
+  }, [records, filterLocation]);
+
+  const binderTitle =
+    filterLocation === "all" ? "All Locations — Master SDS Binder"
+    : filterLocation === "none" ? "Unassigned Products — SDS Binder"
+    : `${locationName(filterLocation)} — MSDS Binder`;
+
+  function printBinder() {
+    if (binderRecords.length === 0) { toast.error("No SDS records for this location yet."); return; }
+    if (!openSdsBinder(binderRecords, binderTitle)) toast.error("Allow pop-ups to print the MSDS binder.");
+  }
 
   const { sorted, sort, toggle } = useSort(filtered, {
     product: (r) => r.productName,
@@ -610,7 +689,7 @@ export default function SDSLibraryPage() {
       sdsSourceUrl: result.sdsSourceUrl ?? "",
     });
     setEditing("new");
-    toast.success("SDS details filled in — review, attach the SDS PDF, and save");
+    toast.success("SDS details filled — importing the SDS PDF…");
   }
 
   async function handleSave(form: SDSForm) {
@@ -630,6 +709,7 @@ export default function SDSLibraryPage() {
         ppe: form.ppe.trim() || null,
         revisionDate: form.revisionDate || null,
         fileUrl: form.fileUrl || null,
+        locationIds: form.locationIds,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -668,6 +748,7 @@ export default function SDSLibraryPage() {
           hazardSummary={editing === "new" ? aiPrefill?.hazardSummary : undefined}
           confidence={editing === "new" ? aiPrefill?.confidence : undefined}
           foundSdsUrl={editing === "new" ? aiPrefill?.sdsSourceUrl : undefined}
+          locations={locations}
           onClose={() => { setEditing(null); setAiPrefill(null); }}
           onSave={handleSave}
           saving={saving}
@@ -730,6 +811,30 @@ export default function SDSLibraryPage() {
               </button>
             ))}
           </div>
+          {locations.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="size-4 text-muted-foreground" />
+                <label className="text-sm text-muted-foreground">Location</label>
+                <select
+                  className="input h-9 py-0"
+                  value={filterLocation}
+                  onChange={(e) => setFilterLocation(e.target.value)}
+                  aria-label="Filter by location"
+                >
+                  <option value="all">All locations</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                  <option value="none">Unassigned</option>
+                </select>
+              </div>
+              <Button variant="outline" onClick={printBinder} title="Open the full MSDS binder for this location in one printable document">
+                <FolderOpen className="size-4" /> View / print {filterLocation === "all" ? "master" : filterLocation === "none" ? "unassigned" : locationName(filterLocation).split(" ")[0]} binder
+                <Badge variant="secondary" className="ml-1">{binderRecords.length}</Badge>
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -765,7 +870,18 @@ export default function SDSLibraryPage() {
                 <tbody>
                   {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Product" className="py-3 pr-4 font-medium">{r.productName}</td>
+                      <td data-label="Product" className="py-3 pr-4 font-medium">
+                        {r.productName}
+                        {locations.length > 0 && (r.locationIds?.length ?? 0) > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(r.locationIds ?? []).map((id) => (
+                              <span key={id} className="inline-flex items-center gap-0.5 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-normal text-secondary-foreground">
+                                <MapPin className="size-2.5" /> {locationName(id)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td data-label="Manufacturer" className="py-3 pr-4 text-muted-foreground">{r.manufacturer ?? "—"}</td>
                       <td data-label="UPC / ID" className="py-3 pr-4 font-mono text-xs text-muted-foreground">{r.upc ?? "—"}</td>
                       <td data-label="Signal" className="py-3 pr-4">
