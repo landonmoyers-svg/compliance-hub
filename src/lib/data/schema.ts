@@ -475,6 +475,12 @@ export const RegulatorySource = z.object({
     .default("current"),
   lastCheckedAt: z.string().nullable().optional(),
   officialUrl: z.string().nullable().optional(),
+  // A stored copy of the referenced document's current version (public gov
+  // sources), fetched for internal reference + to ground Policy Q&A. Review ≥ quarterly.
+  documentSummary: z.string().nullable().optional(),   // 1-2 sentence plain-language summary
+  documentContent: z.string().nullable().optional(),   // key provisions / requirements text
+  documentVersion: z.string().nullable().optional(),   // effective date / edition label
+  documentFetchedAt: z.string().nullable().optional(), // when we last fetched the current version
 });
 export type RegulatorySource = z.infer<typeof RegulatorySource>;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { BookOpen, Plus, Search, ExternalLink, Sparkles, FileText, X, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { BookOpen, Plus, Search, ExternalLink, Sparkles, FileText, X, AlertTriangle, CheckCircle2, Download, Clock } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, SOURCES_TABS } from "@/components/shared/page-tabs";
@@ -31,6 +31,53 @@ const TYPE_LABELS: Record<RegulatorySource["sourceType"], string> = {
   internal: "Internal",
   statute: "Statute",
 };
+
+/** Quarterly-review status of a source's stored document version. */
+function docUpdateStatus(s: RegulatorySource): { has: boolean; due: boolean; label: string } {
+  if (!s.documentFetchedAt) return { has: false, due: true, label: "Not fetched" };
+  const days = Math.floor((Date.now() - new Date(s.documentFetchedAt).getTime()) / 86_400_000);
+  return { has: true, due: days > 92, label: `Updated ${formatDate(s.documentFetchedAt)}` };
+}
+
+/* ------------------- stored-document viewer ------------------- */
+
+function DocumentModal({ source, onClose }: { source: RegulatorySource; onClose: () => void }) {
+  const st = docUpdateStatus(source);
+  const lines = (source.documentContent ?? "").split(/\r?\n/).map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2"><FileText className="size-4 text-primary" /><h2 className="font-semibold">Stored current version</h2></div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{source.title}{source.citationLabel ? ` · ${source.citationLabel}` : ""}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {source.documentVersion && <Badge variant="secondary">{source.documentVersion}</Badge>}
+            <span className={st.due ? "text-warning" : "text-muted-foreground"}>{st.label}</span>
+            {st.due && <Badge variant="warning">Update due (review ≥ quarterly)</Badge>}
+          </div>
+          {source.documentSummary && <p className="text-sm">{source.documentSummary}</p>}
+          {lines.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key provisions</p>
+              <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
+            </div>
+          )}
+          {source.officialUrl && (
+            <a href={source.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              Open the official source <ExternalLink className="size-3" />
+            </a>
+          )}
+          <p className="text-[11px] text-muted-foreground">Stored copy of a public government source for internal reference. Re-fetch and review at least quarterly to stay current. Verify against the official source before relying on it.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ----------------------------- dialog ------------------------------- */
 
@@ -266,6 +313,8 @@ export default function RegulatorySourcesPage() {
   const [filterReview, setFilterReview] = useState<RegulatorySource["reviewStatus"] | "all">("all");
   const [editing, setEditing] = useState<RegulatorySource | null | "new">(null);
   const [aligning, setAligning] = useState<RegulatorySource | null>(null);
+  const [viewing, setViewing] = useState<RegulatorySource | null>(null);
+  const [fetchingId, setFetchingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const sources = useMemo(() => data ?? [], [data]);
@@ -297,6 +346,32 @@ export default function RegulatorySourcesPage() {
     gaps: links.gapSourceIds.size,
     total: sources.length,
   }), [sources, links]);
+  const dueCount = useMemo(() => sources.filter((s) => docUpdateStatus(s).due).length, [sources]);
+
+  // Fetch the current version of a source's referenced document and store it.
+  async function fetchCurrent(s: RegulatorySource) {
+    setFetchingId(s.id);
+    try {
+      const res = await fetch("/api/ai/reg-fetch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: { title: s.title, citationLabel: s.citationLabel, issuingBody: s.issuingBody, jurisdiction: s.jurisdiction, officialUrl: s.officialUrl, sourceType: s.sourceType } }),
+      });
+      const d = await res.json() as { summary?: string; content?: string; version?: string; error?: string };
+      if (!res.ok) throw new Error(d.error ?? "Fetch failed.");
+      await updateMut.mutateAsync({ id: s.id, patch: {
+        documentSummary: d.summary || null,
+        documentContent: d.content || null,
+        documentVersion: d.version || null,
+        documentFetchedAt: new Date().toISOString(),
+      } });
+      toast.success("Current version fetched and stored.");
+      void refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't fetch the current version.");
+    } finally {
+      setFetchingId(null);
+    }
+  }
 
   async function handleSave(form: SourceForm) {
     setSaving(true);
@@ -357,6 +432,8 @@ export default function RegulatorySourcesPage() {
         />
       )}
 
+      {viewing && <DocumentModal source={viewing} onClose={() => setViewing(null)} />}
+
       <PageHeader
         title="Regulatory Sources"
         description="The rules that apply to your practice — regulations, guidance, and internal policies, each tracked with a review status."
@@ -381,6 +458,15 @@ export default function RegulatorySourcesPage() {
         <StatCard label="Needs review" value={stats.needsReview} icon={BookOpen} tone={stats.needsReview ? "warning" : "default"} loading={isLoading} />
         <StatCard label="SOP gaps" value={stats.gaps} icon={AlertTriangle} tone={stats.gaps ? "destructive" : "success"} loading={isLoading || docsQ.isLoading} />
         <StatCard label="Total tracked" value={stats.total} icon={BookOpen} loading={isLoading} />
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-secondary/20 p-3 text-sm">
+        <Clock className="mt-0.5 size-4 shrink-0 text-primary" />
+        <p className="text-muted-foreground">
+          Store each source&apos;s current version for internal reference and Policy Q&amp;A: click <span className="font-medium text-foreground">Fetch</span> to pull the current document from its official link.{" "}
+          <span className="font-medium text-foreground">Review and re-fetch every source at least quarterly.</span>
+          {dueCount > 0 && <> <span className="font-medium text-warning">{dueCount} {dueCount === 1 ? "source is" : "sources are"} due for an update.</span></>}
+        </p>
       </div>
 
       <Card>
@@ -432,6 +518,7 @@ export default function RegulatorySourcesPage() {
                     <SortHeader label="Type" sortKey="type" sort={sort} onToggle={toggle} />
                     <SortHeader label="Issuing body" sortKey="issuer" sort={sort} onToggle={toggle} />
                     <SortHeader label="Last checked" sortKey="lastChecked" sort={sort} onToggle={toggle} />
+                    <th className="pb-2 font-medium">Current version</th>
                     <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">SOP coverage</th>
                     <th className="pb-2 font-medium">Actions</th>
@@ -448,6 +535,22 @@ export default function RegulatorySourcesPage() {
                       <td data-label="Type" className="py-3 pr-4">{TYPE_LABELS[s.sourceType]}</td>
                       <td data-label="Issuing body" className="py-3 pr-4 text-muted-foreground">{s.issuingBody ?? "—"}</td>
                       <td data-label="Last checked" className="py-3 pr-4">{s.lastCheckedAt ? formatDate(s.lastCheckedAt) : "—"}</td>
+                      <td data-label="Current version" className="py-3 pr-4">
+                        {(() => {
+                          const st = docUpdateStatus(s);
+                          if (!st.has) return <span className="text-xs text-muted-foreground">Not fetched</span>;
+                          return (
+                            <div className="space-y-0.5">
+                              {s.documentVersion && <div className="text-xs">{s.documentVersion}</div>}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`text-xs ${st.due ? "text-warning" : "text-muted-foreground"}`}>{st.label}</span>
+                                {st.due && <Badge variant="warning">Update due</Badge>}
+                              </div>
+                              <button type="button" onClick={() => setViewing(s)} className="text-xs text-primary hover:underline">View stored</button>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td data-label="Status" className="py-3 pr-4">
                         <button type="button" onClick={() => setEditing(s)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={REVIEW_VARIANT[s.reviewStatus]}>
@@ -470,7 +573,10 @@ export default function RegulatorySourcesPage() {
                         })()}
                       </td>
                       <td data-label="" className="py-3">
-                        <div className="flex gap-1 md:justify-end">
+                        <div className="flex flex-wrap gap-1 md:justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => void fetchCurrent(s)} disabled={fetchingId === s.id} title="Fetch the current version of the referenced document">
+                            <Download className={`size-3 ${fetchingId === s.id ? "animate-pulse" : ""}`} /> {fetchingId === s.id ? "Fetching…" : docUpdateStatus(s).has ? "Update" : "Fetch"}
+                          </Button>
                           <Button size="sm" variant="ghost" onClick={() => setAligning(s)} title="Check SOP alignment with Sage"><Sparkles className="size-3" /> Align</Button>
                           <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>Edit</Button>
                           {s.officialUrl && (

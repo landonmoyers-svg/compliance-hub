@@ -22,6 +22,7 @@ const basePrompt = (org: string) => `You are Sage, ${org}'s calm, steady complia
 Guidelines:
 - PREFER the practice's own approved policies and regulatory sources listed below. When your answer is covered by one of them, ground your answer in it and cite it by its exact title (e.g. "per your SOP 'Bloodborne Pathogens Exposure Control Plan'").
 - If the practice's documents do not cover the question, you may answer from general regulatory knowledge, but say so explicitly ("This isn't covered by a current ${org} policy, but in general…") so staff know it's not yet codified internally.
+- When a tracked regulatory source's stored current version appears in the excerpts, treat it as the authoritative reference: give a full, specific answer grounded in it, and cite the source by title with its official link. If the relevant source has no stored version yet, answer from general knowledge and suggest fetching its current version on the Regulatory Sources page.
 - When a regulation number or CFR citation is relevant, include it.
 - Flag when something requires a licensed attorney or compliance officer to decide.
 - Be concise — staff are busy clinicians, not lawyers.
@@ -55,7 +56,7 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
       .limit(120),
     supabase
       .from("regulatory_sources")
-      .select("title, citation_label, issuing_body, jurisdiction, summary, official_url, review_status")
+      .select("title, citation_label, issuing_body, jurisdiction, official_url, review_status, document_summary, document_content, document_version")
       .limit(60),
   ]);
 
@@ -63,7 +64,11 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
     title: string; document_type: string; compliance_area: string | null;
     summary: string | null; version: string | null; content: string | null;
   }[];
-  const sources = srcRes.data ?? [];
+  const sources = (srcRes.data ?? []) as {
+    title: string; citation_label: string | null; issuing_body: string | null; jurisdiction: string | null;
+    official_url: string | null; review_status: string | null;
+    document_summary: string | null; document_content: string | null; document_version: string | null;
+  }[];
 
   if (docs.length === 0 && sources.length === 0) {
     return {
@@ -96,8 +101,10 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
     for (const s of sources) {
       const cite = s.citation_label ? ` (${s.citation_label})` : "";
       const body = s.issuing_body ? ` — ${s.issuing_body}` : "";
-      const summary = s.summary ? `: ${String(s.summary).slice(0, 160)}` : "";
-      catalog += `• "${s.title}"${cite}${body}${summary}\n`;
+      const summary = s.document_summary ? `: ${String(s.document_summary).slice(0, 180)}` : "";
+      const stored = s.document_content ? " [current version stored]" : "";
+      const url = s.official_url ? ` <${s.official_url}>` : "";
+      catalog += `• "${s.title}"${cite}${body}${summary}${stored}${url}\n`;
     }
   }
   catalog += "\n=== END APPROVED SOURCES ===";
@@ -109,6 +116,26 @@ async function buildOrgContext(supabase: SupabaseClient, query: string): Promise
     for (const { d } of relevant) {
       if (!d.content) continue;
       excerpts += `\n### ${d.title}\n${String(d.content).slice(0, 2200)}\n`;
+    }
+  }
+
+  // Stored current-version text of the referenced regulations most relevant to
+  // the question — lets Sage give full answers about them and cite the source.
+  const relSources = sources
+    .map((s) => {
+      const hay = `${s.title} ${s.citation_label ?? ""} ${s.document_summary ?? ""} ${s.document_content ?? ""}`.toLowerCase();
+      return { s, score: kw.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) };
+    })
+    .filter((x) => x.score > 0 && (x.s.document_content || x.s.document_summary))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+  if (relSources.length > 0) {
+    excerpts += "\n\n--- Stored current versions of the referenced regulations most relevant to the question (cite by title + official link) ---\n";
+    for (const { s } of relSources) {
+      excerpts += `\n### ${s.title}${s.citation_label ? ` (${s.citation_label})` : ""}${s.document_version ? ` — ${s.document_version}` : ""}\n`;
+      if (s.document_summary) excerpts += `${s.document_summary}\n`;
+      if (s.document_content) excerpts += `${String(s.document_content).slice(0, 2000)}\n`;
+      if (s.official_url) excerpts += `Official: ${s.official_url}\n`;
     }
   }
 

@@ -757,6 +757,10 @@ function regFrom(r: Record<string, unknown>): RegulatorySource {
     reviewStatus: r.review_status as RegulatorySource["reviewStatus"],
     lastCheckedAt: toISO(r.last_checked_at as string),
     officialUrl: r.official_url as string | undefined,
+    documentSummary: (r.document_summary as string | null) ?? undefined,
+    documentContent: (r.document_content as string | null) ?? undefined,
+    documentVersion: (r.document_version as string | null) ?? undefined,
+    documentFetchedAt: toISO(r.document_fetched_at as string),
   };
 }
 function regTo(d: Partial<RegulatorySource>) {
@@ -769,6 +773,10 @@ function regTo(d: Partial<RegulatorySource>) {
     ...(d.reviewStatus !== undefined && { review_status: d.reviewStatus }),
     ...(d.lastCheckedAt !== undefined && { last_checked_at: d.lastCheckedAt }),
     ...(d.officialUrl !== undefined && { official_url: d.officialUrl }),
+    ...(d.documentSummary !== undefined && { document_summary: d.documentSummary }),
+    ...(d.documentContent !== undefined && { document_content: d.documentContent }),
+    ...(d.documentVersion !== undefined && { document_version: d.documentVersion }),
+    ...(d.documentFetchedAt !== undefined && { document_fetched_at: d.documentFetchedAt }),
   };
 }
 
