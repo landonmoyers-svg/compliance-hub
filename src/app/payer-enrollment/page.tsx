@@ -3,10 +3,9 @@
 import { useState, useMemo } from "react";
 import {
   Handshake, Plus, Search, X, Check, AlertTriangle, CalendarClock,
-  Building2, UserCircle, FileText,
+  Building2, UserCircle, FileText, ChevronRight,
 } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
-import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,6 +21,9 @@ import {
   type PayerContract, type PayerEnrollment,
 } from "@/lib/data/schema";
 import { toast } from "sonner";
+import { cn } from "@/lib/cn";
+import { formatName } from "@/lib/format";
+import { buildHolderIndex, holderStatus } from "@/lib/compliance";
 
 /* ─── constants ─────────────────────────────────────────────── */
 
@@ -88,6 +90,97 @@ function enrollmentNeedsAttention(e: PayerEnrollment): boolean {
     return u === "overdue" || u === "soon";
   }
   return false;
+}
+
+/* ─── provider-file grouping (mirrors Credentials / Insurance Vault) ─────── */
+
+interface ProviderPanelFile { key: string; name: string; former: boolean; items: PayerEnrollment[]; attention: number; }
+
+/** Group paneling rows by provider, active-first then alphabetical. */
+function buildProviderPanelFiles(rows: PayerEnrollment[], isFormer: (e: PayerEnrollment) => boolean): ProviderPanelFile[] {
+  const byProvider = new Map<string, PayerEnrollment[]>();
+  for (const e of rows) {
+    const key = e.providerUserId || e.providerName.trim().toLowerCase() || "unassigned";
+    const arr = byProvider.get(key) ?? [];
+    arr.push(e);
+    byProvider.set(key, arr);
+  }
+  const files: ProviderPanelFile[] = [];
+  for (const [key, items] of byProvider) {
+    const sorted = [...items].sort((a, b) => a.payerName.localeCompare(b.payerName));
+    const first = items[0];
+    files.push({
+      key,
+      name: first.providerName.trim() || "Unassigned",
+      former: isFormer(first),
+      items: sorted,
+      attention: items.filter(enrollmentNeedsAttention).length,
+    });
+  }
+  return files.sort((a, b) => Number(a.former) - Number(b.former) || a.name.localeCompare(b.name));
+}
+
+/** Collapsed-by-name paneling view: each provider expands to their payers;
+ *  former/past providers sit in their own collapsed section at the end. */
+function ProviderPanelView({ files, onEdit }: { files: ProviderPanelFile[]; onEdit: (e: PayerEnrollment) => void }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggleOpen = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const active = files.filter((f) => !f.former);
+  const former = files.filter((f) => f.former);
+
+  const renderFile = (f: ProviderPanelFile) => {
+    const isOpen = open.has(f.key);
+    return (
+      <div key={f.key} className="rounded-lg border border-border">
+        <button type="button" onClick={() => toggleOpen(f.key)} className="flex w-full flex-wrap items-center gap-2 px-4 py-2.5 text-left hover:bg-secondary/20">
+          <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+          <span className="font-medium">{formatName(f.name)}</span>
+          {!f.former && f.attention > 0 && <Badge variant="warning">{f.attention} to address</Badge>}
+          <span className="ml-auto text-xs text-muted-foreground">{f.items.length} payer{f.items.length === 1 ? "" : "s"}</span>
+        </button>
+        {isOpen && (
+          <div className="divide-y divide-border/60 border-t border-border">
+            {f.items.map((e) => {
+              const recred = dateUrgency(e.recredentialDate);
+              const attention = !f.former && enrollmentNeedsAttention(e);
+              return (
+                <div key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3", attention && "bg-warning/5")}>
+                  <span className="font-medium">{e.payerName}</span>
+                  <button type="button" onClick={() => onEdit(e)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
+                    <Badge variant={f.former ? "secondary" : ENROLL_VARIANT[e.enrollmentStatus]}>{ENROLL_LABEL[e.enrollmentStatus]}</Badge>
+                  </button>
+                  {e.effectiveDate && <span className="text-sm text-muted-foreground">par {formatDate(e.effectiveDate)}</span>}
+                  {e.recredentialDate && (
+                    <span className={cn("text-sm", recred === "overdue" ? "font-medium text-destructive" : recred === "soon" ? "font-medium text-warning" : "text-muted-foreground")}>
+                      re-cred {formatDate(e.recredentialDate)}{recred === "overdue" ? " (overdue)" : recred === "soon" ? " (soon)" : ""}
+                    </span>
+                  )}
+                  {e.providerPayerId && <span className="text-xs text-muted-foreground">ID {e.providerPayerId}</span>}
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => onEdit(e)}>Edit</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">{active.map(renderFile)}</div>
+      {former.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 pt-2 text-sm font-semibold text-muted-foreground">
+            Former / past providers <Badge variant="secondary">{former.length}</Badge>
+          </div>
+          {former.map(renderFile)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ─── contract form ─────────────────────────────────────────── */
@@ -385,13 +478,12 @@ export default function PayerEnrollmentPage() {
       e.providerName.toLowerCase().includes(q) || e.payerName.toLowerCase().includes(q));
   }, [enrollments, search]);
 
-  const { sorted: enrollSorted, sort, toggle } = useSort(enrollFiltered, {
-    provider: (e) => e.providerName,
-    payer: (e) => e.payerName,
-    status: (e) => ENROLL_LABEL[e.enrollmentStatus],
-    effective: (e) => e.effectiveDate ?? "",
-    recred: (e) => e.recredentialDate ?? "",
-  });
+  const holderIdx = useMemo(() => buildHolderIndex(employeesQ.data ?? []), [employeesQ.data]);
+  const providerIsFormer = useMemo(
+    () => (e: PayerEnrollment) => holderStatus({ employeeUserId: e.providerUserId, employeeName: e.providerName }, holderIdx) === "former",
+    [holderIdx],
+  );
+  const panelFiles = useMemo(() => buildProviderPanelFiles(enrollFiltered, providerIsFormer), [enrollFiltered, providerIsFormer]);
 
   const stats = useMemo(() => ({
     paneled: enrollments.filter((e) => e.enrollmentStatus === "paneled").length,
@@ -607,48 +699,7 @@ export default function PayerEnrollmentPage() {
               description={enrollments.length ? "Try a different search." : "Record which payers each provider is paneled with, their par date, re-credential date, and payer-assigned IDs."}
               action={<Button onClick={() => setEditingEnroll("new")}><Plus className="size-4" /> Add paneling</Button>} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm rtable">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <SortHeader label="Provider" sortKey="provider" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Payer" sortKey="payer" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Par date" sortKey="effective" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Re-cred due" sortKey="recred" sort={sort} onToggle={toggle} />
-                    <th className="pb-2 font-medium">Payer ID</th>
-                    <th className="pb-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrollSorted.map((e) => {
-                    const attention = enrollmentNeedsAttention(e);
-                    const recred = dateUrgency(e.recredentialDate);
-                    return (
-                      <tr key={e.id} className={`border-b border-border/50 hover:bg-secondary/20 ${attention ? "bg-warning/5" : ""}`}>
-                        <td data-label="Provider" className="py-3 pr-4 font-medium">{e.providerName}</td>
-                        <td data-label="Payer" className="py-3 pr-4">{e.payerName}</td>
-                        <td data-label="Status" className="py-3 pr-4">
-                          <button type="button" onClick={() => setEditingEnroll(e)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
-                            <Badge variant={ENROLL_VARIANT[e.enrollmentStatus]}>{ENROLL_LABEL[e.enrollmentStatus]}</Badge>
-                          </button>
-                        </td>
-                        <td data-label="Par date" className="py-3 pr-4">{formatDate(e.effectiveDate)}</td>
-                        <td data-label="Re-cred due" className="py-3 pr-4">
-                          <span className={recred === "overdue" ? "text-destructive font-medium" : recred === "soon" ? "text-warning font-medium" : ""}>
-                            {formatDate(e.recredentialDate)}{recred === "overdue" && " (overdue)"}{recred === "soon" && " (soon)"}
-                          </span>
-                        </td>
-                        <td data-label="Payer ID" className="py-3 pr-4 text-muted-foreground">{e.providerPayerId || "—"}</td>
-                        <td data-label="" className="py-3">
-                          <div className="flex gap-1 md:justify-end"><Button size="sm" variant="ghost" onClick={() => setEditingEnroll(e)}>Edit</Button></div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ProviderPanelView files={panelFiles} onEdit={(e) => setEditingEnroll(e)} />
           )}
         </CardContent>
       </Card>
