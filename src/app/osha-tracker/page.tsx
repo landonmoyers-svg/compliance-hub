@@ -17,6 +17,7 @@ import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { OSHARecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 import { RecordkeepingGuide, OSHA_FORMS_PACKAGE_URL } from "@/components/osha/recordkeeping-guide";
+import type { CaseRow } from "@/lib/osha-forms-doc";
 
 const CASE_OUTCOME_LABEL: Record<NonNullable<OSHARecord["caseOutcome"]>, string> = {
   death: "Death",
@@ -242,6 +243,8 @@ export default function OSHATrackerPage() {
   const { data, isLoading, isError, refetch } = useCollection("oshaRecords");
   const createMut = useCreate("oshaRecords");
   const updateMut = useUpdate("oshaRecords");
+  const employeesQ = useCollection("employees");
+  const locationsQ = useCollection("locations");
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<OSHARecord["recordType"] | "all">("all");
@@ -250,6 +253,26 @@ export default function OSHATrackerPage() {
   const [saving, setSaving] = useState(false);
 
   const records = useMemo(() => data ?? [], [data]);
+
+  // Recordable injury/illness cases (enriched with job title) feed the generated
+  // OSHA 300 Log and 300A summary.
+  const cases: CaseRow[] = useMemo(() => {
+    const emps = employeesQ.data ?? [];
+    const titleFor = (r: OSHARecord): string | undefined => {
+      const emp = emps.find((e) =>
+        (r.injuredEmployeeUserId && e.userId === r.injuredEmployeeUserId) ||
+        `${e.firstName} ${e.lastName}`.trim().toLowerCase() === (r.injuredEmployeeName ?? "").trim().toLowerCase());
+      return emp?.title || emp?.jobRole || undefined;
+    };
+    return records
+      .filter((r) => (r.recordType === "injury" || r.recordType === "illness") && r.recordabilityStatus === "recordable")
+      .map((r) => ({ ...r, jobTitle: titleFor(r) }));
+  }, [records, employeesQ.data]);
+
+  const establishment = useMemo(() => {
+    const loc = (locationsQ.data ?? [])[0];
+    return { name: "Lone Peak Psychiatry", city: loc?.city ?? "", state: loc?.state ?? "UT" };
+  }, [locationsQ.data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -356,7 +379,7 @@ export default function OSHATrackerPage() {
         <StatCard label="Total records" value={stats.total} icon={ClipboardCheck} loading={isLoading} />
       </div>
 
-      <RecordkeepingGuide />
+      <RecordkeepingGuide cases={cases} establishment={establishment} />
 
       <Card>
         <CardHeader>
