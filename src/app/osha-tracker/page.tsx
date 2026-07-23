@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ClipboardCheck, Plus, Search } from "lucide-react";
+import { ClipboardCheck, Plus, Search, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,6 +16,7 @@ import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { OSHARecord } from "@/lib/data/schema";
 import { toast } from "sonner";
+import { RecordkeepingGuide, OSHA_FORMS_PACKAGE_URL } from "@/components/osha/recordkeeping-guide";
 
 const CASE_OUTCOME_LABEL: Record<NonNullable<OSHARecord["caseOutcome"]>, string> = {
   death: "Death",
@@ -213,6 +214,9 @@ function RecordDialog({
                   {file ? file.name : "Attach the OSHA 301 / incident report or medical record"}
                   <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </label>
+                <a href={OSHA_FORMS_PACKAGE_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ExternalLink className="size-3" /> Need the blank OSHA 301? Open the official form (PDF)
+                </a>
               </div>
             </>
           )}
@@ -351,6 +355,8 @@ export default function OSHATrackerPage() {
         <StatCard label="Injuries / illnesses" value={stats.injuries} icon={ClipboardCheck} tone={stats.injuries ? "warning" : "default"} loading={isLoading} />
         <StatCard label="Total records" value={stats.total} icon={ClipboardCheck} loading={isLoading} />
       </div>
+
+      <RecordkeepingGuide />
 
       <Card>
         <CardHeader>
