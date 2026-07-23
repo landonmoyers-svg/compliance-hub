@@ -348,6 +348,7 @@ function SDSDialog({
   );
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [finding, setFinding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const set = (k: keyof SDSForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -362,6 +363,41 @@ function SDSDialog({
       setUploading(false);
     }
     onSave({ ...form, fileUrl });
+  }
+
+  async function findSdsPdf() {
+    if (!form.productName.trim()) { toast.error("Enter a product name first."); return; }
+    setFinding(true);
+    try {
+      const res = await fetch("/api/sds/find-pdf", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName: form.productName, manufacturer: form.manufacturer, upc: form.upc }),
+      });
+      const data = await res.json() as {
+        found?: boolean; fileUrl?: string; sourceName?: string; message?: string; error?: string;
+        manufacturer?: string; casNumber?: string; signalWord?: SDSRecord["signalWord"];
+        hazardStatements?: string; revisionDate?: string;
+      };
+      if (data.error) { toast.error(data.error); return; }
+      if (!data.found || !data.fileUrl) { toast.error(data.message || "No SDS PDF found. Try the CPID search below."); return; }
+      const foundUrl = data.fileUrl;
+      setFile(null);
+      // Store the fetched PDF; fill any hazard fields the user hasn't set yet.
+      setForm((p) => ({
+        ...p,
+        fileUrl: foundUrl,
+        manufacturer: p.manufacturer || data.manufacturer || "",
+        casNumber: p.casNumber || data.casNumber || "",
+        signalWord: p.signalWord && p.signalWord !== "NONE" ? p.signalWord : (data.signalWord || p.signalWord),
+        hazardStatements: p.hazardStatements || data.hazardStatements || "",
+        revisionDate: p.revisionDate || data.revisionDate || "",
+      }));
+      toast.success(data.sourceName ? `SDS PDF fetched from ${data.sourceName}.` : "SDS PDF fetched and attached.");
+    } catch {
+      toast.error("SDS search failed. Try again, or use the CPID search below.");
+    } finally {
+      setFinding(false);
+    }
   }
 
   return (
@@ -467,9 +503,15 @@ function SDSDialog({
             </div>
             {form.fileUrl && !file && <FileLink path={form.fileUrl} label="Current SDS file" className="text-primary hover:underline" />}
             <p className="text-xs text-muted-foreground">Upload the manufacturer&apos;s Safety Data Sheet so the real document is on file (OSHA HazCom).</p>
+            {!file && (
+              <Button type="button" variant="secondary" className="w-full" onClick={findSdsPdf} disabled={finding || uploading}>
+                <Bot className={`size-4 ${finding ? "animate-pulse" : ""}`} />
+                {finding ? "Searching the web for the SDS…" : (form.fileUrl ? "Find a newer SDS PDF automatically" : "Find & attach the SDS PDF automatically")}
+              </Button>
+            )}
             {!form.fileUrl && !file && (
               <button type="button" onClick={() => openCpid(form.productName)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                <ExternalLink className="size-3" /> Don&apos;t have it? Find this product&apos;s SDS on CPID (whatsinproducts.com)
+                <ExternalLink className="size-3" /> Prefer to do it by hand? Search CPID (whatsinproducts.com)
               </button>
             )}
           </div>

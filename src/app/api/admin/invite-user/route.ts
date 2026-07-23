@@ -46,7 +46,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+  // The invite email's "set password" link is built from appUrl. NEVER derive it
+  // from the request origin: an admin browsing a preview/branch/deployment URL
+  // (e.g. *-git-main-*.vercel.app) would bake that host into the link, and those
+  // hosts sit behind Vercel Deployment Protection — the invitee then hits Vercel's
+  // "log in to Vercel" wall instead of our login. Pin to the public production URL.
+  const PROD_APP_URL = "https://compliance-hub-lone-peak.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || PROD_APP_URL;
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${appUrl}/auth/reset`,
   });
