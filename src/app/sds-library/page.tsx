@@ -79,6 +79,8 @@ interface LookupResult {
   firstAid?: string;
   handling?: string;
   ppe?: string;
+  revisionDate?: string;
+  sdsSourceUrl?: string;
   confidence: "high" | "medium" | "low";
 }
 
@@ -323,6 +325,7 @@ function SDSDialog({
   prefill,
   hazardSummary,
   confidence,
+  foundSdsUrl,
   onClose,
   onSave,
   saving,
@@ -331,6 +334,7 @@ function SDSDialog({
   prefill?: Partial<SDSForm>;
   hazardSummary?: string;
   confidence?: string;
+  foundSdsUrl?: string;
   onClose: () => void;
   onSave: (data: SDSForm) => void;
   saving: boolean;
@@ -503,6 +507,11 @@ function SDSDialog({
             </div>
             {form.fileUrl && !file && <FileLink path={form.fileUrl} label="Current SDS file" className="text-primary hover:underline" />}
             <p className="text-xs text-muted-foreground">Upload the manufacturer&apos;s Safety Data Sheet so the real document is on file (OSHA HazCom).</p>
+            {foundSdsUrl && !form.fileUrl && !file && (
+              <a href={foundSdsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                <ExternalLink className="size-3" /> Sage found an SDS source — open to view/download, then attach
+              </a>
+            )}
             {!file && (
               <Button type="button" variant="secondary" className="w-full" onClick={findSdsPdf} disabled={finding || uploading}>
                 <Bot className={`size-4 ${finding ? "animate-pulse" : ""}`} />
@@ -547,7 +556,7 @@ export default function SDSLibraryPage() {
   const [editing, setEditing] = useState<SDSRecord | null | "new">(null);
   const [saving, setSaving] = useState(false);
   const [showAILookup, setShowAILookup] = useState(false);
-  const [aiPrefill, setAiPrefill] = useState<{ form: Partial<SDSForm>; hazardSummary: string; confidence: string } | null>(null);
+  const [aiPrefill, setAiPrefill] = useState<{ form: Partial<SDSForm>; hazardSummary: string; confidence: string; sdsSourceUrl?: string } | null>(null);
 
   const records = useMemo(() => data ?? [], [data]);
 
@@ -593,11 +602,12 @@ export default function SDSLibraryPage() {
         firstAid: result.firstAid ?? "",
         handling: result.handling ?? "",
         ppe: result.ppe ?? "",
-        revisionDate: "",
+        revisionDate: result.revisionDate ?? "",
         fileUrl: "",
       },
       hazardSummary: result.hazardSummary ?? "",
       confidence: result.confidence ?? "medium",
+      sdsSourceUrl: result.sdsSourceUrl ?? "",
     });
     setEditing("new");
     toast.success("SDS details filled in — review, attach the SDS PDF, and save");
@@ -657,6 +667,7 @@ export default function SDSLibraryPage() {
           prefill={editing === "new" ? aiPrefill?.form : undefined}
           hazardSummary={editing === "new" ? aiPrefill?.hazardSummary : undefined}
           confidence={editing === "new" ? aiPrefill?.confidence : undefined}
+          foundSdsUrl={editing === "new" ? aiPrefill?.sdsSourceUrl : undefined}
           onClose={() => { setEditing(null); setAiPrefill(null); }}
           onSave={handleSave}
           saving={saving}

@@ -20,8 +20,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Provide a UPC/barcode or an image" }, { status: 400 });
   }
 
-  const systemPrompt = `You are an expert in chemical safety and OSHA Hazard Communication (HazCom).
-Given a product UPC, barcode, or image of a product label, identify the chemical product and return its Safety Data Sheet (SDS) information — the practical, actionable content of the SDS.
+  const systemPrompt = `You are an expert in chemical safety and OSHA Hazard Communication (HazCom). You have a web_search tool — USE IT to look up the ACTUAL current Safety Data Sheet for the product from the web; do not rely on memory.
+
+Given a product UPC/barcode or a photo of a product label: first identify the exact product name, manufacturer, and UPC. Then search the web RIGHT NOW for its real SDS and extract the data from that document.
+Run searches like:
+  - "<product> <manufacturer> safety data sheet PDF"
+  - "<product> SDS filetype:pdf"
+  - "<product> SDS site:sds.chemtel.net"
+  - the manufacturer's official website
+Find a REAL direct link to the SDS PDF (or the specific SDS product page) from the search results.
 
 Return ONLY valid JSON with these exact fields:
 {
@@ -35,6 +42,8 @@ Return ONLY valid JSON with these exact fields:
   "firstAid": "concise first-aid measures by route (eyes / skin / inhalation / ingestion), one per line",
   "handling": "key handling & storage precautions, one per line",
   "ppe": "recommended personal protective equipment (e.g. 'Gloves; safety glasses; ventilation')",
+  "revisionDate": "the SDS revision/issue date if shown (YYYY-MM-DD), else empty string",
+  "sdsSourceUrl": "a REAL direct URL to the SDS PDF or SDS product page you found in the search results — never a search-results page, never google.com, never a guessed/homepage URL. Empty string if truly none found.",
   "confidence": "high" | "medium" | "low"
 }
 
@@ -44,44 +53,60 @@ Signal word rules:
 - CAUTION: slightly hazardous (minor irritants)
 - NONE: non-hazardous
 
-Base the content on the standard, well-established SDS for this product/chemical. If a field genuinely doesn't apply, use an empty string. Do NOT invent a CAS number or precise values you're unsure of — leave uncertain fields empty and set confidence accordingly. If you cannot identify the product, set confidence "low" with your best guess. Return only the JSON object, no other text.`;
+Ground every field in the SDS you find on the web. If a field genuinely doesn't apply or you can't find it, use an empty string — do NOT invent a CAS number, H-code, or URL. Set confidence by how well the found SDS matches the product. Return only the JSON object, no other text.`;
 
   try {
-    let messageContent: Anthropic.MessageParam["content"];
-
+    const content: Anthropic.ContentBlockParam[] = [];
     if (imageBase64 && mimeType) {
-      messageContent = [
-        {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-            data: imageBase64,
-          },
-        },
-        {
-          type: "text",
-          text: "Identify this chemical/hazardous product and return its SDS information as JSON.",
-        },
-      ];
+      content.push({
+        type: "image",
+        source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: imageBase64 },
+      });
+      content.push({ type: "text", text: "Identify this product from the label photo, search the web for its current SDS, and return the JSON." });
     } else {
-      messageContent = `Look up SDS information for the product with UPC/barcode: ${upc}. Return the SDS data as JSON.`;
+      content.push({ type: "text", text: `Search the web for the current SDS of the product with UPC/barcode ${upc}, and return the JSON.` });
     }
 
-    const response = await client.messages.create({
+    // Live web grounding — the equivalent of the original app's
+    // add_context_from_internet: the model searches the web for the real SDS.
+    const tools: Anthropic.Messages.ToolUnion[] = [
+      { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+    ];
+    const convo: Anthropic.MessageParam[] = [{ role: "user", content }];
+    const sys = [{ type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } }];
+    let response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 512,
-      system: systemPrompt,
-      messages: [{ role: "user", content: messageContent }],
+      max_tokens: 900,
+      system: sys,
+      tools,
+      messages: convo,
     });
+    // web_search runs server-side; a long turn can pause — resume it.
+    for (let i = 0; i < 4 && response.stop_reason === "pause_turn"; i++) {
+      convo.push({ role: "assistant", content: response.content });
+      response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 900,
+        system: sys,
+        tools,
+        messages: convo,
+      });
+    }
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-
-    // Parse the JSON response
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
-
     const result = JSON.parse(jsonMatch[0]) as Record<string, string>;
+
+    // Guard against a non-real SDS URL (search page / google / non-http) so the
+    // UI never surfaces junk — mirrors the original app's URL guards.
+    const url = String(result.sdsSourceUrl ?? "");
+    if (!/^https?:\/\//i.test(url) || /(google|bing|duckduckgo)\.[a-z.]+\/(search|url)|\/search\?/i.test(url)) {
+      result.sdsSourceUrl = "";
+    }
     return NextResponse.json(result);
   } catch (err) {
     console.error("SDS lookup error:", err);
