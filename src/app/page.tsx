@@ -46,6 +46,7 @@ import {
   taskIsOverdue,
 } from "@/lib/compliance";
 import { staffRequirementStats } from "@/lib/credential-requirements";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { ComplianceProgressCard } from "@/components/shared/compliance-progress-card";
 
 type Tone = "default" | "success" | "warning" | "destructive";
@@ -281,10 +282,14 @@ export default function CommandCenterPage() {
   // Context: warnings only for people who still work here. A former employee's
   // expired license is history, not an action item.
   const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
-  const activeCredentials = useMemo(
-    () => credentials.filter((c) => holderIsActive(c, holderIdx)),
-    [credentials, holderIdx],
-  );
+  const activeCredentials = useMemo(() => {
+    // A credential replaced by a newer one of the same kind (a current renewal
+    // on file) is history, not an action item — don't surface the expired one.
+    const superseded = supersededCredentialIds(credentials);
+    return credentials
+      .filter((c) => !superseded.has(c.id))
+      .filter((c) => holderIsActive(c, holderIdx));
+  }, [credentials, holderIdx]);
   const activeInsurance = useMemo(() => {
     const superseded = supersededInsuranceIds(insurance);
     return insurance

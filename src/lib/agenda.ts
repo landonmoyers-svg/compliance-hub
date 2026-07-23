@@ -1,5 +1,6 @@
 import { daysUntil } from "@/lib/dates";
-import { buildHolderIndex, holderIsActive } from "@/lib/compliance";
+import { buildHolderIndex, holderIsActive, supersededInsuranceIds } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import type {
   CredentialRecord, TrainingAssignment, ComplianceDocument, CorrectiveAction,
   SraFinding, Incident, BreachAssessment, InsurancePolicyRecord, VendorRecord, ComplianceTask, Employee,
@@ -82,9 +83,12 @@ export function buildAgenda(input: AgendaInput): WorkItem[] {
   const activeHolder = (rec: { employeeUserId?: string | null; employeeName?: string | null }) =>
     !input.employees || holderIsActive(rec, holderIdx);
 
-  // Credentials
+  // Credentials — skip any that a newer credential of the same kind replaces,
+  // so an expired license with a current renewal on file isn't surfaced.
+  const supersededCreds = supersededCredentialIds(input.credentials);
   for (const c of input.credentials) {
     if (!activeHolder(c)) continue;
+    if (supersededCreds.has(c.id)) continue;
     if (!c.expirationDate) continue;
     const d = daysUntil(c.expirationDate);
     if (d === null || d > horizonDays) continue;
@@ -130,8 +134,11 @@ export function buildAgenda(input: AgendaInput): WorkItem[] {
     const deadline = new Date(new Date(b.discoveredDate).getTime() + 60 * 864e5).toISOString();
     add(`breach:${b.id}`, "breach", `Notify: ${b.title}`, "Reportable breach — 60-day notification deadline.", deadline, 3, "/breach-assessment");
   }
-  // Insurance renewals
+  // Insurance renewals — skip policies a newer term of the same coverage line
+  // replaces, so an expired policy with a current renewal isn't surfaced.
+  const supersededPolicies = supersededInsuranceIds(input.insurance);
   for (const p of input.insurance) {
+    if (supersededPolicies.has(p.id)) continue;
     if (!p.renewalDate) continue;
     const d = daysUntil(p.renewalDate);
     if (d === null || d > horizonDays) continue;
