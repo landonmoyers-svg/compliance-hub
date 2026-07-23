@@ -48,6 +48,7 @@ import type {
   PTOBalance,
   RecordVersion,
   RegulatorySource,
+  SopRegulationLink,
   RiskManagementCase,
   Incident,
   CorrectiveAction,
@@ -1961,6 +1962,20 @@ function chatMessageTo(d: Partial<ChatMessage>) {
   };
 }
 
+function sopRegLinkFrom(r: Record<string, unknown>): SopRegulationLink {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    documentId: r.document_id as string,
+    regulatorySourceId: r.regulatory_source_id as string,
+  };
+}
+function sopRegLinkTo(d: Partial<SopRegulationLink>) {
+  return {
+    ...(d.documentId !== undefined && { document_id: d.documentId }),
+    ...(d.regulatorySourceId !== undefined && { regulatory_source_id: d.regulatorySourceId }),
+  };
+}
+
 // ─── factory ──────────────────────────────────────────────────────────────────
 
 export function createSupabaseDataClient(): DataClient {
@@ -2026,5 +2041,6 @@ export function createSupabaseDataClient(): DataClient {
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
     chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),
+    sopRegulationLinks: makeCollection(supabase, "sop_regulation_links", sopRegLinkFrom,         sopRegLinkTo),
   };
 }

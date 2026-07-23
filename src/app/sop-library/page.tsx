@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { FileText, Plus, Search, Upload, X, Sparkles } from "lucide-react";
+import { FileText, Plus, Search, Upload, X, Sparkles, Pin } from "lucide-react";
 import JSZip from "jszip";
-import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { uploadFile, getSignedUrl } from "@/lib/storage";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
@@ -20,7 +20,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { documentNeedsReview } from "@/lib/compliance";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
-import type { ComplianceDocument } from "@/lib/data/schema";
+import type { ComplianceDocument, RegulatorySource } from "@/lib/data/schema";
 import { linkSopsAndSources } from "@/lib/sop-regulation-link";
 import { toast } from "sonner";
 
@@ -123,15 +123,26 @@ const EMPTY: DocForm = {
 
 function DocDialog({
   initial,
+  sources,
+  pinnedSourceIds,
   onClose,
   onSave,
   saving,
 }: {
   initial?: ComplianceDocument;
+  sources: RegulatorySource[];
+  pinnedSourceIds: string[];
   onClose: () => void;
-  onSave: (data: DocForm) => void;
+  onSave: (data: DocForm, pinnedSourceIds: string[]) => void;
   saving: boolean;
 }) {
+  const [pinned, setPinned] = useState<Set<string>>(() => new Set(pinnedSourceIds));
+  const [regFilter, setRegFilter] = useState("");
+  const filteredSources = sources.filter((s) => {
+    const q = regFilter.toLowerCase();
+    return !q || s.title.toLowerCase().includes(q) || (s.citationLabel ?? "").toLowerCase().includes(q) || (s.issuingBody ?? "").toLowerCase().includes(q);
+  });
+  const togglePin = (id: string) => setPinned((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [form, setForm] = useState<DocForm>(
     initial
       ? {
@@ -315,10 +326,34 @@ function DocDialog({
             />
             <label htmlFor="ack" className="text-sm">Requires staff acknowledgment</label>
           </div>
+
+          {/* Pin the regulations this SOP satisfies (persisted; drives coverage/gaps). */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Regulations this SOP satisfies</label>
+            <p className="text-xs text-muted-foreground">Pin the regulatory sources this document covers. Pinned links are authoritative — a pinned regulation is never flagged as a gap.</p>
+            {sources.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No regulatory sources yet — add them on the Regulatory Sources page.</p>
+            ) : (
+              <>
+                <input className="input w-full" placeholder="Filter regulations…" value={regFilter} onChange={(e) => setRegFilter(e.target.value)} />
+                <div className="mt-1 max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                  {filteredSources.length === 0 ? (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">No matches.</p>
+                  ) : filteredSources.map((s) => (
+                    <label key={s.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 text-sm hover:bg-secondary/30">
+                      <input type="checkbox" className="mt-0.5 size-4 shrink-0" checked={pinned.has(s.id)} onChange={() => togglePin(s.id)} />
+                      <span><span className="font-medium">{s.title}</span>{s.citationLabel && <span className="ml-1 font-mono text-xs text-muted-foreground">{s.citationLabel}</span>}</span>
+                    </label>
+                  ))}
+                </div>
+                {pinned.size > 0 && <p className="text-xs text-muted-foreground">{pinned.size} pinned.</p>}
+              </>
+            )}
+          </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.title.trim() || saving || uploading || extracting}>
+          <Button onClick={() => onSave(form, [...pinned])} disabled={!form.title.trim() || saving || uploading || extracting}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -334,6 +369,9 @@ export default function SOPLibraryPage() {
   const createMut = useCreate("documents");
   const updateMut = useUpdate("documents");
   const sourcesQ = useCollection("regulatorySources");
+  const linksQ = useCollection("sopRegulationLinks");
+  const linkCreate = useCreate("sopRegulationLinks");
+  const linkRemove = useRemove("sopRegulationLinks");
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<ComplianceDocument["status"] | "all">("all");
@@ -342,8 +380,20 @@ export default function SOPLibraryPage() {
   const [backfilling, setBackfilling] = useState(false);
 
   const docs = useMemo(() => data ?? [], [data]);
-  // Cross-reference: which regulatory sources each SOP addresses.
+  // Cross-reference: which regulatory sources each SOP addresses (computed suggestions).
   const links = useMemo(() => linkSopsAndSources(docs, sourcesQ.data ?? []), [docs, sourcesQ.data]);
+  const allSources = useMemo(() => sourcesQ.data ?? [], [sourcesQ.data]);
+  const sourceById = useMemo(() => new Map(allSources.map((s) => [s.id, s])), [allSources]);
+  // Admin-pinned links: docId -> set of regulatory-source ids it satisfies.
+  const pinnedByDoc = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const l of linksQ.data ?? []) {
+      const set = m.get(l.documentId) ?? new Set<string>();
+      set.add(l.regulatorySourceId);
+      m.set(l.documentId, set);
+    }
+    return m;
+  }, [linksQ.data]);
 
   // Documents with a file but no usable text — invisible to Policy Q&A until read.
   const needText = useMemo(
@@ -403,7 +453,7 @@ export default function SOPLibraryPage() {
 
   const needsReview = useMemo(() => docs.filter(documentNeedsReview).length, [docs]);
 
-  async function handleSave(form: DocForm) {
+  async function handleSave(form: DocForm, pinnedSourceIds: string[]) {
     setSaving(true);
     try {
       const payload = {
@@ -419,13 +469,25 @@ export default function SOPLibraryPage() {
         fileUrl: form.fileUrl || null,
         content: form.content.trim() || null,
       };
+      let docId: string;
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
+        docId = editing.id;
         toast.success("Document updated");
       } else {
-        await createMut.mutateAsync(payload);
+        const saved = await createMut.mutateAsync(payload);
+        docId = saved.id;
         toast.success("Document added");
       }
+      // Sync the pinned "this SOP satisfies this regulation" links for this doc.
+      const existing = (linksQ.data ?? []).filter((l) => l.documentId === docId);
+      const existingIds = new Set(existing.map((l) => l.regulatorySourceId));
+      const wanted = new Set(pinnedSourceIds);
+      await Promise.all([
+        ...pinnedSourceIds.filter((sid) => !existingIds.has(sid)).map((sid) => linkCreate.mutateAsync({ documentId: docId, regulatorySourceId: sid })),
+        ...existing.filter((l) => !wanted.has(l.regulatorySourceId)).map((l) => linkRemove.mutateAsync(l.id)),
+      ]);
+      void linksQ.refetch();
       setEditing(null);
     } catch {
       toast.error("Failed to save document");
@@ -451,6 +513,8 @@ export default function SOPLibraryPage() {
       {editing && (
         <DocDialog
           initial={editing === "new" ? undefined : editing}
+          sources={allSources}
+          pinnedSourceIds={editing && editing !== "new" ? [...(pinnedByDoc.get(editing.id) ?? [])] : []}
           onClose={() => setEditing(null)}
           onSave={handleSave}
           saving={saving}
@@ -552,15 +616,20 @@ export default function SOPLibraryPage() {
                             <div className="text-xs text-muted-foreground">Acknowledgment required</div>
                           )}
                           {(() => {
-                            const regs = links.sourcesForDoc.get(d.id) ?? [];
-                            if (regs.length === 0) return null;
+                            const pinnedSet = pinnedByDoc.get(d.id) ?? new Set<string>();
+                            const pinnedRegs = [...pinnedSet].map((id) => sourceById.get(id)).filter((s): s is RegulatorySource => !!s);
+                            const suggested = (links.sourcesForDoc.get(d.id) ?? []).filter((r) => !pinnedSet.has(r.id));
+                            if (pinnedRegs.length === 0 && suggested.length === 0) return null;
                             return (
                               <div className="mt-1 flex flex-wrap items-center gap-1">
                                 <span className="text-[11px] text-muted-foreground">Addresses:</span>
-                                {regs.slice(0, 2).map((r) => (
-                                  <span key={r.id} className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground" title={r.title}>{r.citationLabel || r.title}</span>
+                                {pinnedRegs.map((r) => (
+                                  <span key={r.id} className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary" title={`Pinned: ${r.title}`}><Pin className="size-2.5" />{r.citationLabel || r.title}</span>
                                 ))}
-                                {regs.length > 2 && <span className="text-[11px] text-muted-foreground">+{regs.length - 2}</span>}
+                                {suggested.slice(0, 2).map((r) => (
+                                  <span key={r.id} className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground" title={`Suggested: ${r.title}`}>{r.citationLabel || r.title}</span>
+                                ))}
+                                {suggested.length > 2 && <span className="text-[11px] text-muted-foreground">+{suggested.length - 2}</span>}
                               </div>
                             );
                           })()}

@@ -484,6 +484,15 @@ export const RegulatorySource = z.object({
 });
 export type RegulatorySource = z.infer<typeof RegulatorySource>;
 
+// Admin-pinned link: this SOP (document) satisfies this regulatory source.
+// Persisted alongside the computed suggestions in src/lib/sop-regulation-link.ts.
+export const SopRegulationLink = z.object({
+  ...base,
+  documentId: z.string(),
+  regulatorySourceId: z.string(),
+});
+export type SopRegulationLink = z.infer<typeof SopRegulationLink>;
+
 /* ------------------------- version history ------------------------- */
 
 // One immutable row per superseded/deleted version of a governed record

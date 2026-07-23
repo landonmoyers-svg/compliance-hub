@@ -187,5 +187,6 @@ export function buildSeed(): SeedData {
     notifications: [],
     organizationSettings: [],
     chatMessages: [],
+    sopRegulationLinks: [],
   };
 }

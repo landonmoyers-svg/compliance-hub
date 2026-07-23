@@ -2,6 +2,7 @@ import type {
   AuditLog,
   Benefit,
   ChatMessage,
+  SopRegulationLink,
   CompetencyRecord,
   CompletedForm,
   ComplianceDocument,
@@ -136,6 +137,7 @@ export interface DataClient {
   notifications: Collection<Notification>;
   organizationSettings: Collection<OrganizationSettings>;
   chatMessages: Collection<ChatMessage>;
+  sopRegulationLinks: Collection<SopRegulationLink>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { BookOpen, Plus, Search, ExternalLink, Sparkles, FileText, X, AlertTriangle, CheckCircle2, Download, Clock } from "lucide-react";
+import { BookOpen, Plus, Search, ExternalLink, Sparkles, FileText, X, AlertTriangle, CheckCircle2, Download, Clock, Pin } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, SOURCES_TABS } from "@/components/shared/page-tabs";
@@ -308,6 +308,7 @@ export default function RegulatorySourcesPage() {
   const createMut = useCreate("regulatorySources");
   const updateMut = useUpdate("regulatorySources");
   const docsQ = useCollection("documents");
+  const sopLinksQ = useCollection("sopRegulationLinks");
 
   const [search, setSearch] = useState("");
   const [filterReview, setFilterReview] = useState<RegulatorySource["reviewStatus"] | "all">("all");
@@ -321,6 +322,23 @@ export default function RegulatorySourcesPage() {
   const docs = useMemo(() => docsQ.data ?? [], [docsQ.data]);
   // Cross-reference SOPs ↔ regulations (citations + shared compliance-area acronyms).
   const links = useMemo(() => linkSopsAndSources(docs, sources), [docs, sources]);
+  const docsById = useMemo(() => new Map(docs.map((d) => [d.id, d])), [docs]);
+  // Admin-pinned links: sourceId -> set of SOP (document) ids that satisfy it.
+  const pinnedDocsBySource = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const l of sopLinksQ.data ?? []) {
+      const set = m.get(l.regulatorySourceId) ?? new Set<string>();
+      set.add(l.documentId);
+      m.set(l.regulatorySourceId, set);
+    }
+    return m;
+  }, [sopLinksQ.data]);
+  const coverageFor = (sourceId: string) => {
+    const pinnedSet = pinnedDocsBySource.get(sourceId) ?? new Set<string>();
+    const pinned = [...pinnedSet].map((id) => docsById.get(id)).filter((d): d is ComplianceDocument => !!d);
+    const suggested = (links.docsForSource.get(sourceId) ?? []).filter((d) => !pinnedSet.has(d.id));
+    return { pinned, suggested };
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -343,9 +361,9 @@ export default function RegulatorySourcesPage() {
   const stats = useMemo(() => ({
     current: sources.filter((s) => s.reviewStatus === "current").length,
     needsReview: sources.filter((s) => s.reviewStatus === "needs_review").length,
-    gaps: links.gapSourceIds.size,
+    gaps: sources.filter((s) => !links.docsForSource.get(s.id)?.length && !pinnedDocsBySource.get(s.id)?.size).length,
     total: sources.length,
-  }), [sources, links]);
+  }), [sources, links, pinnedDocsBySource]);
   const dueCount = useMemo(() => sources.filter((s) => docUpdateStatus(s).due).length, [sources]);
 
   // Fetch the current version of a source's referenced document and store it.
@@ -426,7 +444,7 @@ export default function RegulatorySourcesPage() {
       {aligning && (
         <AlignmentModal
           source={aligning}
-          related={links.docsForSource.get(aligning.id) ?? []}
+          related={(() => { const c = coverageFor(aligning.id); return [...c.pinned, ...c.suggested]; })()}
           allDocs={docs}
           onClose={() => setAligning(null)}
         />
@@ -560,14 +578,17 @@ export default function RegulatorySourcesPage() {
                       </td>
                       <td data-label="SOP coverage" className="py-3 pr-4">
                         {(() => {
-                          const related = links.docsForSource.get(s.id) ?? [];
-                          if (related.length === 0) return <Badge variant="destructive">No SOP — gap</Badge>;
+                          const { pinned, suggested } = coverageFor(s.id);
+                          if (pinned.length === 0 && suggested.length === 0) return <Badge variant="destructive">No SOP — gap</Badge>;
                           return (
                             <div className="flex flex-wrap items-center gap-1">
-                              {related.slice(0, 2).map((d) => (
-                                <span key={d.id} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs" title={d.title}><FileText className="size-3" /><span className="max-w-[140px] truncate">{d.title}</span></span>
+                              {pinned.map((d) => (
+                                <span key={d.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={`Pinned: ${d.title}`}><Pin className="size-3" /><span className="max-w-[140px] truncate">{d.title}</span></span>
                               ))}
-                              {related.length > 2 && <span className="text-xs text-muted-foreground">+{related.length - 2}</span>}
+                              {suggested.slice(0, 2).map((d) => (
+                                <span key={d.id} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs" title={`Suggested: ${d.title}`}><FileText className="size-3" /><span className="max-w-[140px] truncate">{d.title}</span></span>
+                              ))}
+                              {suggested.length > 2 && <span className="text-xs text-muted-foreground">+{suggested.length - 2}</span>}
                             </div>
                           );
                         })()}
