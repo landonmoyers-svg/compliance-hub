@@ -21,6 +21,7 @@ import { documentNeedsReview } from "@/lib/compliance";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import type { ComplianceDocument } from "@/lib/data/schema";
+import { linkSopsAndSources } from "@/lib/sop-regulation-link";
 import { toast } from "sonner";
 
 const MAX_FILE_MB = 25;
@@ -332,6 +333,7 @@ export default function SOPLibraryPage() {
   const { data, isLoading, isError, refetch } = useCollection("documents");
   const createMut = useCreate("documents");
   const updateMut = useUpdate("documents");
+  const sourcesQ = useCollection("regulatorySources");
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<ComplianceDocument["status"] | "all">("all");
@@ -340,6 +342,8 @@ export default function SOPLibraryPage() {
   const [backfilling, setBackfilling] = useState(false);
 
   const docs = useMemo(() => data ?? [], [data]);
+  // Cross-reference: which regulatory sources each SOP addresses.
+  const links = useMemo(() => linkSopsAndSources(docs, sourcesQ.data ?? []), [docs, sourcesQ.data]);
 
   // Documents with a file but no usable text — invisible to Policy Q&A until read.
   const needText = useMemo(
@@ -547,6 +551,19 @@ export default function SOPLibraryPage() {
                           {d.requiresAcknowledgment && (
                             <div className="text-xs text-muted-foreground">Acknowledgment required</div>
                           )}
+                          {(() => {
+                            const regs = links.sourcesForDoc.get(d.id) ?? [];
+                            if (regs.length === 0) return null;
+                            return (
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground">Addresses:</span>
+                                {regs.slice(0, 2).map((r) => (
+                                  <span key={r.id} className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground" title={r.title}>{r.citationLabel || r.title}</span>
+                                ))}
+                                {regs.length > 2 && <span className="text-[11px] text-muted-foreground">+{regs.length - 2}</span>}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td data-label="Type / Area" className="py-3 pr-4">
                           <div className="capitalize">{humanizeLabel(d.documentType)}</div>

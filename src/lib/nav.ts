@@ -87,6 +87,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Documents & Forms",
     items: [
       { label: "SOP Library", href: "/sop-library", icon: FileText, adminOnly: true },
+      { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
       { label: "Forms", href: "/fillable-documents", icon: Layers, adminOnly: true },
       { label: "Missing Forms", href: "/form-gap-matrix", icon: ClipboardCheck, adminOnly: true },
       { label: "Policy Attestation", href: "/policy-attestation", icon: CheckCircle2, adminOnly: true },
@@ -138,7 +139,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
       { label: "Role Permissions", href: "/access-matrix", icon: Shield, adminOnly: true },
       { label: "Settings", href: "/settings", icon: Building2, adminOnly: true },
-      { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
       { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
       { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
       { label: "Data Backup", href: "/backup", icon: DatabaseBackup, adminOnly: true },

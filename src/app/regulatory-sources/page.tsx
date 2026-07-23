@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { BookOpen, Plus, Search, ExternalLink } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { BookOpen, Plus, Search, ExternalLink, Sparkles, FileText, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, SOURCES_TABS } from "@/components/shared/page-tabs";
@@ -14,7 +14,8 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { formatDate, dateInputToISO } from "@/lib/dates";
-import type { RegulatorySource } from "@/lib/data/schema";
+import type { RegulatorySource, ComplianceDocument } from "@/lib/data/schema";
+import { linkSopsAndSources } from "@/lib/sop-regulation-link";
 import { toast } from "sonner";
 
 const REVIEW_VARIANT = {
@@ -152,17 +153,125 @@ function SourceDialog({
 
 /* ----------------------------- page --------------------------------- */
 
+/* ----------------------- SOP alignment check ----------------------- */
+
+interface AlignmentResult {
+  coverage: "covered" | "partial" | "gap";
+  coveringSops: string[];
+  aligned: string[];
+  gaps: string[];
+  recommendations: string[];
+  summary: string;
+}
+const COVERAGE_VARIANT = { covered: "success", partial: "warning", gap: "destructive" } as const;
+const COVERAGE_LABEL = { covered: "Covered", partial: "Partial", gap: "Gap" } as const;
+
+function AlignmentModal({ source, related, allDocs, onClose }: {
+  source: RegulatorySource;
+  related: ComplianceDocument[];
+  allDocs: ComplianceDocument[];
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<AlignmentResult | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const sops = (related.length ? related : allDocs).slice(0, 12).map((d) => ({
+          title: d.title, area: d.complianceArea ?? "", summary: d.summary ?? "", content: d.content ?? "",
+        }));
+        const res = await fetch("/api/ai/sop-alignment", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: { title: source.title, citationLabel: source.citationLabel, issuingBody: source.issuingBody, jurisdiction: source.jurisdiction, sourceType: source.sourceType },
+            sops,
+          }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error ?? "Alignment check failed.");
+        if (alive) setResult(d as AlignmentResult);
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "Alignment check failed.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [source, related, allDocs]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-semibold">SOP alignment check</h2></div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{source.title}{source.citationLabel ? ` · ${source.citationLabel}` : ""}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          {loading ? (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Sparkles className="size-4 animate-pulse text-primary" /> Sage is checking your SOPs against this regulation…</div>
+          ) : error ? (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{error}</div>
+          ) : result ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Badge variant={COVERAGE_VARIANT[result.coverage]}>{COVERAGE_LABEL[result.coverage]}</Badge>
+                <p className="text-sm">{result.summary}</p>
+              </div>
+              {result.coveringSops.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Covering SOPs</p>
+                  <div className="flex flex-wrap gap-1.5">{result.coveringSops.map((t, i) => <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs"><FileText className="size-3" />{t}</span>)}</div>
+                </div>
+              )}
+              {result.aligned.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aligned</p>
+                  <ul className="space-y-1 text-sm">{result.aligned.map((a, i) => <li key={i} className="flex items-start gap-1.5"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" /><span>{a}</span></li>)}</ul>
+                </div>
+              )}
+              {result.gaps.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gaps</p>
+                  <ul className="space-y-1 text-sm">{result.gaps.map((g, i) => <li key={i} className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" /><span>{g}</span></li>)}</ul>
+                </div>
+              )}
+              {result.recommendations.length > 0 && (
+                <div className="rounded-md bg-secondary/30 p-3">
+                  <p className="mb-1 text-xs font-semibold text-muted-foreground">Recommended</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs">{result.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">AI decision-support based only on the SOP text on file — verify against the actual regulation before relying on it.</p>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RegulatorySourcesPage() {
   const { data, isLoading, isError, refetch } = useCollection("regulatorySources");
   const createMut = useCreate("regulatorySources");
   const updateMut = useUpdate("regulatorySources");
+  const docsQ = useCollection("documents");
 
   const [search, setSearch] = useState("");
   const [filterReview, setFilterReview] = useState<RegulatorySource["reviewStatus"] | "all">("all");
   const [editing, setEditing] = useState<RegulatorySource | null | "new">(null);
+  const [aligning, setAligning] = useState<RegulatorySource | null>(null);
   const [saving, setSaving] = useState(false);
 
   const sources = useMemo(() => data ?? [], [data]);
+  const docs = useMemo(() => docsQ.data ?? [], [docsQ.data]);
+  // Cross-reference SOPs ↔ regulations (citations + shared compliance-area acronyms).
+  const links = useMemo(() => linkSopsAndSources(docs, sources), [docs, sources]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -185,8 +294,9 @@ export default function RegulatorySourcesPage() {
   const stats = useMemo(() => ({
     current: sources.filter((s) => s.reviewStatus === "current").length,
     needsReview: sources.filter((s) => s.reviewStatus === "needs_review").length,
+    gaps: links.gapSourceIds.size,
     total: sources.length,
-  }), [sources]);
+  }), [sources, links]);
 
   async function handleSave(form: SourceForm) {
     setSaving(true);
@@ -238,6 +348,15 @@ export default function RegulatorySourcesPage() {
         />
       )}
 
+      {aligning && (
+        <AlignmentModal
+          source={aligning}
+          related={links.docsForSource.get(aligning.id) ?? []}
+          allDocs={docs}
+          onClose={() => setAligning(null)}
+        />
+      )}
+
       <PageHeader
         title="Regulatory Sources"
         description="The rules that apply to your practice — regulations, guidance, and internal policies, each tracked with a review status."
@@ -257,9 +376,10 @@ export default function RegulatorySourcesPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Current" value={stats.current} icon={BookOpen} tone="success" loading={isLoading} />
         <StatCard label="Needs review" value={stats.needsReview} icon={BookOpen} tone={stats.needsReview ? "warning" : "default"} loading={isLoading} />
+        <StatCard label="SOP gaps" value={stats.gaps} icon={AlertTriangle} tone={stats.gaps ? "destructive" : "success"} loading={isLoading || docsQ.isLoading} />
         <StatCard label="Total tracked" value={stats.total} icon={BookOpen} loading={isLoading} />
       </div>
 
@@ -313,6 +433,7 @@ export default function RegulatorySourcesPage() {
                     <SortHeader label="Issuing body" sortKey="issuer" sort={sort} onToggle={toggle} />
                     <SortHeader label="Last checked" sortKey="lastChecked" sort={sort} onToggle={toggle} />
                     <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
+                    <th className="pb-2 font-medium">SOP coverage</th>
                     <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -334,8 +455,23 @@ export default function RegulatorySourcesPage() {
                           </Badge>
                         </button>
                       </td>
+                      <td data-label="SOP coverage" className="py-3 pr-4">
+                        {(() => {
+                          const related = links.docsForSource.get(s.id) ?? [];
+                          if (related.length === 0) return <Badge variant="destructive">No SOP — gap</Badge>;
+                          return (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {related.slice(0, 2).map((d) => (
+                                <span key={d.id} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs" title={d.title}><FileText className="size-3" /><span className="max-w-[140px] truncate">{d.title}</span></span>
+                              ))}
+                              {related.length > 2 && <span className="text-xs text-muted-foreground">+{related.length - 2}</span>}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td data-label="" className="py-3">
                         <div className="flex gap-1 md:justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => setAligning(s)} title="Check SOP alignment with Sage"><Sparkles className="size-3" /> Align</Button>
                           <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>Edit</Button>
                           {s.officialUrl && (
                             <Button size="sm" variant="ghost" asChild>
