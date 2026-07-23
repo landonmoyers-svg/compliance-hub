@@ -157,6 +157,7 @@ function ProviderPanelView({ files, onEdit }: { files: ProviderPanelFile[]; onEd
                   )}
                   {e.providerPayerId && <span className="text-xs text-muted-foreground">ID {e.providerPayerId}</span>}
                   <div className="ml-auto flex items-center gap-1">
+                    {e.applicationDocumentUrl && <FileLink path={e.applicationDocumentUrl} label="Document" className="inline-flex items-center gap-1 px-2 py-1 text-xs text-primary hover:underline" />}
                     <Button size="sm" variant="ghost" onClick={() => onEdit(e)}>Edit</Button>
                   </div>
                 </div>
@@ -351,9 +352,10 @@ function EnrollmentDialog({ initial, contracts, providers, onClose, onSave, savi
   contracts: PayerContract[];
   providers: { userId: string; name: string }[];
   onClose: () => void;
-  onSave: (f: EnrollForm) => void; saving: boolean;
+  onSave: (f: EnrollForm, file: File | null) => void; saving: boolean;
 }) {
   const [form, setForm] = useState<EnrollForm>(() => initial ? enrollFormFrom(initial) : emptyEnrollForm());
+  const [docFile, setDocFile] = useState<File | null>(null);
   const upd = (p: Partial<EnrollForm>) => setForm((f) => ({ ...f, ...p }));
 
   // Linking a contract auto-fills the payer name from it.
@@ -428,13 +430,23 @@ function EnrollmentDialog({ initial, contracts, providers, onClose, onSave, savi
             <input className="input w-full" value={form.individualNpi} onChange={(e) => upd({ individualNpi: e.target.value })} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Paneling document (approval letter / application)</label>
+            <div className="flex items-center gap-3">
+              <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+                <Plus className="size-4" />{docFile ? docFile.name : "Upload the approval letter / application (PDF)"}
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)} />
+              </label>
+              {initial?.applicationDocumentUrl && !docFile && <FileLink path={initial.applicationDocumentUrl} label="Current" className="shrink-0 text-sm text-primary hover:underline" />}
+            </div>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
             <label className="text-sm font-medium">Notes</label>
             <textarea className="input w-full min-h-[60px] resize-y" value={form.notes} onChange={(e) => upd({ notes: e.target.value })} />
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={!form.providerName.trim() || !form.payerName.trim() || saving}>
+          <Button onClick={() => onSave(form, docFile)} disabled={!form.providerName.trim() || !form.payerName.trim() || saving}>
             {saving ? "Saving…" : <><Check className="size-3" /> Save</>}
           </Button>
         </div>
@@ -540,9 +552,14 @@ export default function PayerEnrollmentPage() {
     finally { setSaving(false); }
   }
 
-  async function saveEnroll(f: EnrollForm) {
+  async function saveEnroll(f: EnrollForm, file: File | null) {
     setSaving(true);
     try {
+      let applicationDocumentUrl: string | undefined;
+      if (file) {
+        try { applicationDocumentUrl = await uploadFile(file, "payer-enrollments"); }
+        catch { toast.error("Couldn't upload the document — saving other changes."); }
+      }
       const payload = {
         providerName: f.providerName.trim(),
         providerUserId: f.providerUserId || null,
@@ -557,6 +574,7 @@ export default function PayerEnrollmentPage() {
         caqhId: f.caqhId.trim() || undefined,
         individualNpi: f.individualNpi.trim() || undefined,
         notes: f.notes.trim() || undefined,
+        ...(applicationDocumentUrl && { applicationDocumentUrl }),
       };
       if (editingEnroll && editingEnroll !== "new") {
         await updateEnroll.mutateAsync({ id: editingEnroll.id, patch: payload });
