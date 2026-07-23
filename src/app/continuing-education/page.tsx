@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useRef } from "react";
-import { GraduationCap, Plus, ChevronRight, Upload, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { GraduationCap, Plus, ChevronRight, Upload, Pencil, Trash2, AlertTriangle, Sparkles } from "lucide-react";
+import { analyzableMedia, blobToBase64 } from "@/lib/ai/file-bytes";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -237,8 +238,43 @@ function CeDialog({ initial, prefill, employees, onClose, onSaved, createMut, up
   );
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof CeForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  // Sage reads an uploaded certificate (PDF/image) and prefills the CE fields.
+  async function processWithSage(f: File) {
+    const media = analyzableMedia(f);
+    if (!media) { toast.error("Sage can read PDFs and images — this file type isn't supported."); return; }
+    setProcessing(true);
+    try {
+      const fileBase64 = await blobToBase64(f);
+      const res = await fetch("/api/ai/ce-analyze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64, mediaType: media }),
+      });
+      const d = await res.json() as {
+        title?: string; provider?: string; hours?: number; category?: string;
+        completedDate?: string; appliesTo?: string; error?: string;
+      };
+      if (!res.ok) throw new Error(d.error ?? "Couldn't read the certificate.");
+      const validCat = (ceCategories as readonly string[]).includes(d.category ?? "") ? (d.category as CeCategory) : null;
+      setForm((p) => ({
+        ...p,
+        title: d.title ?? p.title,
+        provider: d.provider ?? p.provider,
+        hours: d.hours != null ? String(d.hours) : p.hours,
+        category: validCat ?? p.category,
+        completedDate: d.completedDate ?? p.completedDate,
+        appliesTo: d.appliesTo ?? p.appliesTo,
+      }));
+      toast.success("Sage filled the fields from the certificate — verify before saving.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't read the certificate.");
+    } finally {
+      setProcessing(false);
+    }
+  }
 
   async function save() {
     if (!form.employeeName.trim()) { toast.error("Pick who the CE is for."); return; }
@@ -322,11 +358,17 @@ function CeDialog({ initial, prefill, employees, onClose, onSaved, createMut, up
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Certificate (optional)</label>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Upload className="size-4" /> {file ? file.name : "Attach file"}</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={processing}><Upload className="size-4" /> {file ? file.name : "Attach file"}</Button>
+              {file && analyzableMedia(file) && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => void processWithSage(file)} disabled={processing}>
+                  <Sparkles className={cn("size-4", processing && "animate-pulse")} /> {processing ? "Sage is reading…" : "Process with Sage"}
+                </Button>
+              )}
               {initial?.documentUrl && !file && <span className="text-xs text-muted-foreground">A certificate is attached.</span>}
             </div>
-            <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-primary"><Sparkles className="size-3" /> Attach a certificate and Sage fills in the title, hours, category, provider, and date — always verify before saving.</p>
+            <input ref={fileRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && analyzableMedia(f)) void processWithSage(f); e.target.value = ""; }} />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Notes</label>
