@@ -96,7 +96,7 @@ function EmployeeDialog({
           department: initial.department ?? "",
           employmentStatus: initial.employmentStatus,
           workerType: initial.workerType ?? "employee",
-          hireDate: initial.hireDate ?? "",
+          hireDate: (initial.hireDate ?? "").slice(0, 10),
           inviteToApp: false,
           accountRole: "staff",
         }

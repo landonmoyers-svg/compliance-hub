@@ -177,7 +177,7 @@ function PolicyDialog({
           policyNumber: initial.policyNumber ?? "",
           coverageAmountCents: initial.coverageAmountCents != null ? String(initial.coverageAmountCents / 100) : "",
           annualPremiumCents: initial.annualPremiumCents != null ? String(initial.annualPremiumCents / 100) : "",
-          renewalDate: initial.renewalDate ?? "",
+          renewalDate: (initial.renewalDate ?? "").slice(0, 10),
           holderUserId: initial.holderUserId ?? null,
           holderName: initial.holderName ?? "",
         }

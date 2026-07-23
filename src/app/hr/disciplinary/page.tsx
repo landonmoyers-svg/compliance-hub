@@ -96,8 +96,8 @@ function ActionDialog({
           actionType: initial.actionType,
           reason: initial.reason,
           description: initial.description ?? "",
-          issuedDate: initial.issuedDate ?? "",
-          followUpDate: initial.followUpDate ?? "",
+          issuedDate: (initial.issuedDate ?? "").slice(0, 10),
+          followUpDate: (initial.followUpDate ?? "").slice(0, 10),
           witnessNames: (initial.witnessNames ?? []).join(", "),
           status: initial.status,
         }

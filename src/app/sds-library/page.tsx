@@ -350,7 +350,7 @@ function SDSDialog({
           casNumber: initial.casNumber ?? "", signalWord: initial.signalWord, status: initial.status,
           hazardSummary: initial.hazardSummary ?? "", hazardStatements: initial.hazardStatements ?? "",
           firstAid: initial.firstAid ?? "", handling: initial.handling ?? "", ppe: initial.ppe ?? "",
-          revisionDate: initial.revisionDate ?? "", fileUrl: initial.fileUrl ?? "",
+          revisionDate: (initial.revisionDate ?? "").slice(0, 10), fileUrl: initial.fileUrl ?? "",
           locationIds: initial.locationIds ?? [],
         }
       : { ...EMPTY, ...prefill },

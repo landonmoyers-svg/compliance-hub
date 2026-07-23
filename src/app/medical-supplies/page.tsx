@@ -78,7 +78,7 @@ function ItemDialog({
           name: initial.name, category: initial.category, unit: initial.unit, sku: initial.sku ?? "",
           locationId: initial.locationId ?? "", room: initial.room ?? "", quantityOnHand: String(initial.quantityOnHand ?? 0),
           parLevel: String(initial.parLevel ?? 0), reorderQuantity: initial.reorderQuantity != null ? String(initial.reorderQuantity) : "",
-          lotNumber: initial.lotNumber ?? "", expirationDate: initial.expirationDate ?? "", vendor: initial.vendor ?? "", notes: initial.notes ?? "",
+          lotNumber: initial.lotNumber ?? "", expirationDate: (initial.expirationDate ?? "").slice(0, 10), vendor: initial.vendor ?? "", notes: initial.notes ?? "",
         }
       : emptyForm(),
   );

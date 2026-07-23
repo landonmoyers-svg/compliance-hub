@@ -36,7 +36,9 @@ export async function buildComplianceSnapshot(supabase: SupabaseClient): Promise
     countRows("incidents"),
     countRows("breach_assessments"),
     countRows("documents"),
-    countRows("documents", (q) => q.ilike("category", "%sop%")),
+    // "Categorized" = documents assigned a compliance area. (The documents table
+    // has no `category` column — that filter errored and always counted 0.)
+    countRows("documents", (q) => q.not("compliance_area", "is", null)),
     countRows("regulatory_sources"),
     countRows("record_versions"),
     countRows("policy_acks"),

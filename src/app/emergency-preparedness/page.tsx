@@ -60,7 +60,9 @@ function DrillDialog({
       ? {
           drillTitle: initial.drillTitle,
           drillType: initial.drillType,
-          scheduledDate: initial.scheduledDate ?? "",
+          // Normalize a stored ISO timestamp to YYYY-MM-DD; a raw ISO value makes
+          // <input type="date"> render blank and then wipes the date on save.
+          scheduledDate: (initial.scheduledDate ?? "").slice(0, 10),
           status: initial.status,
           participantCount: String(initial.participantCount),
         }

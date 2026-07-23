@@ -188,8 +188,8 @@ function CredentialDialog({
           credentialType: initial.credentialType,
           issuingBody: initial.issuingBody ?? "",
           credentialNumber: initial.credentialNumber ?? "",
-          issueDate: initial.issueDate ?? "",
-          expirationDate: initial.expirationDate ?? "",
+          issueDate: (initial.issueDate ?? "").slice(0, 10),
+          expirationDate: (initial.expirationDate ?? "").slice(0, 10),
           credentialClass: initial.credentialClass ?? null,
           boardType: initial.boardType ?? "",
         }

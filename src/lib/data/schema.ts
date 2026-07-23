@@ -478,6 +478,9 @@ export const RegulatorySource = z.object({
     .default("current"),
   lastCheckedAt: z.string().nullable().optional(),
   officialUrl: z.string().nullable().optional(),
+  // An uploaded file stored in the private bucket (e.g. a document filed here
+  // from Document Intake). Distinct from officialUrl, which is an external link.
+  attachmentUrl: z.string().nullable().optional(),
   // A stored copy of the referenced document's current version (public gov
   // sources), fetched for internal reference + to ground Policy Q&A. Review ≥ quarterly.
   documentSummary: z.string().nullable().optional(),   // 1-2 sentence plain-language summary

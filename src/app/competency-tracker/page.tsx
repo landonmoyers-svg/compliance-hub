@@ -223,7 +223,7 @@ function CompetencyDialog({
           competencyName: initial.competencyName,
           competencyType: initial.competencyType,
           evaluatorName: initial.evaluatorName ?? "",
-          assessmentDate: initial.assessmentDate ?? "",
+          assessmentDate: (initial.assessmentDate ?? "").slice(0, 10),
           validUntil: initial.validUntil ?? "",
           score: initial.score != null ? String(initial.score) : "",
           status: initial.status,

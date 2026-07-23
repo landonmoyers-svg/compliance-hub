@@ -45,6 +45,18 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
   const employeesQ = useCollection("employees");
   const orgQ = useCollection("organizationSettings");
 
+  // Resolve the person's employee-directory record so we can match records that
+  // key off employees.id (competencies, employee documents) rather than the auth
+  // user id. Without this those records only ever match by name — and drop off
+  // the panel after a rename.
+  const emp = useMemo(() => {
+    const lname = name.trim().toLowerCase();
+    return (employeesQ.data ?? []).find(
+      (e) => (userId && e.userId === userId) || `${e.firstName} ${e.lastName}`.trim().toLowerCase() === lname,
+    );
+  }, [employeesQ.data, userId, name]);
+  const employeeId = emp?.id;
+
   const matchesPerson = useMemo(() => {
     const lname = name.trim().toLowerCase();
     return (rec: { uid?: string | null; nm?: string | null }) => {
@@ -53,6 +65,15 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
       return false;
     };
   }, [userId, name]);
+  // For collections whose person id is employees.id (not the auth user id).
+  const matchesByEmployeeId = useMemo(() => {
+    const lname = name.trim().toLowerCase();
+    return (rec: { eid?: string | null; nm?: string | null }) => {
+      if (employeeId && rec.eid && rec.eid === employeeId) return true;
+      if (lname && rec.nm && rec.nm.trim().toLowerCase() === lname) return true;
+      return false;
+    };
+  }, [employeeId, name]);
 
   const creds = useMemo(
     () => (credsQ.data ?? []).filter((c) => matchesPerson({ uid: c.employeeUserId, nm: c.employeeName }))
@@ -65,16 +86,16 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
     [insuranceQ.data, matchesPerson],
   );
   const empDocs = useMemo(
-    () => (empDocsQ.data ?? []).filter((d) => matchesPerson({ uid: d.employeeId, nm: d.employeeName })),
-    [empDocsQ.data, matchesPerson],
+    () => (empDocsQ.data ?? []).filter((d) => matchesByEmployeeId({ eid: d.employeeId, nm: d.employeeName })),
+    [empDocsQ.data, matchesByEmployeeId],
   );
   const training = useMemo(
     () => (trainingQ.data ?? []).filter((a) => matchesPerson({ uid: a.assignedToUserId, nm: a.assignedToName })),
     [trainingQ.data, matchesPerson],
   );
   const competencies = useMemo(
-    () => (compQ.data ?? []).filter((c) => matchesPerson({ uid: c.employeeId, nm: c.employeeName })),
-    [compQ.data, matchesPerson],
+    () => (compQ.data ?? []).filter((c) => matchesByEmployeeId({ eid: c.employeeId, nm: c.employeeName })),
+    [compQ.data, matchesByEmployeeId],
   );
   const acks = useMemo(
     () => (acksQ.data ?? []).filter((a) => userId && a.userId === userId),
@@ -82,12 +103,7 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
   );
 
   // The person's clinical role drives which credentials they must keep current.
-  const providerType = useMemo(() => {
-    const list = employeesQ.data ?? [];
-    const lname = name.trim().toLowerCase();
-    const emp = list.find((e) => (userId && e.userId === userId) || `${e.firstName} ${e.lastName}`.trim().toLowerCase() === lname);
-    return inferProviderType(emp?.jobRole, emp?.title);
-  }, [employeesQ.data, userId, name]);
+  const providerType = useMemo(() => inferProviderType(emp?.jobRole, emp?.title), [emp]);
 
   const loading = credsQ.isLoading || insuranceQ.isLoading || trainingQ.isLoading;
 

@@ -233,7 +233,7 @@ function CeDialog({ initial, prefill, employees, onClose, onSaved, createMut, up
 }) {
   const [form, setForm] = useState<CeForm>(
     initial
-      ? { employeeUserId: initial.employeeUserId ?? null, employeeName: initial.employeeName, title: initial.title, provider: initial.provider ?? "", hours: String(initial.hours ?? ""), category: initial.category, appliesTo: initial.appliesTo ?? "", completedDate: initial.completedDate ?? "", notes: initial.notes ?? "" }
+      ? { employeeUserId: initial.employeeUserId ?? null, employeeName: initial.employeeName, title: initial.title, provider: initial.provider ?? "", hours: String(initial.hours ?? ""), category: initial.category, appliesTo: initial.appliesTo ?? "", completedDate: (initial.completedDate ?? "").slice(0, 10), notes: initial.notes ?? "" }
       : { ...EMPTY, ...prefill },
   );
   const [file, setFile] = useState<File | null>(null);

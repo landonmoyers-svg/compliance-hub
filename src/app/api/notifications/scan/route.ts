@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supersededCredentialIds, type CredClass } from "@/lib/credentials";
+import { supersededInsuranceIds } from "@/lib/compliance";
 
 const PRIVILEGED = ["owner", "admin", "hr", "clinical_leadership"];
 
@@ -117,8 +118,18 @@ async function runScan(): Promise<{ created: number }> {
   }
 
   // Insurance renewals ≤60 days or expired
-  const { data: policies } = await admin.from("insurance_policies").select("id, policy_name, policy_type, holder_name, holder_user_id, renewal_date");
+  const { data: policies } = await admin.from("insurance_policies").select("id, policy_name, policy_type, holder_name, holder_user_id, renewal_date, created_date");
+  // Superseded prior-term policies (a newer renewal of the same coverage line is
+  // on file) are history — don't raise "lapsed"/"renewal" alerts for them.
+  const supersededPolicyIds = supersededInsuranceIds((policies ?? []).map((p) => ({
+    id: p.id, policyType: p.policy_type, renewalDate: p.renewal_date,
+    createdDate: p.created_date, holderUserId: p.holder_user_id, holderName: p.holder_name,
+  })));
+  if (supersededPolicyIds.size > 0) {
+    await admin.from("notifications").delete().eq("category", "insurance").eq("read", false).in("entity_id", [...supersededPolicyIds]);
+  }
   for (const p of policies ?? []) {
+    if (supersededPolicyIds.has(p.id)) continue;
     const d = daysUntil(p.renewal_date);
     if (d === null) continue;
     // Deep-link into the pre-scoped "Add policy" dialog to upload the renewal.

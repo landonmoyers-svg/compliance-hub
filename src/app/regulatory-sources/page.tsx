@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
+import { FileLink } from "@/components/shared/file-link";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import type { RegulatorySource, ComplianceDocument } from "@/lib/data/schema";
 import { linkSopsAndSources } from "@/lib/sop-regulation-link";
@@ -71,6 +72,9 @@ function DocumentModal({ source, onClose }: { source: RegulatorySource; onClose:
             <a href={source.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
               Open the official source <ExternalLink className="size-3" />
             </a>
+          )}
+          {source.attachmentUrl && (
+            <FileLink path={source.attachmentUrl} label="Open the attached document" className="inline-flex items-center gap-1 text-sm text-primary hover:underline" />
           )}
           <p className="text-[11px] text-muted-foreground">Stored copy of a public government source for internal reference. Re-fetch and review at least quarterly to stay current. Verify against the official source before relying on it.</p>
         </div>

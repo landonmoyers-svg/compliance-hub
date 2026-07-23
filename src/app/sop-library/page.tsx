@@ -153,7 +153,7 @@ function DocDialog({
           status: initial.status,
           accessLevel: initial.accessLevel,
           version: initial.version,
-          reviewDate: initial.reviewDate ?? "",
+          reviewDate: (initial.reviewDate ?? "").slice(0, 10),
           requiresAcknowledgment: initial.requiresAcknowledgment,
           fileUrl: initial.fileUrl ?? "",
           content: initial.content ?? "",

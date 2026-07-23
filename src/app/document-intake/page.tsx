@@ -378,7 +378,7 @@ export default function DocumentIntakePage() {
         case "regulatory_sources":
           created = await createRegulatory.mutateAsync({
             title, issuingBody: r.complianceArea ? r.complianceArea.toUpperCase() : undefined,
-            sourceType: "regulation", reviewStatus: "needs_review", officialUrl: r.fileUrl,
+            sourceType: "regulation", reviewStatus: "needs_review", attachmentUrl: r.fileUrl,
           });
           break;
         case "training":

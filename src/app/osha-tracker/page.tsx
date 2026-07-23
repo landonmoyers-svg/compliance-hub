@@ -100,7 +100,9 @@ function RecordDialog({
       ? {
           recordTitle: initial.recordTitle,
           recordType: initial.recordType,
-          eventDate: initial.eventDate ?? "",
+          // Normalize a stored ISO timestamp to YYYY-MM-DD; a raw ISO value makes
+          // <input type="date"> render blank and then wipes the date on save.
+          eventDate: (initial.eventDate ?? "").slice(0, 10),
           description: initial.description ?? "",
           status: initial.status,
           recordabilityStatus: initial.recordabilityStatus,

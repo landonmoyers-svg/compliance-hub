@@ -75,7 +75,7 @@ function CaseDialog({
           status: initial.status,
           accessLevel: initial.accessLevel,
           reportedByName: initial.reportedByName ?? "",
-          incidentDate: initial.incidentDate ?? "",
+          incidentDate: (initial.incidentDate ?? "").slice(0, 10),
         }
       : EMPTY,
   );
