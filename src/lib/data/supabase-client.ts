@@ -65,6 +65,10 @@ import type {
   Audit,
   AuditItem,
   SDSRecord,
+  SupplyItem,
+  SupplyMovement,
+  MedicalSupply,
+  MedicalSupplyLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
@@ -413,6 +417,150 @@ function sdsTo(d: Partial<SDSRecord>) {
     ...(d.revisionDate !== undefined && { revision_date: d.revisionDate }),
     ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
     ...(d.locationIds !== undefined && { location_ids: d.locationIds }),
+  };
+}
+
+function supplyItemFrom(r: Record<string, unknown>): SupplyItem {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    itemType: r.item_type as string,
+    itemNumber: r.item_number as string | undefined,
+    quantity: (r.quantity as number | null) ?? 1,
+    homeLocationId: r.home_location_id as string | undefined,
+    homeRoom: r.home_room as string | undefined,
+    status: r.status as SupplyItem["status"],
+    currentLocationId: r.current_location_id as string | undefined,
+    currentRoom: r.current_room as string | undefined,
+    currentHolder: r.current_holder as string | undefined,
+    imageUrl: r.image_url as string | undefined,
+    capturedAt: r.captured_at as string | undefined,
+    capturedLat: r.captured_lat as number | undefined,
+    capturedLng: r.captured_lng as number | undefined,
+    aiIdentified: (r.ai_identified as boolean | null) ?? false,
+    aiConfidence: r.ai_confidence as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function supplyItemTo(d: Partial<SupplyItem>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.itemType !== undefined && { item_type: d.itemType }),
+    ...(d.itemNumber !== undefined && { item_number: d.itemNumber }),
+    ...(d.quantity !== undefined && { quantity: d.quantity }),
+    ...(d.homeLocationId !== undefined && { home_location_id: d.homeLocationId }),
+    ...(d.homeRoom !== undefined && { home_room: d.homeRoom }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.currentLocationId !== undefined && { current_location_id: d.currentLocationId }),
+    ...(d.currentRoom !== undefined && { current_room: d.currentRoom }),
+    ...(d.currentHolder !== undefined && { current_holder: d.currentHolder }),
+    ...(d.imageUrl !== undefined && { image_url: d.imageUrl }),
+    ...(d.capturedAt !== undefined && { captured_at: d.capturedAt }),
+    ...(d.capturedLat !== undefined && { captured_lat: d.capturedLat }),
+    ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
+    ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
+    ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function supplyMovementFrom(r: Record<string, unknown>): SupplyMovement {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    itemId: r.item_id as string,
+    action: r.action as SupplyMovement["action"],
+    fromLocationId: r.from_location_id as string | undefined,
+    fromRoom: r.from_room as string | undefined,
+    toLocationId: r.to_location_id as string | undefined,
+    toRoom: r.to_room as string | undefined,
+    toHolder: r.to_holder as string | undefined,
+    byName: r.by_name as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function supplyMovementTo(d: Partial<SupplyMovement>) {
+  return {
+    ...(d.itemId !== undefined && { item_id: d.itemId }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.fromLocationId !== undefined && { from_location_id: d.fromLocationId }),
+    ...(d.fromRoom !== undefined && { from_room: d.fromRoom }),
+    ...(d.toLocationId !== undefined && { to_location_id: d.toLocationId }),
+    ...(d.toRoom !== undefined && { to_room: d.toRoom }),
+    ...(d.toHolder !== undefined && { to_holder: d.toHolder }),
+    ...(d.byName !== undefined && { by_name: d.byName }),
+    ...(d.note !== undefined && { note: d.note }),
+  };
+}
+
+function medSupplyFrom(r: Record<string, unknown>): MedicalSupply {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    category: r.category as MedicalSupply["category"],
+    unit: r.unit as string,
+    sku: r.sku as string | undefined,
+    locationId: r.location_id as string | undefined,
+    room: r.room as string | undefined,
+    quantityOnHand: (r.quantity_on_hand as number | null) ?? 0,
+    parLevel: (r.par_level as number | null) ?? 0,
+    reorderQuantity: r.reorder_quantity as number | undefined,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    vendor: r.vendor as string | undefined,
+    imageUrl: r.image_url as string | undefined,
+    capturedAt: r.captured_at as string | undefined,
+    capturedLat: r.captured_lat as number | undefined,
+    capturedLng: r.captured_lng as number | undefined,
+    aiIdentified: (r.ai_identified as boolean | null) ?? false,
+    aiConfidence: r.ai_confidence as string | undefined,
+    notes: r.notes as string | undefined,
+  };
+}
+function medSupplyTo(d: Partial<MedicalSupply>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.category !== undefined && { category: d.category }),
+    ...(d.unit !== undefined && { unit: d.unit }),
+    ...(d.sku !== undefined && { sku: d.sku }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.room !== undefined && { room: d.room }),
+    ...(d.quantityOnHand !== undefined && { quantity_on_hand: d.quantityOnHand }),
+    ...(d.parLevel !== undefined && { par_level: d.parLevel }),
+    ...(d.reorderQuantity !== undefined && { reorder_quantity: d.reorderQuantity }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.vendor !== undefined && { vendor: d.vendor }),
+    ...(d.imageUrl !== undefined && { image_url: d.imageUrl }),
+    ...(d.capturedAt !== undefined && { captured_at: d.capturedAt }),
+    ...(d.capturedLat !== undefined && { captured_lat: d.capturedLat }),
+    ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
+    ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
+    ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function medSupplyLogFrom(r: Record<string, unknown>): MedicalSupplyLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    supplyId: r.supply_id as string,
+    action: r.action as MedicalSupplyLog["action"],
+    quantityDelta: (r.quantity_delta as number | null) ?? 0,
+    balanceAfter: r.balance_after as number | undefined,
+    lotNumber: r.lot_number as string | undefined,
+    byName: r.by_name as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function medSupplyLogTo(d: Partial<MedicalSupplyLog>) {
+  return {
+    ...(d.supplyId !== undefined && { supply_id: d.supplyId }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.quantityDelta !== undefined && { quantity_delta: d.quantityDelta }),
+    ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.byName !== undefined && { by_name: d.byName }),
+    ...(d.note !== undefined && { note: d.note }),
   };
 }
 
@@ -1992,6 +2140,10 @@ export function createSupabaseDataClient(): DataClient {
     trainingAssignments:makeCollection(supabase, "training_assignments",trainingAssignmentFrom, trainingAssignmentTo),
     oshaRecords:        makeCollection(supabase, "osha_records",        oshaFrom,               oshaTo),
     sdsRecords:         makeCollection(supabase, "sds_records",         sdsFrom,                sdsTo),
+    supplyItems:        makeCollection(supabase, "supply_items",         supplyItemFrom,         supplyItemTo),
+    supplyMovements:    makeCollection(supabase, "supply_movements",     supplyMovementFrom,     supplyMovementTo),
+    medicalSupplies:    makeCollection(supabase, "medical_supplies",     medSupplyFrom,          medSupplyTo),
+    medicalSupplyLogs:  makeCollection(supabase, "medical_supply_logs",  medSupplyLogFrom,       medSupplyLogTo),
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
     incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
     correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),

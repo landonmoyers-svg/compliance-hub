@@ -109,6 +109,14 @@ export function buildSeed(): SeedData {
       { id: "sds-5", createdDate: days(-100), productName: "Glass Cleaner", manufacturer: "ShineCo", signalWord: "CAUTION", status: "missing" },
       { id: "sds-6", createdDate: days(-80), productName: "Lubricating Jelly", manufacturer: "MedSupply", signalWord: "NONE", status: "active" },
     ],
+    supplyItems: [
+      { id: "supply-1", createdDate: days(-30), name: "Example — Logitech USB Keyboard", itemType: "keyboard", itemNumber: "KB-001", quantity: 1, homeRoom: "IT Closet, Shelf 2", status: "in_storage", aiIdentified: false },
+    ],
+    supplyMovements: [],
+    medicalSupplies: [
+      { id: "medsupply-1", createdDate: days(-30), name: "Example — Nitrile Exam Gloves (M)", category: "ppe", unit: "box", quantityOnHand: 8, parLevel: 6, reorderQuantity: 20, room: "Supply Closet A", aiIdentified: false },
+    ],
+    medicalSupplyLogs: [],
     riskCases: [
       { id: "risk-1", createdDate: days(-40), caseTitle: "Patient PHI emailed unencrypted", caseType: "hipaa", severity: "high", status: "investigating", accessLevel: "restricted", reportedByName: "Riley Chen", incidentDate: days(-42) },
       { id: "risk-2", createdDate: days(-25), caseTitle: "Slip-and-fall near entrance", caseType: "safety", severity: "medium", status: "open", accessLevel: "standard", reportedByName: "Morgan Diaz", incidentDate: days(-26) },

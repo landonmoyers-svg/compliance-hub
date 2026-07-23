@@ -50,6 +50,10 @@ import type {
   SraAssessment,
   SraFinding,
   SDSRecord,
+  SupplyItem,
+  SupplyMovement,
+  MedicalSupply,
+  MedicalSupplyLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
@@ -86,6 +90,10 @@ export interface DataClient {
   trainingAssignments: Collection<TrainingAssignment>;
   oshaRecords: Collection<OSHARecord>;
   sdsRecords: Collection<SDSRecord>;
+  supplyItems: Collection<SupplyItem>;
+  supplyMovements: Collection<SupplyMovement>;
+  medicalSupplies: Collection<MedicalSupply>;
+  medicalSupplyLogs: Collection<MedicalSupplyLog>;
   riskCases: Collection<RiskManagementCase>;
   incidents: Collection<Incident>;
   correctiveActions: Collection<CorrectiveAction>;

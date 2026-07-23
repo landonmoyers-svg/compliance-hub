@@ -773,6 +773,103 @@ export const InventoryItem = z.object({
 });
 export type InventoryItem = z.infer<typeof InventoryItem>;
 
+/* -------------------- staff supply inventory ----------------------- */
+// Lower-value, movable office items (keyboards, mice, HDMI cords, adapters…)
+// that staff move between storage, rooms, and desks. Distinct from the clinical
+// asset `inventory`. Each item has a home storage spot and a movement ledger.
+
+export const supplyStatuses = ["in_storage", "in_use", "checked_out", "missing", "retired"] as const;
+
+export const SupplyItem = z.object({
+  ...base,
+  name: z.string(),
+  itemType: z.string().default("cable"), // keyboard, mouse, monitor, cable, adapter, dock, headset, webcam, phone, furniture, other
+  itemNumber: z.string().nullable().optional(), // asset/serial tag if applicable
+  quantity: z.number().default(1),
+  // Home storage: where the item normally lives.
+  homeLocationId: z.string().nullable().optional(),
+  homeRoom: z.string().nullable().optional(),     // room / storage spot, e.g. "IT Closet, Shelf 2"
+  // Current whereabouts (may differ from home when taken out of storage).
+  status: z.enum(supplyStatuses).default("in_storage"),
+  currentLocationId: z.string().nullable().optional(),
+  currentRoom: z.string().nullable().optional(),
+  currentHolder: z.string().nullable().optional(), // staff / desk it's with
+  // Image classification (mirrors clinical inventory).
+  imageUrl: z.string().nullable().optional(),
+  capturedAt: z.string().nullable().optional(),
+  capturedLat: z.number().nullable().optional(),
+  capturedLng: z.number().nullable().optional(),
+  aiIdentified: z.boolean().default(false),
+  aiConfidence: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type SupplyItem = z.infer<typeof SupplyItem>;
+
+export const supplyActions = ["added", "checked_out", "moved", "returned", "status_change"] as const;
+
+export const SupplyMovement = z.object({
+  ...base,
+  itemId: z.string(),
+  action: z.enum(supplyActions).default("moved"),
+  fromLocationId: z.string().nullable().optional(),
+  fromRoom: z.string().nullable().optional(),
+  toLocationId: z.string().nullable().optional(),
+  toRoom: z.string().nullable().optional(),
+  toHolder: z.string().nullable().optional(),
+  byName: z.string().nullable().optional(),        // who recorded the move
+  note: z.string().nullable().optional(),
+});
+export type SupplyMovement = z.infer<typeof SupplyMovement>;
+
+/* -------------------- medical consumables -------------------------- */
+// Consumable clinical supplies (gloves, syringes, gauze, alcohol pads…) tracked
+// by quantity on hand against a par/reorder level, with lot + expiration and a
+// usage/restock ledger. Distinct from movable equipment (`supplyItems`).
+
+export const consumableCategories = [
+  "ppe", "wound_care", "injection", "diagnostic", "phlebotomy",
+  "cleaning", "paper_goods", "medication_adjacent", "other",
+] as const;
+
+export const MedicalSupply = z.object({
+  ...base,
+  name: z.string(),
+  category: z.enum(consumableCategories).default("other"),
+  unit: z.string().default("each"),          // box, each, pair, case…
+  sku: z.string().nullable().optional(),      // catalog / reorder number
+  locationId: z.string().nullable().optional(),
+  room: z.string().nullable().optional(),     // storage room / cabinet
+  quantityOnHand: z.number().default(0),
+  parLevel: z.number().default(0),            // reorder threshold
+  reorderQuantity: z.number().nullable().optional(),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  vendor: z.string().nullable().optional(),
+  // Image classification (mirrors inventory).
+  imageUrl: z.string().nullable().optional(),
+  capturedAt: z.string().nullable().optional(),
+  capturedLat: z.number().nullable().optional(),
+  capturedLng: z.number().nullable().optional(),
+  aiIdentified: z.boolean().default(false),
+  aiConfidence: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type MedicalSupply = z.infer<typeof MedicalSupply>;
+
+export const consumableActions = ["received", "used", "adjusted", "discarded"] as const;
+
+export const MedicalSupplyLog = z.object({
+  ...base,
+  supplyId: z.string(),
+  action: z.enum(consumableActions).default("used"),
+  quantityDelta: z.number().default(0),        // +received / -used
+  balanceAfter: z.number().nullable().optional(),
+  lotNumber: z.string().nullable().optional(),
+  byName: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type MedicalSupplyLog = z.infer<typeof MedicalSupplyLog>;
+
 /* ------------------------- HR: time clock -------------------------- */
 
 export const TimeClockEntry = z.object({

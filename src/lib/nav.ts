@@ -24,6 +24,8 @@ import {
   MessageSquare,
   Network,
   Package,
+  Boxes,
+  Syringe,
   Shield,
   Sparkles,
   Star,
@@ -117,6 +119,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
       { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
       { label: "Inventory", href: "/inventory", icon: Package },
+      { label: "Staff Supplies", href: "/staff-supplies", icon: Boxes },
+      { label: "Medical Supplies", href: "/medical-supplies", icon: Syringe },
     ],
   },
   {
