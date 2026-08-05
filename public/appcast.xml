@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Compliance Hub</title>
+    <link>https://compliance-hub-lone-peak.vercel.app/appcast.xml</link>
+    <description>Automatic updates for the Compliance Hub desktop app.</description>
+    <language>en</language>
+    <item>
+      <title>Version 1.1</title>
+      <pubDate>Wed, 05 Aug 2026 12:28:28 -0600</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>Automatic updates</h2>
+        <ul>
+          <li>The app now checks for new versions and can install them in place — no more manual download &amp; reinstall.</li>
+          <li>Latest inventory tax tools (full Utah Pub&nbsp;20 class coverage) and all recent web features load automatically.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://compliance-hub-lone-peak.vercel.app/downloads/Compliance-Hub-1.1.zip"
+        sparkle:version="2"
+        sparkle:shortVersionString="1.1"
+        length="1108725"
+        type="application/octet-stream"
+        sparkle:edSignature="+gitJd85zSu1LfV3AfhEROV99SDk/2l4ja2+brEvpMTSQ1tLucZ8uYKdfTX7bk6Nrk3NQPFMvJnuMBrP9829Cg==" />
+    </item>
+  </channel>
+</rss>
