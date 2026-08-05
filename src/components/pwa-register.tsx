@@ -1,7 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Share } from "lucide-react";
+import { toast } from "sonner";
+
+/** How often to check whether a newer build has been deployed. */
+const VERSION_POLL_MS = 2 * 60 * 1000;
+
+/**
+ * Detect a new deploy from an already-open client and nudge a reload. The SW is
+ * network-first (no stale bundles served on navigation), but a long-lived tab /
+ * installed PWA keeps running the JS it booted with until reloaded — after a
+ * security-relevant deploy a stale client can misbehave (e.g. client-side
+ * storage-URL minting that the tightened bucket policy now rejects). We compare
+ * the running build id against /api/version and prompt once when it changes.
+ */
+function useVersionWatch() {
+  const baseline = useRef<string | null>(null);
+  const notified = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (cancelled || notified.current || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const { version } = (await res.json()) as { version?: string };
+        if (!version || version === "dev") return;
+        if (baseline.current === null) { baseline.current = version; return; }
+        if (version !== baseline.current) {
+          notified.current = true;
+          toast("A new version is available", {
+            description: "Reload to get the latest — needed for document access to keep working.",
+            duration: Infinity,
+            action: { label: "Reload", onClick: () => window.location.reload() },
+          });
+        }
+      } catch { /* offline / transient — ignore */ }
+    }
+    void check();
+    const id = window.setInterval(check, VERSION_POLL_MS);
+    const onVisible = () => { if (document.visibilityState === "visible") void check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; window.clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
+  }, []);
+}
 
 /**
  * Registers the service worker (enables install + offline) and shows a one-time
@@ -11,9 +55,21 @@ import { X, Share } from "lucide-react";
  */
 export function PwaRegister() {
   const [showIosHint, setShowIosHint] = useState(false);
+  useVersionWatch();
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
+      // Whether an SW already controlled this page at load. If so, a later
+      // controllerchange means an UPDATED SW took over → the in-page JS may be
+      // stale, so reload once. On the first-ever install there was no prior
+      // controller, so we must NOT reload (nothing is stale — we just loaded).
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloaded || !hadController) return;
+        reloaded = true;
+        window.location.reload();
+      });
       navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => {});
     }
     const nav = navigator as unknown as { standalone?: boolean };

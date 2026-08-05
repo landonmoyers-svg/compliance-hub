@@ -364,3 +364,23 @@ The initial pass was risk-sequenced (security/data-integrity deep; functionality
 
 ### Remaining to test (dynamic, on staging)
 Full functionality happy/unhappy paths (needs the app running), time-zone/DST scheduling, network-failure UX, and the storage route end-to-end round-trip.
+
+---
+
+## §12 — Production Rollout Log
+
+**Target:** production Supabase `gkrhxfthvqprmnztoxxw` + Vercel prod (`compliance-hub-lone-peak.vercel.app`). **App commit deployed:** `024e0c5` (from `d2da39b`). Executed via authorized Supabase MCP + git push (auto-deploy). Zero-downtime order followed: Phase A → deploy → Phase B.
+
+**Pre-flight (read-only):** confirmed `is_privileged()` present; `is_writer()`/`can_view_object()` absent; `notifications.user_id` absent; storage policy `documents_authenticated_all` present; all Phase-A `*_auth` drop-targets matched real prod policy names (so the write-restriction is effective, not a no-op); the three `_sel` policies 0007 alters exist. Security-advisor baseline: 12 SECURITY DEFINER exec warnings + leaked-password.
+
+**Phase A applied** (migration `prod_rollout_phase_a`) — `{success:true}`. Verified: `is_writer`/`can_view_object` created; `bump_ai_usage`→jsonb; `notifications.user_id` + index added; `policy_acks_user_doc_ack_uniq` present; 33 read/write split policies; `employees_write` = `( SELECT is_privileged() )` (0007 wrapping applied). Security advisor after: the 6 anon-executable + H2 authenticated-executable warnings CLEARED; only `bump_ai_usage`/`is_privileged`/`is_writer` remain (intentional). Performance advisor: `auth_rls_initplan` **80 → 0**.
+
+**App deployed** — `024e0c5` READY on prod. Verified `POST /api/storage/sign` → 401 (route live, auth-gated); security headers present (HSTS 2y+preload, `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN`, referrer-policy). `SUPABASE_SERVICE_ROLE_KEY` in Vercel prod confirmed by owner.
+
+**Phase B applied** (migration `prod_rollout_phase_b`) — `{success:true}`. Verified: `documents_authenticated_all` dropped; `documents_owner_or_privileged` (`owner = auth.uid() OR is_privileged()`) is the sole `storage.objects` policy for the documents bucket.
+
+**Post-rollout follow-ups:**
+- **Leaked-password protection** — still disabled. Supabase Auth dashboard toggle (Auth → Providers → Email → "Prevent use of leaked passwords"); no SQL/MCP path, so it remains an owner action. RECOMMENDED, still open.
+- **4 supply tables broadly writable — FIXED (2026-08-05, migration `supply_tables_is_writer_split` / repo `0008`).** `supply_items`, `supply_movements`, `medical_supplies`, `medical_supply_logs` now have the read-broad / write-`is_writer()` split (wrapped-subselect); verified zero `*_auth` policies remain in `public`. A `read_only` user can no longer write them.
+- **Stale service-worker window — ADDRESSED (2026-08-05, commit deploys with this).** The SW was already network-first (no cached bundles) with skipWaiting/clients.claim. Added `/api/version` (returns the deploy's git SHA) + a poll-and-prompt in `PwaRegister`: an open client that detects a newer build shows a persistent "Reload" toast, and a `controllerchange` guard reloads once if an updated SW ever takes over. Shrinks the "old JS in a long-open tab" window.
+- End-to-end authenticated `/api/storage/sign` round-trip on prod not exercised (no prod test credentials); verified structurally (401 gate + owner-confirmed key).
