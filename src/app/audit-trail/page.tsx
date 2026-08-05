@@ -428,6 +428,9 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
     risk: (e) => RISK_RANK[e.riskLevel],
     flag: (e) => (e.flagged ? 1 : 0),
   });
+  // Bound the DOM: render a page of rows at a time instead of all (up to 5,000)
+  // at once, which produced very large DOMs and slow interaction.
+  const [visible, setVisible] = useState(200);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm rtable">
@@ -444,7 +447,7 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((e) => {
+          {sorted.slice(0, visible).map((e) => {
             const geo = geoLabel(e);
             return (
             <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20">
@@ -480,6 +483,12 @@ function TimelineTable({ rows }: { rows: AuditLog[] }) {
           })}
         </tbody>
       </table>
+      {sorted.length > visible && (
+        <div className="flex items-center justify-center gap-3 py-4 text-sm text-muted-foreground">
+          <span>Showing {visible.toLocaleString()} of {sorted.length.toLocaleString()}</span>
+          <button onClick={() => setVisible((v) => v + 200)} className="rounded-md bg-secondary px-3 py-1 font-medium text-secondary-foreground hover:bg-secondary/80">Show more</button>
+        </div>
+      )}
     </div>
   );
 }

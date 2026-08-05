@@ -39,6 +39,7 @@ export default function ActivityLogPage() {
 
   const [filter, setFilter] = useState<"all" | "ai" | "user">("all");
   const [search, setSearch] = useState("");
+  const [visible, setVisible] = useState(150); // bound the rendered DOM; "Show more" reveals older entries
 
   const entries = useMemo<Entry[]>(() => {
     const ai: Entry[] = (activityQ.data ?? []).map((a) => ({
@@ -63,9 +64,9 @@ export default function ActivityLogPage() {
 
   const byDay = useMemo(() => {
     const m = new Map<string, Entry[]>();
-    for (const e of filtered) { if (!m.has(e.day)) m.set(e.day, []); m.get(e.day)!.push(e); }
+    for (const e of filtered.slice(0, visible)) { if (!m.has(e.day)) m.set(e.day, []); m.get(e.day)!.push(e); }
     return Array.from(m.entries());
-  }, [filtered]);
+  }, [filtered, visible]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const stats = useMemo(() => ({
@@ -155,6 +156,12 @@ export default function ActivityLogPage() {
                   </div>
                 </div>
               ))}
+              {filtered.length > visible && (
+                <div className="flex items-center justify-center gap-3 pt-2 text-sm text-muted-foreground">
+                  <span>Showing {Math.min(visible, filtered.length)} of {filtered.length}</span>
+                  <button onClick={() => setVisible((v) => v + 150)} className="rounded-md bg-secondary px-3 py-1 font-medium text-secondary-foreground hover:bg-secondary/80">Show more</button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
