@@ -1,0 +1,22 @@
+{
+  "name": "compliance-hub-desktop",
+  "version": "1.0.0",
+  "description": "Compliance Hub desktop app (native shell around the hosted web app).",
+  "author": "Lone Peak Psychiatry",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --publish never",
+    "build:win": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}

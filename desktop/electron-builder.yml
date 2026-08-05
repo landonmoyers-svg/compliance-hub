@@ -1,0 +1,41 @@
+appId: com.lonepeakpsychiatry.compliancehub
+productName: Compliance Hub
+copyright: © Lone Peak Psychiatry
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only the shell files ship inside the app; the UI is loaded from the hosted URL.
+files:
+  - main.js
+  - package.json
+
+mac:
+  category: public.app-category.medical
+  target:
+    - dmg
+  icon: build/icon.png
+  # Hardened runtime is required for notarization; harmless for unsigned local builds.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+dmg:
+  title: Compliance Hub
+
+win:
+  target:
+    - nsis
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+# Auto-update source. Signed installers published here by CI can auto-update.
+publish:
+  provider: github
+  owner: landonmoyers-svg
+  repo: compliance-hub
