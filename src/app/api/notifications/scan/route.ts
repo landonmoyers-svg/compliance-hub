@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supersededCredentialIds, type CredClass } from "@/lib/credentials";
 import { supersededInsuranceIds } from "@/lib/compliance";
-
-const PRIVILEGED = ["owner", "admin", "hr", "clinical_leadership"];
+import { ADMIN_ROLES } from "@/lib/auth/roles";
 
 type NewNote = {
   title: string; body?: string; category: string; severity: string;
   entity_type: string; entity_id: string; link: string;
+  // Recipient for person-specific alerts (RLS scopes visibility). NULL/undefined
+  // = org-wide (everyone sees). Set for credential/training/insurance/paneling.
+  user_id?: string | null;
 };
 
 function daysUntil(dateStr: string | null): number | null {
@@ -29,7 +31,7 @@ async function authorize(request: NextRequest): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
   const { data } = await supabase.from("profiles").select("account_role").eq("user_id", user.id).single();
-  return !!data && PRIVILEGED.includes(data.account_role);
+  return !!data && (ADMIN_ROLES as readonly string[]).includes(data.account_role);
 }
 
 async function runScan(): Promise<{ created: number }> {
@@ -95,8 +97,8 @@ async function runScan(): Promise<{ created: number }> {
     if (c.employee_name) q.set("holder", c.employee_name);
     if (c.employee_user_id) q.set("holderId", c.employee_user_id);
     const credLink = `/credentials?${q.toString()}`;
-    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: credLink });
-    else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: credLink });
+    if (d < 0) candidates.push({ title: `Credential expired: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expired ${Math.abs(d)} day(s) ago.`, category: "credential", severity: "critical", entity_type: "credentials", entity_id: c.id, link: credLink, user_id: c.employee_user_id });
+    else if (d <= credWindow) candidates.push({ title: `Credential expiring: ${c.credential_name}`, body: `${c.employee_name} ${c.credential_name} expires in ${d} day(s).`, category: "credential", severity: d <= 7 ? "critical" : "warning", entity_type: "credentials", entity_id: c.id, link: credLink, user_id: c.employee_user_id });
   }
 
   // Training overdue or due within the configured window (active staff only)
@@ -106,8 +108,8 @@ async function runScan(): Promise<{ created: number }> {
     if (!personIsActive(t.assigned_to_user_id, t.assigned_to_name)) continue;
     const d = daysUntil(t.due_date);
     if (d === null) continue;
-    if (d < 0) candidates.push({ title: `Training overdue: ${t.module_title}`, body: `${t.assigned_to_name} is ${Math.abs(d)} day(s) overdue on ${t.module_title}.`, category: "training", severity: "warning", entity_type: "training_assignments", entity_id: t.id, link: "/training" });
-    else if (d <= trainWindow) candidates.push({ title: `Training due soon: ${t.module_title}`, body: `${t.assigned_to_name} has ${d} day(s) left on ${t.module_title}.`, category: "training", severity: "info", entity_type: "training_assignments", entity_id: t.id, link: "/training" });
+    if (d < 0) candidates.push({ title: `Training overdue: ${t.module_title}`, body: `${t.assigned_to_name} is ${Math.abs(d)} day(s) overdue on ${t.module_title}.`, category: "training", severity: "warning", entity_type: "training_assignments", entity_id: t.id, link: "/training", user_id: t.assigned_to_user_id });
+    else if (d <= trainWindow) candidates.push({ title: `Training due soon: ${t.module_title}`, body: `${t.assigned_to_name} has ${d} day(s) left on ${t.module_title}.`, category: "training", severity: "info", entity_type: "training_assignments", entity_id: t.id, link: "/training", user_id: t.assigned_to_user_id });
   }
 
   // Documents past review date
@@ -137,8 +139,8 @@ async function runScan(): Promise<{ created: number }> {
     if (p.holder_name) q.set("holder", p.holder_name);
     if (p.holder_user_id) q.set("holderId", p.holder_user_id);
     const insLink = `/insurance-vault?${q.toString()}`;
-    if (d < 0) candidates.push({ title: `Insurance lapsed: ${p.policy_name}`, body: `${p.policy_name} renewal was due ${Math.abs(d)} day(s) ago.`, category: "insurance", severity: "critical", entity_type: "insurance_policies", entity_id: p.id, link: insLink });
-    else if (d <= insWindow) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: insLink });
+    if (d < 0) candidates.push({ title: `Insurance lapsed: ${p.policy_name}`, body: `${p.policy_name} renewal was due ${Math.abs(d)} day(s) ago.`, category: "insurance", severity: "critical", entity_type: "insurance_policies", entity_id: p.id, link: insLink, user_id: p.holder_user_id });
+    else if (d <= insWindow) candidates.push({ title: `Insurance renewal: ${p.policy_name}`, body: `${p.policy_name} renews in ${d} day(s).`, category: "insurance", severity: d <= 14 ? "critical" : "warning", entity_type: "insurance_policies", entity_id: p.id, link: insLink, user_id: p.holder_user_id });
   }
 
   // Vendor BAA gaps
@@ -154,8 +156,8 @@ async function runScan(): Promise<{ created: number }> {
     if (!personIsActive(e.provider_user_id, e.provider_name)) continue;
     const d = daysUntil(e.recredential_date);
     if (d === null) continue;
-    if (d < 0) candidates.push({ title: `Re-credentialing overdue: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling was due for re-credentialing ${Math.abs(d)} day(s) ago.`, category: "payer", severity: "critical", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment" });
-    else if (d <= credWindow) candidates.push({ title: `Re-credentialing due: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling is due for re-credentialing in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment" });
+    if (d < 0) candidates.push({ title: `Re-credentialing overdue: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling was due for re-credentialing ${Math.abs(d)} day(s) ago.`, category: "payer", severity: "critical", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment", user_id: e.provider_user_id });
+    else if (d <= credWindow) candidates.push({ title: `Re-credentialing due: ${e.payer_name}`, body: `${e.provider_name}'s ${e.payer_name} paneling is due for re-credentialing in ${d} day(s).`, category: "payer", severity: d <= 14 ? "critical" : "warning", entity_type: "payer_enrollments", entity_id: e.id, link: "/payer-enrollment", user_id: e.provider_user_id });
   }
 
   // Business records (licenses, contracts, leases, BAAs, entity insurance…)

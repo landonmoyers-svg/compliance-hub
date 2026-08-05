@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
 import { sageAwareness } from "@/lib/ai/sage";
+import { ADMIN_ROLES } from "@/lib/auth/roles";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
 
   // Only privileged roles (owner/admin/hr/clinical_leadership) may see values.
   const { data: prof } = await supabase.from("profiles").select("account_role").eq("user_id", user.id).maybeSingle();
-  const showValues = ["owner", "admin", "hr", "clinical_leadership"].includes((prof?.account_role as string) ?? "");
+  const showValues = (ADMIN_ROLES as readonly string[]).includes((prof?.account_role as string) ?? "");
 
   let context = "";
   try {

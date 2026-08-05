@@ -222,7 +222,7 @@ export default function LoginPage() {
 
               {secret && (
                 <div className="rounded-lg bg-secondary/50 p-3 text-center">
-                  <p className="text-xs text-muted-foreground mb-1">Can't scan? Enter this key manually:</p>
+                  <p className="text-xs text-muted-foreground mb-1">Can&apos;t scan? Enter this key manually:</p>
                   <p className="font-mono text-sm tracking-widest">{secret}</p>
                 </div>
               )}

@@ -96,12 +96,24 @@ function makeCollection<T extends { id: string }>(
 ): Collection<T> {
   return {
     async list() {
-      const { data, error } = await supabase
-        .from(table)
-        .select("*")
-        .order("created_date", { ascending: false });
-      if (error) throw new Error(error.message);
-      return (data ?? []).map(fromRow);
+      // Page through in 1000-row batches so lists never silently truncate at
+      // PostgREST's max-rows cap. A stable secondary sort on id keeps paging
+      // deterministic. Small tables resolve in a single request.
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from(table)
+          .select("*")
+          .order("created_date", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(error.message);
+        const batch = data ?? [];
+        rows.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return rows.map(fromRow);
     },
 
     async get(id: string) {

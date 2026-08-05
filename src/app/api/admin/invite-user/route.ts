@@ -3,8 +3,7 @@ import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatName } from "@/lib/format";
-
-const PRIVILEGED = ["owner", "admin", "hr", "clinical_leadership"];
+import { ADMIN_ROLES } from "@/lib/auth/roles";
 
 export async function POST(request: NextRequest) {
   // 1. Authenticate the caller and confirm they're privileged.
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
     .select("account_role")
     .eq("user_id", user.id)
     .single();
-  if (!caller || !PRIVILEGED.includes(caller.account_role)) {
+  if (!caller || !(ADMIN_ROLES as readonly string[]).includes(caller.account_role)) {
     return NextResponse.json({ error: "Forbidden — admin access required." }, { status: 403 });
   }
 

@@ -27,12 +27,24 @@ export async function uploadFile(file: File, folder: string): Promise<string> {
 /**
  * Mint a short-lived signed URL for a stored object path. If the value is a
  * legacy full URL (from before the bucket was private), it is returned as-is.
+ *
+ * Goes through the server route /api/storage/sign, which authorizes the caller
+ * against the owning record before minting (the `documents` bucket's direct
+ * RLS is owner-or-privileged, so client-side minting can't reach shared files).
  */
 export async function getSignedUrl(pathOrUrl: string, expiresInSeconds = 120): Promise<string | null> {
   if (!pathOrUrl) return null;
   if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl; // legacy public URL
-  const supabase = createClient();
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(pathOrUrl, expiresInSeconds);
-  if (error || !data) return null;
-  return data.signedUrl;
+  try {
+    const res = await fetch("/api/storage/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: pathOrUrl, expiresIn: expiresInSeconds }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { signedUrl?: string };
+    return data.signedUrl ?? null;
+  } catch {
+    return null;
+  }
 }

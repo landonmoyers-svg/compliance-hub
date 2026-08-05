@@ -220,8 +220,8 @@ export default function ChiefOfStaffPage() {
       ) : items.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
           <CheckCircle2 className="mx-auto mb-3 size-10 text-success" />
-          <p className="font-medium">You're all caught up.</p>
-          <p className="text-sm text-muted-foreground">Nothing is due within your horizon. I'll surface things here before they slip.</p>
+          <p className="font-medium">You&apos;re all caught up.</p>
+          <p className="text-sm text-muted-foreground">Nothing is due within your horizon. I&apos;ll surface things here before they slip.</p>
         </CardContent></Card>
       ) : (
         <div className="space-y-6">
