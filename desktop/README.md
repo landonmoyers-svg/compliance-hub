@@ -21,9 +21,33 @@ Point at a different environment with `COMPLIANCE_HUB_URL=... npm start`.
 - macOS (`.dmg`, on a Mac): `npm run build:mac` → `dist/Compliance Hub-<ver>.dmg`
 - Windows (`.exe`, on Windows): `npm run build:win` → `dist/Compliance Hub Setup <ver>.exe`
 
-The local scripts build **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY=false`), so
-macOS Gatekeeper / Windows SmartScreen will warn on first open (right-click →
-Open on macOS). For distribution you must **code-sign + notarize** — see below.
+`build:mac` builds **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY=false`) → Gatekeeper
+warns on first open. For a distributable macOS build, sign + notarize locally:
+
+### Signed + notarized macOS build (local)
+
+Prereqs (one time): an Apple Developer account, a **Developer ID Application**
+certificate in your login Keychain (Xcode → Settings → Accounts → your team →
+Manage Certificates → + → Developer ID Application), and a notarytool **keychain
+profile** holding an app-specific password — created by *you* so the password
+never leaves your Keychain:
+
+```bash
+xcrun notarytool store-credentials "compliance-hub-notary" \
+  --apple-id "<your-apple-id>" --team-id "XVN4NXD6CJ"
+# paste an app-specific password from https://appleid.apple.com when prompted
+```
+
+Then:
+
+```bash
+npm run build:mac:signed
+```
+
+electron-builder auto-signs with the Developer ID cert and the `notarize.js`
+afterSign hook notarizes + staples via the keychain profile. Result:
+`dist/Compliance Hub-<ver>-universal.dmg`, no Gatekeeper warning.
+(Override the profile name with `NOTARY_PROFILE`; `SKIP_NOTARIZE=1` to sign only.)
 
 ## Signed cross-platform release (CI)
 
