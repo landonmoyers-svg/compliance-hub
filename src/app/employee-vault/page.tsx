@@ -575,8 +575,9 @@ export default function EmployeeVaultPage() {
       <div className="flex items-start gap-2 rounded-md border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
         <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
         <span>
-          Documents marked sensitive are flagged as restricted and intended for HR/admin access only.
-          Row-level access enforcement is a future server-side concern and is not yet enforced in this view.
+          Documents marked sensitive (medical, background checks) are restricted to the owner, HR, and
+          users explicitly granted access — enforced server-side by row-level security. Manage per-user
+          access in User Management.
         </span>
       </div>
 

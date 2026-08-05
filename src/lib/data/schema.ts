@@ -62,6 +62,9 @@ export const ComplianceUserProfile = z.object({
   department: Department.optional(),
   primaryLocationId: z.string().optional(),
   active: z.boolean().default(true),
+  // Grant to view SENSITIVE employee documents (medical, background checks).
+  // Owner/HR always can; owner/HR toggle this for other privileged users.
+  sensitiveDocsAccess: z.boolean().optional(),
 });
 export type ComplianceUserProfile = z.infer<typeof ComplianceUserProfile>;
 

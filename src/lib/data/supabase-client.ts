@@ -171,6 +171,7 @@ function profileFrom(r: Record<string, unknown>): ComplianceUserProfile {
     department: r.department as ComplianceUserProfile["department"],
     primaryLocationId: r.primary_location_id as string | undefined,
     active: r.active as boolean,
+    sensitiveDocsAccess: (r.sensitive_docs_access as boolean | null) ?? false,
   };
 }
 function profileTo(d: Partial<ComplianceUserProfile>) {
@@ -184,6 +185,7 @@ function profileTo(d: Partial<ComplianceUserProfile>) {
     ...(d.department !== undefined && { department: d.department }),
     ...(d.primaryLocationId !== undefined && { primary_location_id: d.primaryLocationId }),
     ...(d.active !== undefined && { active: d.active }),
+    ...(d.sensitiveDocsAccess !== undefined && { sensitive_docs_access: d.sensitiveDocsAccess }),
   };
 }
 

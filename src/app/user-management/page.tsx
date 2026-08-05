@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Users, Plus, Search, X, FolderOpen, Mail, UserPlus, ShieldCheck, UserX } from "lucide-react";
 import { useCollection, useUpdate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { createClient } from "@/lib/supabase/client";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PageHeader } from "@/components/shared/page-header";
@@ -26,11 +27,13 @@ interface ProfileForm {
   staffRole: string;
   department: string;
   active: boolean;
+  sensitiveDocsAccess: boolean;
 }
 
 function ProfileDialog({
   initial,
   defaults,
+  canGrantSensitive,
   onClose,
   onSave,
   saving,
@@ -38,6 +41,8 @@ function ProfileDialog({
   initial?: ComplianceUserProfile;
   /** Prefill for a NEW invite (e.g. inviting an existing employee). */
   defaults?: Partial<ProfileForm>;
+  /** Only owner/HR may toggle sensitive-document access. */
+  canGrantSensitive: boolean;
   onClose: () => void;
   onSave: (data: ProfileForm) => void;
   saving: boolean;
@@ -51,6 +56,7 @@ function ProfileDialog({
           staffRole: initial.staffRole ?? "",
           department: initial.department ?? "",
           active: initial.active,
+          sensitiveDocsAccess: initial.sensitiveDocsAccess ?? false,
         }
       : {
           fullName: "",
@@ -59,6 +65,7 @@ function ProfileDialog({
           staffRole: "",
           department: "",
           active: true,
+          sensitiveDocsAccess: false,
           ...defaults,
         },
   );
@@ -116,6 +123,21 @@ function ProfileDialog({
             />
             <label htmlFor="active" className="text-sm">Active account</label>
           </div>
+          {canGrantSensitive && (
+            <div className="space-y-1 sm:col-span-2">
+              <div className="flex items-center gap-2">
+                <input
+                  id="sensitiveDocsAccess"
+                  type="checkbox"
+                  checked={form.sensitiveDocsAccess}
+                  onChange={(e) => setForm((p) => ({ ...p, sensitiveDocsAccess: e.target.checked }))}
+                  className="size-4"
+                />
+                <label htmlFor="sensitiveDocsAccess" className="text-sm">Can view sensitive employee documents</label>
+              </div>
+              <p className="text-xs text-muted-foreground">Grants access to documents flagged sensitive (medical, background checks) in the Employee Vault. Owner and HR always have access; only owner/HR can change this.</p>
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -145,6 +167,9 @@ interface UserRow {
 }
 
 export default function UserManagementPage() {
+  const { profile } = useAuth();
+  // Only owner/HR may adjust sensitive-document access (also enforced in the DB).
+  const canGrantSensitive = profile?.accountRole === "owner" || profile?.accountRole === "hr";
   const { data, isLoading, isError, refetch } = useCollection("profiles");
   const employeesQ = useCollection("employees");
   const updateMut = useUpdate("profiles");
@@ -257,6 +282,9 @@ export default function UserManagementPage() {
         staffRole: form.staffRole.trim() || undefined,
         department: (form.department.trim() as ComplianceUserProfile["department"]) || undefined,
         active: form.active,
+        // Only send the sensitive-docs grant when the editor is owner/HR — the DB
+        // trigger enforces this too, so a non-owner/HR editor never changes it.
+        ...(canGrantSensitive ? { sensitiveDocsAccess: form.sensitiveDocsAccess } : {}),
       };
       if (editing && editing !== "new") {
         // Audit (incl. role-change detail) is written server-side by the
@@ -323,6 +351,7 @@ export default function UserManagementPage() {
             department: inviting.department ?? "",
             accountRole: "staff",
           } : undefined}
+          canGrantSensitive={canGrantSensitive}
           onClose={() => { setEditing(null); setInviting(null); }}
           onSave={handleSave}
           saving={saving}
