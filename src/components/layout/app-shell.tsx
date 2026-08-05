@@ -67,6 +67,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip link — first focusable element, lets keyboard users jump past the
+          ~15 sidebar items straight to page content (WCAG 2.4.1). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
+
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-sidebar-border lg:block">
         <Sidebar />
@@ -96,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           "fixed inset-0 z-40 lg:hidden",
           mobileOpen ? "pointer-events-auto" : "pointer-events-none",
         )}
-        aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
       >
         <div
           className={cn(
@@ -123,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="lg:pl-72">
+      <main id="main-content" tabIndex={-1} className="lg:pl-72 focus:outline-none">
         {/* Desktop top bar with notifications — Liquid Glass functional layer */}
         <div className="sticky top-0 z-20 hidden items-center justify-end border-b border-border bg-card/70 px-8 py-2 backdrop-blur-xl backdrop-saturate-150 lg:flex">
           <NotificationBell />

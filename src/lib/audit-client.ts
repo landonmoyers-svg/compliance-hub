@@ -5,7 +5,7 @@
  * Never throws — logging must not break the user's action.
  */
 export function logAccess(payload: {
-  action?: "view" | "export" | "acknowledge" | "sign";
+  action?: "view" | "export" | "acknowledge" | "sign" | "login" | "logout";
   entityType: string;
   entityId?: string;
   entityLabel?: string;

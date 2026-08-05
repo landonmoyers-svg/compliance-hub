@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { ComplianceUserProfile } from "@/lib/data/schema";
-import { logAudit } from "@/lib/data/audit";
+import { logAccess } from "@/lib/audit-client";
 import { isAdminRole } from "./roles";
 
 export type AuthStatus =
@@ -135,16 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    // Record the sign-out while the session still exists (RLS needs auth.uid()).
+    // Record the sign-out via the server route (actor from the session, IP/geo
+    // captured, `keepalive` so it survives the redirect below). This dispatches
+    // BEFORE signOut clears the session cookie, so the server still authorizes it
+    // — unlike a client-side insert, which raced the session teardown and failed
+    // RLS, silently dropping every logout from the audit trail.
     if (profile) {
-      await logAudit({
-        actorName: profile.fullName,
-        actorEmail: profile.email,
-        action: "logout",
-        entityType: "auth",
-        details: "Signed out",
-        riskLevel: "low",
-      });
+      logAccess({ action: "logout", entityType: "auth", details: "Signed out", riskLevel: "low" });
     }
     await supabase.auth.signOut();
     window.location.href = "/auth/login";
