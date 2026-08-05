@@ -55,20 +55,31 @@ afterSign hook notarizes + staples via the keychain profile. Result:
 on GitHub's runners and publishes them to a GitHub Release (which also powers
 auto-update). Trigger it by pushing a tag like `desktop-v1.0.1`.
 
-You must add these repository **secrets** (Settings → Secrets → Actions) — the
-build won't sign without them:
+Add these repository **secrets** (Settings → Secrets and variables → Actions →
+New repository secret) — the build won't sign without them:
 
-**macOS (Apple Developer account, $99/yr):**
-- `MAC_CSC_LINK` — base64 of your Developer ID Application `.p12`
-- `MAC_CSC_KEY_PASSWORD` — the `.p12` password
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` — for notarization
+**macOS** (Team ID `XVN4NXD6CJ`, Apple Developer account $99/yr):
+1. Export the cert — Keychain Access → **My Certificates** → right-click
+   **"Developer ID Application: Landon Moyers (XVN4NXD6CJ)"** → **Export…** →
+   save a `.p12` and set a password (that's `MAC_CSC_KEY_PASSWORD`).
+2. Base64 it and copy: `base64 -i developer-id.p12 | pbcopy` → paste into
+   `MAC_CSC_LINK`.
+3. Add `MAC_CSC_KEY_PASSWORD` (the `.p12` password from step 1).
+4. Add `APPLE_ID` = `landlmoyers@gmail.com`, `APPLE_TEAM_ID` = `XVN4NXD6CJ`, and
+   `APPLE_APP_SPECIFIC_PASSWORD` = an app-specific password from
+   appleid.apple.com (a fresh one, or reuse the notarization one).
 
 **Windows (Authenticode cert):**
 - `WIN_CSC_LINK` — base64 of your code-signing `.pfx`
 - `WIN_CSC_KEY_PASSWORD` — the `.pfx` password
+- *(If you use a cloud signer — Azure Trusted Signing or SSL.com eSigner — the
+  Windows step needs adjusting; ask and I'll update it.)*
 
 `GITHUB_TOKEN` (auto-provided) publishes the release. Bump `version` in
 `package.json` for each release so auto-update can compare.
+
+The CI runs on GitHub's clean macOS/Windows runners, so it avoids the local
+gotchas (iCloud xattrs, timestamp rate-limits, notary-poll timeouts) entirely.
 
 ## Auto-update
 
