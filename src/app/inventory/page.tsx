@@ -8,7 +8,7 @@ import { uploadFile } from "@/lib/storage";
 import { normalizeImage } from "@/lib/images";
 import { guessLocation } from "@/lib/geo";
 import { PageHeader } from "@/components/shared/page-header";
-import { PPT_CLASSES, PPT_EXEMPT_LABELS, pptValue, suggestPptCategory, summarizeByLocation, PPT_COUNTY_EXEMPTION_CENTS, type PptCategory } from "@/lib/utah-ppt";
+import { PPT_CLASSES, PPT_EXEMPT_LABELS, PPT_REGISTERED, PPT_SPECIAL, pptValue, suggestPptCategory, summarizeByLocation, PPT_COUNTY_EXEMPTION_CENTS, type PptCategory } from "@/lib/utah-ppt";
 import { openPptStatement } from "@/lib/utah-ppt-sheet";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { StatCard } from "@/components/shared/stat-card";
@@ -314,11 +314,27 @@ function ItemDialog({
                       <option key={c} value={c}>{PPT_EXEMPT_LABELS[c]}</option>
                     ))}
                   </optgroup>
+                  <optgroup label="Registered vehicle (DMV uniform/age fee — not on the statement)">
+                    {(Object.keys(PPT_REGISTERED) as (keyof typeof PPT_REGISTERED)[]).map((c) => (
+                      <option key={c} value={c}>{PPT_REGISTERED[c].label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Special">
+                    {(Object.keys(PPT_SPECIAL) as (keyof typeof PPT_SPECIAL)[]).map((c) => (
+                      <option key={c} value={c}>{PPT_SPECIAL[c].label}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 <Button type="button" variant="outline" onClick={() => setForm((p) => ({ ...p, pptCategory: suggestPptCategory(p.itemType, p.acquisitionCost ? Math.round(parseFloat(p.acquisitionCost) * 100) : null) }))} title="Suggest a class from the item type and cost">Suggest</Button>
               </div>
               {form.pptCategory in PPT_CLASSES && (
                 <p className="text-[11px] text-muted-foreground">{PPT_CLASSES[form.pptCategory as keyof typeof PPT_CLASSES].life} · e.g. {PPT_CLASSES[form.pptCategory as keyof typeof PPT_CLASSES].examples}</p>
+              )}
+              {form.pptCategory in PPT_REGISTERED && (
+                <p className="text-[11px] text-muted-foreground">{PPT_REGISTERED[form.pptCategory as keyof typeof PPT_REGISTERED].fee} · e.g. {PPT_REGISTERED[form.pptCategory as keyof typeof PPT_REGISTERED].examples}</p>
+              )}
+              {form.pptCategory in PPT_SPECIAL && (
+                <p className="text-[11px] text-muted-foreground">{PPT_SPECIAL[form.pptCategory as keyof typeof PPT_SPECIAL].note}</p>
               )}
             </div>
             {form.pptCategory in PPT_CLASSES && (
