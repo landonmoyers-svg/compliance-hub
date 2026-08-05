@@ -1274,6 +1274,9 @@ function inventoryFrom(r: Record<string, unknown>): InventoryItem {
     capturedLng: (r.captured_lng as number | null) ?? undefined,
     aiIdentified: (r.ai_identified as boolean | null) ?? false,
     aiConfidence: (r.ai_confidence as string | null) ?? undefined,
+    acquisitionCostCents: (r.acquisition_cost_cents as number | null) ?? undefined,
+    acquisitionYear: (r.acquisition_year as number | null) ?? undefined,
+    pptCategory: (r.ppt_category as string | null) ?? undefined,
   };
 }
 function inventoryTo(d: Partial<InventoryItem>) {
@@ -1295,6 +1298,9 @@ function inventoryTo(d: Partial<InventoryItem>) {
     ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
     ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
     ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
+    ...(d.acquisitionCostCents !== undefined && { acquisition_cost_cents: d.acquisitionCostCents }),
+    ...(d.acquisitionYear !== undefined && { acquisition_year: d.acquisitionYear }),
+    ...(d.pptCategory !== undefined && { ppt_category: d.pptCategory }),
   };
 }
 

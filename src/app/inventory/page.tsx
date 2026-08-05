@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin, Camera } from "lucide-react";
+import { Package, Plus, Search, Sparkles, MessageSquare, Send, Upload, X, MapPin, Camera, Landmark, FileText } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { uploadFile } from "@/lib/storage";
 import { normalizeImage } from "@/lib/images";
 import { guessLocation } from "@/lib/geo";
 import { PageHeader } from "@/components/shared/page-header";
+import { PPT_CLASSES, PPT_EXEMPT_LABELS, pptValue, suggestPptCategory, summarizeByLocation, PPT_COUNTY_EXEMPTION_CENTS, type PptCategory } from "@/lib/utah-ppt";
+import { openPptStatement } from "@/lib/utah-ppt-sheet";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { StatCard } from "@/components/shared/stat-card";
 import { SignedImage } from "@/components/shared/signed-image";
 import { CameraCapture, type CaptureMeta } from "@/components/shared/camera-capture";
 import { DuplicateFinder, dupNorm } from "@/components/shared/duplicate-finder";
 import { useSort, SortHeader } from "@/components/shared/sortable";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,10 +58,14 @@ interface ItemForm {
   quantity: string;
   estimatedValue: string; // dollars
   description: string;
+  // Utah personal property tax (Pub 20)
+  acquisitionCost: string; // dollars, incl. install/shipping/sales tax
+  acquisitionYear: string;
+  pptCategory: string; // PptCategory value or ""
 }
 
 function emptyForm(): ItemForm {
-  return { itemName: "", itemType: "equipment", status: "active", condition: "good", locationId: "", sublocation: "", assetTag: "", quantity: "1", estimatedValue: "", description: "" };
+  return { itemName: "", itemType: "equipment", status: "active", condition: "good", locationId: "", sublocation: "", assetTag: "", quantity: "1", estimatedValue: "", description: "", acquisitionCost: "", acquisitionYear: "", pptCategory: "" };
 }
 
 function ItemDialog({
@@ -89,6 +96,9 @@ function ItemDialog({
           quantity: String(initial.quantity ?? 1),
           estimatedValue: initial.estimatedValueCents != null ? String(initial.estimatedValueCents / 100) : "",
           description: initial.description ?? "",
+          acquisitionCost: initial.acquisitionCostCents != null ? String(initial.acquisitionCostCents / 100) : "",
+          acquisitionYear: initial.acquisitionYear != null ? String(initial.acquisitionYear) : "",
+          pptCategory: initial.pptCategory ?? "",
         }
       : emptyForm(),
   );
@@ -284,6 +294,60 @@ function ItemDialog({
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Description</label>
             <textarea className="input w-full resize-none" rows={2} value={form.description} onChange={set("description")} placeholder="Brand, model, distinguishing details" />
+          </div>
+
+          {/* Utah business personal property tax (Pub 20) */}
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium text-muted-foreground">Utah Personal Property Tax (Pub 20)</p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Tax class / exemption</label>
+              <div className="flex gap-2">
+                <select className="input w-full" value={form.pptCategory} onChange={set("pptCategory")}>
+                  <option value="">— Not classified —</option>
+                  <optgroup label="Taxable — depreciation class">
+                    {(Object.keys(PPT_CLASSES) as (keyof typeof PPT_CLASSES)[]).map((c) => (
+                      <option key={c} value={c}>{PPT_CLASSES[c].label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Exempt">
+                    {(Object.keys(PPT_EXEMPT_LABELS) as (keyof typeof PPT_EXEMPT_LABELS)[]).map((c) => (
+                      <option key={c} value={c}>{PPT_EXEMPT_LABELS[c]}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <Button type="button" variant="outline" onClick={() => setForm((p) => ({ ...p, pptCategory: suggestPptCategory(p.itemType, p.acquisitionCost ? Math.round(parseFloat(p.acquisitionCost) * 100) : null) }))} title="Suggest a class from the item type and cost">Suggest</Button>
+              </div>
+              {form.pptCategory in PPT_CLASSES && (
+                <p className="text-[11px] text-muted-foreground">{PPT_CLASSES[form.pptCategory as keyof typeof PPT_CLASSES].life} · e.g. {PPT_CLASSES[form.pptCategory as keyof typeof PPT_CLASSES].examples}</p>
+              )}
+            </div>
+            {form.pptCategory in PPT_CLASSES && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Acquisition cost (USD)</label>
+                  <input className="input w-full" value={form.acquisitionCost} onChange={set("acquisitionCost")} placeholder="incl. install/ship/sales tax" inputMode="decimal" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Year acquired</label>
+                  <input className="input w-full" value={form.acquisitionYear} onChange={set("acquisitionYear")} placeholder="e.g. 2022" inputMode="numeric" />
+                </div>
+              </div>
+            )}
+            {form.pptCategory && form.pptCategory !== "" && (() => {
+              const r = pptValue({
+                pptCategory: form.pptCategory as PptCategory,
+                acquisitionCostCents: form.acquisitionCost ? Math.round(parseFloat(form.acquisitionCost) * 100) : null,
+                acquisitionYear: form.acquisitionYear ? parseInt(form.acquisitionYear, 10) : null,
+                removedFromInventory: form.status === "removed",
+              });
+              return (
+                <p className="rounded-md bg-secondary/40 px-3 py-2 text-xs">
+                  {r.taxable
+                    ? <>Estimated taxable value: <span className="font-semibold">${(r.fmvCents / 100).toLocaleString()}</span> <span className="text-muted-foreground">· {r.reason}</span></>
+                    : <span className="text-muted-foreground">{r.reason}{r.needsInput ? "" : " — not taxed"}</span>}
+                </p>
+              );
+            })()}
           </div>
         </div>
 
@@ -627,6 +691,10 @@ export default function InventoryPage() {
   const items = useMemo(() => data ?? [], [data]);
   const locations = useMemo(() => (locationsQ.data ?? []).filter((l) => l.active), [locationsQ.data]);
   const locName = useMemo(() => new Map(locations.map((l) => [l.id, l.name])), [locations]);
+  // Utah personal property tax (Pub 20) roll-up.
+  const pptSummary = useMemo(() => summarizeByLocation(items), [items]);
+  const pptTaxableTotal = useMemo(() => pptSummary.reduce((s, l) => s + l.taxableCents, 0), [pptSummary]);
+  const pptUnclassified = useMemo(() => items.filter((i) => !i.pptCategory && !i.removedFromInventory).length, [items]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -679,6 +747,9 @@ export default function InventoryPage() {
         estimatedValueCents: cents,
         description: form.description.trim() || null,
         removedFromInventory: form.status === "removed",
+        acquisitionCostCents: form.acquisitionCost.trim() === "" ? null : Math.round(parseFloat(form.acquisitionCost) * 100),
+        acquisitionYear: form.acquisitionYear.trim() === "" ? null : (parseInt(form.acquisitionYear, 10) || null),
+        pptCategory: form.pptCategory || null,
         imageUrl,
         ...(image ? { capturedAt: image.capturedAt ?? null, capturedLat: image.lat ?? null, capturedLng: image.lng ?? null } : {}),
         aiIdentified: ai.identified,
@@ -747,6 +818,44 @@ export default function InventoryPage() {
         {isAdmin && <StatCard label="Est. total value" value={usd(stats.totalValue)} icon={Sparkles} loading={isLoading} />}
         <StatCard label="Locations in use" value={stats.locations} icon={MapPin} loading={isLoading} />
       </div>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Landmark className="size-4 text-primary" /> Utah Personal Property Tax (Pub 20)
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Est. taxable value: <span className="font-semibold text-foreground">{usd(pptTaxableTotal)}</span></span>
+                <Button size="sm" variant="outline" onClick={() => { if (!openPptStatement(items, (id) => (id ? locName.get(id) ?? "Unknown" : "Unassigned"), DEFAULT_ORG_NAME)) toast.error("Allow pop-ups to open the worksheet."); }}>
+                  <FileText className="size-4" /> Print worksheet
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {pptSummary.filter((l) => l.taxableCount > 0 || l.needsInputCount > 0).map((l) => (
+                <div key={l.locationId ?? "none"} className="rounded-lg border border-border px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{l.locationId ? locName.get(l.locationId) ?? "Unknown" : "Unassigned"}</span>
+                    <Badge variant={l.overThreshold ? "warning" : "success"}>{l.overThreshold ? "Filing likely due" : "Under exemption"}</Badge>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {usd(l.taxableCents)} taxable · {l.taxableCount} item{l.taxableCount === 1 ? "" : "s"}
+                    {l.needsInputCount > 0 && <span className="text-warning"> · {l.needsInputCount} need cost/year</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Assessed each <span className="font-medium text-foreground">Jan 1</span> and filed on the county Signed Statement (taxes due <span className="font-medium text-foreground">May 15</span>). A location at/under <span className="font-medium text-foreground">{usd(PPT_COUNTY_EXEMPTION_CENTS)}</span> taxable value can apply for the small-taxpayer exemption. Supplies, resale inventory, and sub-$500 non-critical items are exempt. Estimates from the {new Date().getFullYear() >= 2027 ? "current" : "2026"} Utah schedules — confirm with your county assessor.
+              {pptUnclassified > 0 && <span className="text-warning"> {pptUnclassified} item{pptUnclassified === 1 ? " is" : "s are"} not yet classified — open an item to set its tax class.</span>}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -776,6 +776,12 @@ export const InventoryItem = z.object({
   capturedLng: z.number().nullable().optional(),
   aiIdentified: z.boolean().default(false),
   aiConfidence: z.string().nullable().optional(),
+  // Utah business personal property tax (Pub 20). See src/lib/utah-ppt.ts.
+  // acquisitionCost includes install/shipping/sales tax; pptCategory is a Utah
+  // valuation class ("class_8") or an exempt reason ("exempt_supply").
+  acquisitionCostCents: z.number().nullable().optional(),
+  acquisitionYear: z.number().nullable().optional(),
+  pptCategory: z.string().nullable().optional(),
 });
 export type InventoryItem = z.infer<typeof InventoryItem>;
 
