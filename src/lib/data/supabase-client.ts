@@ -2075,6 +2075,8 @@ function orgSettingsFrom(r: Record<string, unknown>): OrganizationSettings {
     pageRoles: (r.page_roles as Record<string, string[]> | null) ?? {},
     disabledPages: (r.disabled_pages as string[] | null) ?? [],
     defaultAccountRole: (r.default_account_role as string | null) ?? "staff",
+    industry: (r.industry as string | null) ?? "healthcare",
+    jurisdiction: (r.jurisdiction as OrganizationSettings["jurisdiction"] | null) ?? {},
   };
 }
 
@@ -2117,6 +2119,8 @@ function orgSettingsTo(d: Partial<OrganizationSettings>) {
     ...(d.pageRoles !== undefined && { page_roles: d.pageRoles }),
     ...(d.disabledPages !== undefined && { disabled_pages: d.disabledPages }),
     ...(d.defaultAccountRole !== undefined && { default_account_role: d.defaultAccountRole }),
+    ...(d.industry !== undefined && { industry: d.industry }),
+    ...(d.jurisdiction !== undefined && { jurisdiction: d.jurisdiction }),
   };
 }
 

@@ -11,6 +11,7 @@ import { GuideDock } from "@/components/guide/guide-dock";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
 import { canAccessPath, findNavItem } from "@/lib/nav";
+import { industryHiddenModules } from "@/lib/industries";
 import { logAccess } from "@/lib/audit-client";
 import { cn } from "@/lib/cn";
 
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Enforce page access once settings have loaded: a user who navigates to a
   // page their role/org doesn't permit is redirected home (defense beyond nav hiding).
   const loaded = !orgSettingsQ.isLoading;
-  const allowed = canAccessPath(pathname, profile?.accountRole, org?.pageRoles ?? {}, org?.disabledPages ?? []);
+  const allowed = canAccessPath(pathname, profile?.accountRole, org?.pageRoles ?? {}, org?.disabledPages ?? [], industryHiddenModules(org?.industry));
   useEffect(() => {
     if (loaded && profile && !allowed) router.replace("/");
   }, [loaded, allowed, profile, router]);

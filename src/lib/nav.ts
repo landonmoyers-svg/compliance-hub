@@ -199,6 +199,10 @@ export interface VisibilityCtx {
   hiddenPages: string[];
   pageOrder: string[];
   groupOrder?: string[];
+  /** Nav hrefs hidden because they don't apply to the org's industry. Applies to
+   *  every role (it's about which modules EXIST, not permissions). Empty for
+   *  healthcare, so the healthcare app is unaffected. */
+  industryHidden?: string[];
 }
 
 /** Sensitive full-page modules that aren't in the sidebar nav but must still be
@@ -222,9 +226,15 @@ export const EXTRA_PRIVILEGED_PATHS = [
 export const RECOVERY_PATHS = ["/settings", "/access-matrix", "/user-management"];
 
 /** Enforcement: can this role open this path? (Command Center is always allowed.) */
-export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[]): boolean {
+export function canAccessPath(pathname: string, role: AccountRole | null | undefined, pageRoles: Record<string, string[]>, disabledPages: string[], industryHidden: string[] = []): boolean {
   if (pathname === "/") return true;
   if (!role || role === "inactive") return false;
+  // A module the org's industry doesn't include is blocked for everyone (incl.
+  // the owner) — but never a recovery path, so Settings is always reachable.
+  if (industryHidden.length && !RECOVERY_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    const hit = findNavItem(pathname);
+    if (hit && industryHidden.includes(hit.href)) return false;
+  }
   // The Owner can never be locked out — blocking the top role only creates
   // lock-out risk, so org-level page toggles never apply to the owner.
   if (role === "owner") return true;
@@ -251,8 +261,13 @@ export function canAccessPath(pathname: string, role: AccountRole | null | undef
 export function resolveNav(ctx: VisibilityCtx): NavGroup[] {
   const { role } = ctx;
   const isOwner = role === "owner";
+  const industryHidden = ctx.industryHidden ?? [];
   const accessible = (item: NavItem) =>
     !!role && role !== "inactive" &&
+    // Industry hiding applies to EVERYONE, including the owner — a module that
+    // doesn't exist for this industry shouldn't show for anyone. (Empty for
+    // healthcare.) Recovery paths are never in an industry's hidden list.
+    !industryHidden.includes(item.href) &&
     // The Owner sees every page (minus their own personal hides) so a bad org
     // toggle can never empty their sidebar or hide the pages that fix it.
     (isOwner || (

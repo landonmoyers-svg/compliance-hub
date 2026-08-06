@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, Fragment } from "react";
-import { Building2, MapPin, Plus, X, Trash2, HardDrive } from "lucide-react";
+import { Building2, MapPin, Plus, X, Trash2, HardDrive, Factory } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/shared/states";
 import type { OrganizationSettings, WorkLocation } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { allPages, allowedRolesFor, SELECTABLE_ROLES, RECOVERY_PATHS } from "@/lib/nav";
+import { INDUSTRIES, US_STATES, industryBySlug } from "@/lib/industries";
 import { humanizeLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ interface OrgForm {
   sessionTimeoutMinutes: string; requireTwoFactor: boolean; passwordMinLength: string;
   credentialReminderDays: string; trainingReminderDays: string;
   insuranceReminderDays: string; emailNotifications: boolean;
+  industry: string; jurCountry: string; jurState: string; jurCounty: string; jurCity: string;
 }
 
 function toForm(s: OrganizationSettings | undefined): OrgForm {
@@ -51,6 +53,11 @@ function toForm(s: OrganizationSettings | undefined): OrgForm {
     trainingReminderDays: String(s?.trainingReminderDays ?? 14),
     insuranceReminderDays: String(s?.insuranceReminderDays ?? 60),
     emailNotifications: s?.emailNotifications ?? true,
+    industry: s?.industry ?? "healthcare",
+    jurCountry: s?.jurisdiction?.country ?? "US",
+    jurState: s?.jurisdiction?.state ?? "",
+    jurCounty: s?.jurisdiction?.county ?? "",
+    jurCity: s?.jurisdiction?.city ?? "",
   };
 }
 
@@ -88,6 +95,8 @@ export default function SettingsPage() {
           pageRoles: {},
           disabledPages: [],
           defaultAccountRole: "staff",
+          industry: "healthcare",
+          jurisdiction: {},
           ...patch,
         });
       }
@@ -112,6 +121,15 @@ export default function SettingsPage() {
       documentRetentionYears: retention,
       auditRetentionYears: auditRetention,
     }, "Organization settings");
+  }
+
+  function saveIndustry(e: React.FormEvent) {
+    e.preventDefault();
+    const t = (v: string) => v.trim() || undefined;
+    void persist({
+      industry: form.industry,
+      jurisdiction: { country: t(form.jurCountry), state: t(form.jurState), county: t(form.jurCounty), city: t(form.jurCity) },
+    }, "Industry & jurisdiction");
   }
 
   function saveSecurity(e: React.FormEvent) {
@@ -158,6 +176,7 @@ export default function SettingsPage() {
       </div>
 
       {tab === "organization" && (
+        <div className="space-y-6">
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="size-4 text-muted-foreground" /> Organization</CardTitle></CardHeader>
           <CardContent>
@@ -203,6 +222,50 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Factory className="size-4 text-muted-foreground" /> Industry &amp; jurisdiction</CardTitle></CardHeader>
+          <CardContent>
+            {loading ? <Skeleton className="h-56 w-full" /> : (
+              <form onSubmit={saveIndustry} className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-sm font-medium">Industry</label>
+                  <select className="input w-full" value={form.industry} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}>
+                    {INDUSTRIES.map((i) => <option key={i.slug} value={i.slug}>{i.label}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">{industryBySlug(form.industry).blurb}</p>
+                  {industryBySlug(form.industry).hiddenModules.length > 0 && (
+                    <p className="text-xs text-warning">Turns off {industryBySlug(form.industry).hiddenModules.length} module{industryBySlug(form.industry).hiddenModules.length === 1 ? "" : "s"} not used in this industry (e.g. {industryBySlug(form.industry).hiddenModules.slice(0, 2).map((h) => humanizeLabel(h.replace("/", ""))).join(", ")}). You can still re-enable modules under Modules &amp; Access.</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Country</label>
+                  <input className="input w-full" value={form.jurCountry} onChange={(e) => setForm((p) => ({ ...p, jurCountry: e.target.value }))} placeholder="US" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">State</label>
+                  <select className="input w-full" value={form.jurState} onChange={(e) => setForm((p) => ({ ...p, jurState: e.target.value }))}>
+                    <option value="">— Select —</option>
+                    {US_STATES.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">County</label>
+                  <input className="input w-full" value={form.jurCounty} onChange={(e) => setForm((p) => ({ ...p, jurCounty: e.target.value }))} placeholder="e.g. Utah County" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">City</label>
+                  <input className="input w-full" value={form.jurCity} onChange={(e) => setForm((p) => ({ ...p, jurCity: e.target.value }))} placeholder="e.g. Lehi" />
+                </div>
+                <p className="text-xs text-muted-foreground sm:col-span-2">Jurisdiction drives which federal, state, county, and city regulations apply — used to import the right regulatory sources for your business.</p>
+                <div className="flex justify-end sm:col-span-2">
+                  <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save industry & jurisdiction"}</Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+        </div>
       )}
 
       {tab === "locations" && <LocationsTab />}

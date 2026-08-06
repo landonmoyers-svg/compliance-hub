@@ -1411,6 +1411,15 @@ export const OrganizationSettings = z.object({
   disabledPages: z.array(z.string()).default([]),
   // Default account role applied to newly-invited users (e.g. by the Concierge).
   defaultAccountRole: z.string().default("staff"),
+  // Multi-industry config (additive; healthcare = today's behavior, byte-for-byte).
+  industry: z.string().default("healthcare"),
+  // Where the business operates — drives which regulations apply (federal/state/county/city).
+  jurisdiction: z.object({
+    country: z.string().optional(),
+    state: z.string().optional(),
+    county: z.string().optional(),
+    city: z.string().optional(),
+  }).default({}),
 });
 
 // Per-user sidebar personalization (cosmetic — never grants access).

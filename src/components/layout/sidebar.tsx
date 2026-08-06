@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useTheme, type Theme } from "@/components/theme-provider";
 import { roleLabel } from "@/lib/auth/roles";
 import { resolveNav, type NavItem } from "@/lib/nav";
+import { industryHiddenModules } from "@/lib/industries";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import type { NavPreference } from "@/lib/data/schema";
 import { APP_NAME, DEFAULT_ORG_NAME } from "@/lib/org";
@@ -115,7 +116,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     hiddenPages: pref?.hiddenPages ?? [],
     pageOrder: pref?.pageOrder ?? [],
     groupOrder: pref?.groupOrder ?? [],
-  }), [profile?.accountRole, org?.pageRoles, org?.disabledPages, pref?.hiddenPages, pref?.pageOrder, pref?.groupOrder]);
+    industryHidden: industryHiddenModules(org?.industry),
+  }), [profile?.accountRole, org?.pageRoles, org?.disabledPages, org?.industry, pref?.hiddenPages, pref?.pageOrder, pref?.groupOrder]);
 
   const groups = useMemo(() => resolveNav(ctx), [ctx]);
   // Everything the user is *allowed* to see (ignoring personal hide/order) — for the customizer.
