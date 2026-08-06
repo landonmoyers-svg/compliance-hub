@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Compass, GraduationCap, Route, CalendarRange, ArrowUpRight, Plus, Play,
-  ChevronDown, Clock, CheckCircle2, Sparkles, MessageSquare,
+  ChevronDown, Clock, CheckCircle2, Sparkles, MessageSquare, Check, CalendarClock, RotateCcw,
 } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
@@ -20,6 +20,13 @@ import { daysUntil } from "@/lib/dates";
 import { FEATURES, FEATURE_CATEGORIES, type FeatureGuide } from "@/lib/guide/features";
 import { PLAYBOOKS, type Playbook } from "@/lib/guide/playbooks";
 import { useGuide, askSage } from "@/lib/guide/context";
+
+type GuideCtx = ReturnType<typeof useGuide>;
+
+/** Local calendar date (YYYY-MM-DD) — avoids the UTC off-by-one of toISOString. */
+function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner", admin: "Administrator", hr: "HR Director",
@@ -119,23 +126,26 @@ export default function GuidePage() {
         ))}
       </div>
 
-      {tab === "today" && <TodayTab items={items} loading={loading} isAdmin={isAdmin} onAddTask={addTask} onStart={(s) => g.start(s)} />}
+      {tab === "today" && <TodayTab items={items} loading={loading} isAdmin={isAdmin} onAddTask={addTask} onStart={(s) => g.start(s)} g={g} onGoPlan={() => setTab("plan")} />}
       {tab === "walk" && <WalkTab onStart={(s) => g.start(s)} doneCount={(s) => g.doneCount(s)} />}
       {tab === "learn" && <LearnTab onStart={(s) => g.start(s)} />}
-      {tab === "plan" && <PlanTab items={items} loading={loading} onAddTask={addTask} />}
+      {tab === "plan" && <PlanTab items={items} loading={loading} onAddTask={addTask} g={g} />}
     </div>
   );
 }
 
 /* ------------------------------- Today -------------------------------- */
-function TodayTab({ items, loading, isAdmin, onAddTask, onStart }: {
+function TodayTab({ items, loading, isAdmin, onAddTask, onStart, g, onGoPlan }: {
   items: WorkItem[]; loading: boolean; isAdmin: boolean;
   onAddTask: (i: WorkItem) => void; onStart: (slug: string) => void;
+  g: GuideCtx; onGoPlan: () => void;
 }) {
   const top = items.slice(0, 6);
   const overdue = items.filter((i) => i.bucket === "overdue").length;
   const suggested = PLAYBOOKS.slice(0, 3);
   return (
+    <div className="space-y-6">
+    <KeepOnTrack items={items} g={g} onGoPlan={onGoPlan} />
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-3 lg:col-span-2">
         <h2 className="text-sm font-semibold">What matters most right now {overdue > 0 && <span className="text-destructive">· {overdue} overdue</span>}</h2>
@@ -181,6 +191,87 @@ function TodayTab({ items, loading, isAdmin, onAddTask, onStart }: {
         ))}
       </div>
     </div>
+    </div>
+  );
+}
+
+/* --------------------- Keep-on-track (committed plan) ------------------ */
+function KeepOnTrack({ items, g, onGoPlan }: { items: WorkItem[]; g: GuideCtx; onGoPlan: () => void }) {
+  const plan = g.plan;
+  const today = isoDay(new Date());
+  const liveKeys = useMemo(() => new Set(items.map((i) => i.key)), [items]);
+
+  if (!plan || plan.items.length === 0) {
+    return (
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div className="flex items-center gap-2 text-sm">
+            <CalendarClock className="size-4 text-primary" />
+            <span>No plan committed yet. Lay your week out and I&apos;ll keep you on track — today&apos;s work, what slipped, and what to reschedule.</span>
+          </div>
+          <Button size="sm" onClick={onGoPlan}><CalendarRange className="size-4" /> Plan my week</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // An item is complete if you marked it, or it fell off the live agenda (resolved).
+  const resolved = (it: { key: string; done: boolean }) => it.done || !liveKeys.has(it.key);
+  const todays = plan.items.filter((it) => it.day === today);
+  const slipped = plan.items.filter((it) => it.day < today && !resolved(it));
+  const focus = [...slipped, ...todays];
+  const doneToday = todays.filter(resolved).length;
+  const allDone = focus.every(resolved);
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <CalendarClock className="size-4 text-primary" /> Today&apos;s plan
+          <span className="font-normal text-muted-foreground">· {doneToday}/{todays.length} done{slipped.length > 0 && <span className="text-destructive"> · {slipped.length} slipped</span>}</span>
+        </CardTitle>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={onGoPlan}>Adjust plan</Button>
+          <Button size="sm" variant="ghost" onClick={() => g.clearPlan()} title="Clear the committed plan">Clear</Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        {focus.length === 0 ? (
+          <p className="py-2 text-sm text-muted-foreground">Nothing scheduled for today. Enjoy the breathing room — or <button className="text-primary underline" onClick={onGoPlan}>plan ahead</button>.</p>
+        ) : allDone ? (
+          <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-sm text-success">
+            <CheckCircle2 className="size-4" /> Everything on today&apos;s plan is done. Nicely kept.
+          </div>
+        ) : null}
+        {focus.map((it) => {
+          const isResolved = resolved(it);
+          const isSlipped = it.day < today && !isResolved;
+          const auto = !it.done && !liveKeys.has(it.key);
+          return (
+            <div key={it.key} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2", isResolved ? "border-border opacity-70" : isSlipped ? "border-destructive/40 bg-destructive/5" : "border-border")}>
+              <button
+                onClick={() => g.setPlanDone(it.key, !it.done)}
+                disabled={auto}
+                aria-label={it.done ? "Mark not done" : "Mark done"}
+                className={cn("flex size-5 shrink-0 items-center justify-center rounded-full border", isResolved ? "border-success bg-success text-success-foreground" : "border-muted-foreground/40 hover:border-primary")}
+              >
+                {isResolved && <Check className="size-3" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className={cn("truncate text-sm", isResolved && "text-muted-foreground line-through")}>{it.title}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {auto ? <span className="text-success">Resolved — cleared itself</span> : isSlipped ? <span className="text-destructive">Slipped from {new Date(it.day + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span> : it.why}
+                </p>
+              </div>
+              {isSlipped && (
+                <Button size="sm" variant="ghost" onClick={() => g.reschedule(it.key, today)} title="Move to today"><RotateCcw className="size-3.5" /> Today</Button>
+              )}
+              <Button asChild size="sm" variant="ghost" title="Open"><Link href={it.href}><ArrowUpRight className="size-4" /></Link></Button>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -277,8 +368,9 @@ function FeatureCard({ f, open, onToggle, onStart }: { f: FeatureGuide; open: bo
 }
 
 /* ----------------------------- Plan my week --------------------------- */
-function PlanTab({ items, loading, onAddTask }: { items: WorkItem[]; loading: boolean; onAddTask: (i: WorkItem, due?: string | null) => void }) {
+function PlanTab({ items, loading, onAddTask, g }: { items: WorkItem[]; loading: boolean; onAddTask: (i: WorkItem, due?: string | null) => void; g: GuideCtx }) {
   const [capacity, setCapacity] = useState(3);
+  const [justCommitted, setJustCommitted] = useState(false);
   // Distribute ranked items across the next 7 days, respecting each item's due
   // date (never schedule after it) and a daily capacity. Overdue/today pin to day 0.
   const plan = useMemo(() => {
@@ -305,15 +397,39 @@ function PlanTab({ items, loading, onAddTask }: { items: WorkItem[]; loading: bo
     return d.toLocaleDateString(undefined, { weekday: "long" });
   };
 
+  function commit() {
+    const flat = plan.flatMap((day) => day.items.map((it) => ({
+      key: it.key, title: it.title, why: it.why, href: it.href, risk: it.risk, day: isoDay(day.date), done: false,
+    })));
+    g.commitPlan(flat);
+    setJustCommitted(true);
+    setTimeout(() => setJustCommitted(false), 3500);
+    toast.success("Week committed — I'll keep you on track from the Today tab.");
+  }
+
+  const totalPlanned = plan.reduce((n, d) => n + d.items.length, 0);
+  const committed = g.plan;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">I&apos;ve laid your most important work across the week, hardest-first and never past its deadline. Commit the days you want as tasks.</p>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Items/day</span>
-          <input type="number" min={1} max={10} value={capacity} onChange={(e) => setCapacity(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))} className="input w-16" />
-        </label>
+        <p className="max-w-[46ch] text-sm text-muted-foreground">I&apos;ve laid your most important work across the week, hardest-first and never past its deadline.</p>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Items/day</span>
+            <input type="number" min={1} max={10} value={capacity} onChange={(e) => setCapacity(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))} className="input w-16" />
+          </label>
+          <Button size="sm" onClick={commit} disabled={totalPlanned === 0}>
+            <Check className="size-4" /> {justCommitted ? "Committed" : "Commit this week"}
+          </Button>
+        </div>
       </div>
+      {committed && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-sm">
+          <span className="flex items-center gap-2 text-success"><CalendarClock className="size-4" /> Plan committed — the Today tab tracks it and auto-clears items you resolve.</span>
+          <Button size="sm" variant="ghost" onClick={() => g.clearPlan()}>Clear commitment</Button>
+        </div>
+      )}
       {loading ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
       ) : (
@@ -323,7 +439,7 @@ function PlanTab({ items, loading, onAddTask }: { items: WorkItem[]; loading: bo
               <CardHeader className="flex-row items-center justify-between gap-2 py-3">
                 <CardTitle className="text-sm">{dayLabel(day.date, i)} <span className="font-normal text-muted-foreground">· {day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></CardTitle>
                 {day.items.length > 0 && (
-                  <Button size="sm" variant="outline" onClick={() => day.items.forEach((it) => onAddTask(it, day.date.toISOString().slice(0, 10)))}>
+                  <Button size="sm" variant="outline" onClick={() => day.items.forEach((it) => onAddTask(it, isoDay(day.date)))}>
                     <Plus className="size-3.5" /> Add {day.items.length} to tasks
                   </Button>
                 )}
