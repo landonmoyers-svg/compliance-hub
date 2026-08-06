@@ -233,6 +233,180 @@ export const PLAYBOOKS: Playbook[] = [
       },
     ],
   },
+  {
+    slug: "sop-foundation",
+    title: "Build your core policy set",
+    goal: "Get your required written policies in place, reviewed, and acknowledged by staff.",
+    estimate: "~25 min",
+    roles: ["owner", "admin", "clinical_leadership"],
+    steps: [
+      {
+        key: "draft-core", title: "Draft your core policies",
+        why: "HIPAA requires written policies, and surveyors ask for current ones. Starting from a solid draft beats a blank page.",
+        how: "Have Sage draft the essentials — HIPAA privacy & security, breach response, and a code of conduct — saved straight to the SOP Library.",
+        route: "/sop-library", anchor: "add-document", ask: "Draft our core HIPAA privacy, security, and breach-response policies.",
+      },
+      {
+        key: "review-dates", title: "Set a review date on each policy",
+        why: "Out-of-date policies are a finding. An annual review date resurfaces each one before it goes stale.",
+        how: "Give every policy a review date (annual is typical).",
+        route: "/sop-library",
+      },
+      {
+        key: "acknowledge", title: "Require staff acknowledgment",
+        why: "It's not enough to have a policy — you must prove staff received it.",
+        how: "Mark the policies that require acknowledgment; staff sign them from their portal.",
+        route: "/policy-attestation", anchor: "require-ack",
+      },
+    ],
+  },
+  {
+    slug: "osha-hazcom",
+    title: "Set up OSHA safety & HazCom",
+    goal: "Meet OSHA's core requirements — an SDS library, injury recordkeeping, and required safety training.",
+    estimate: "~20 min",
+    roles: ["owner", "admin"],
+    steps: [
+      {
+        key: "sds", title: "Build your SDS library",
+        why: "OSHA's HazCom standard (§1910.1200) requires an accessible Safety Data Sheet for every hazardous chemical on site.",
+        how: "Add an SDS entry for each hazardous product — disinfectants, alcohol, bleach — and attach the manufacturer's sheet.",
+        route: "/sds-library", ask: "Add SDS entries for our common disinfectants.",
+      },
+      {
+        key: "osha-log", title: "Set up OSHA recordkeeping",
+        why: "OSHA requires recording work-related injuries/illnesses and posting the 300A summary annually.",
+        how: "Log any recordable events; the tracker builds the 300 log, 300A, and 301 forms for you.",
+        route: "/osha-tracker",
+      },
+      {
+        key: "safety-training", title: "Assign OSHA safety training",
+        why: "Bloodborne pathogens and HazCom training are required for clinical staff.",
+        how: "Assign the OSHA training modules to the staff who need them.",
+        route: "/training-academy", ask: "Assign OSHA bloodborne-pathogens and HazCom training to clinical staff.",
+      },
+    ],
+  },
+  {
+    slug: "monthly-screening",
+    title: "Run monthly exclusion screening",
+    goal: "Screen every employee and billing-relevant vendor and keep dated proof.",
+    estimate: "~10 min",
+    roles: ["owner", "admin", "hr"],
+    steps: [
+      {
+        key: "who-due", title: "See who's due",
+        why: "OIG guidance is to screen at hire and monthly thereafter.",
+        how: "Check who hasn't been screened in the last month.",
+        route: "/exclusion-screening", anchor: "run-screening", ask: "Who is due for exclusion screening?",
+      },
+      {
+        key: "screen", title: "Screen and record the results",
+        why: "Billing federal programs for anything involving an excluded person triggers penalties. The dated record is your proof.",
+        how: "Screen each subject against OIG-LEIE and SAM, and record the dated result.",
+        route: "/exclusion-screening",
+      },
+    ],
+  },
+  {
+    slug: "vendor-baa",
+    title: "Onboard a vendor & get the BAA",
+    goal: "Add a new vendor and make sure any PHI access is covered by a signed Business Associate Agreement.",
+    estimate: "~10 min",
+    roles: ["owner", "admin"],
+    steps: [
+      {
+        key: "add-vendor", title: "Add the vendor",
+        why: "You're accountable for every business associate that touches PHI or your systems.",
+        how: "Add the vendor and mark whether it has access to PHI.",
+        route: "/vendor-management", anchor: "add-vendor", ask: "Add a new vendor that will have access to PHI.",
+      },
+      {
+        key: "baa", title: "Get the BAA signed and tracked",
+        why: "Sharing PHI with a vendor without a signed BAA is itself a HIPAA violation (§164.502(e)).",
+        how: "Record the BAA status and set a review date so it doesn't lapse.",
+        route: "/vendor-management",
+      },
+    ],
+  },
+  {
+    slug: "emergency-plans",
+    title: "Stand up emergency plans & drills",
+    goal: "A written response plan for every required scenario, plus scheduled and recorded drills.",
+    estimate: "~25 min",
+    roles: ["owner", "admin", "clinical_leadership"],
+    steps: [
+      {
+        key: "coverage", title: "Check scenario coverage & draft what's missing",
+        why: "OSHA requires an emergency action plan, and a behavioral-health setting must be ready for medical and active-threat events.",
+        how: "See which required scenarios lack a plan, and draft the missing ones.",
+        route: "/emergency-preparedness", ask: "Which emergency plans are we missing, and can you draft them?",
+      },
+      {
+        key: "drills", title: "Schedule and record drills",
+        why: "A drill is what proves the plan is real, not just paper.",
+        how: "Schedule the required fire, medical, and lockdown drills, and record them once done.",
+        route: "/emergency-preparedness",
+      },
+    ],
+  },
+  {
+    slug: "board-review",
+    title: "Prepare your leadership review",
+    goal: "Produce a clear, honest picture of program effectiveness for your leadership or board meeting.",
+    estimate: "~15 min",
+    roles: ["owner", "admin"],
+    steps: [
+      {
+        key: "elements", title: "Check the OIG seven elements",
+        why: "The seven elements are the recognized definition of an effective compliance program.",
+        how: "Review each element for gaps and work the ones flagged.",
+        route: "/program-effectiveness", anchor: "seven-elements",
+      },
+      {
+        key: "report", title: "Generate the board report",
+        why: "Leadership oversight is itself a compliance element; a clear report closes the loop.",
+        how: "Generate the board report and bring it to your meeting.",
+        route: "/program-effectiveness", anchor: "board-report", ask: "Draft a board report on our compliance program.",
+      },
+    ],
+  },
+  {
+    slug: "weekly-backup",
+    title: "Do your compliance data backup",
+    goal: "Take a compliant offsite backup and stay on cadence.",
+    estimate: "~5 min",
+    roles: ["owner", "admin"],
+    steps: [
+      {
+        key: "export", title: "Export an offsite copy",
+        why: "HIPAA's contingency-plan standard requires your data to survive a system loss — a backup you can read without the app.",
+        how: "Export the full backup and store the copy somewhere offsite (not just on this machine).",
+        route: "/backup",
+      },
+    ],
+  },
+  {
+    slug: "ppt-filing",
+    title: "Prepare the Utah property-tax filing",
+    goal: "Classify your taxable assets and produce the county personal-property statement (Pub 20).",
+    estimate: "~20 min",
+    roles: ["owner", "admin"],
+    steps: [
+      {
+        key: "classify", title: "Classify your taxable assets",
+        why: "Utah taxes business personal property annually; each item needs a valuation class plus its acquisition cost and year.",
+        how: "On taxable inventory items, set the Utah tax class and the acquisition cost/year (the Suggest button helps).",
+        route: "/inventory", ask: "Which inventory items still need a Utah tax class?",
+      },
+      {
+        key: "worksheet", title: "Print the tax worksheet",
+        why: "The worksheet preps your county Signed Statement — assessed Jan 1, due May 15.",
+        how: "Print the personal-property-tax worksheet, grouped by location, and use it to file.",
+        route: "/inventory",
+      },
+    ],
+  },
 ];
 
 const PB_BY_SLUG: Record<string, Playbook> = Object.fromEntries(PLAYBOOKS.map((p) => [p.slug, p]));

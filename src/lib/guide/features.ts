@@ -94,6 +94,7 @@ export const FEATURES: FeatureGuide[] = [
       "Re-screen monthly; the plan flags who's due.",
     ],
     doneWhen: "Everyone has a clean screening dated within the last month.",
+    playbooks: ["monthly-screening"],
     roles: ["owner", "admin", "hr"],
   },
   {
@@ -108,7 +109,7 @@ export const FEATURES: FeatureGuide[] = [
     ],
     doneWhen: "Every required policy exists, is within its review date, and required staff have acknowledged it.",
     roles: ["owner", "admin", "hr", "clinical_leadership"],
-    playbooks: ["audit-ready"],
+    playbooks: ["sop-foundation", "audit-ready"],
   },
   {
     slug: "training-academy", title: "Training Academy", route: "/training-academy", category: "Policies & Training",
@@ -186,6 +187,7 @@ export const FEATURES: FeatureGuide[] = [
       "Set a review date and re-verify periodically.",
     ],
     doneWhen: "Every PHI-touching vendor has a current, signed BAA on file.",
+    playbooks: ["vendor-baa"],
     roles: ["owner", "admin"],
   },
   {
@@ -198,6 +200,7 @@ export const FEATURES: FeatureGuide[] = [
       "Schedule the required drills and record that they happened.",
     ],
     doneWhen: "Every required scenario has a current plan and drills are on schedule.",
+    playbooks: ["emergency-plans"],
     roles: ["owner", "admin", "clinical_leadership"],
   },
   {
@@ -210,6 +213,7 @@ export const FEATURES: FeatureGuide[] = [
       "Keep the library current as products change.",
     ],
     doneWhen: "Every hazardous product on site has a current SDS on file.",
+    playbooks: ["osha-hazcom"],
     roles: ["owner", "admin"],
   },
   {
@@ -222,6 +226,7 @@ export const FEATURES: FeatureGuide[] = [
       "Generate and post the 300A summary in the required window.",
     ],
     doneWhen: "All recordable events are logged and the 300A is posted on schedule.",
+    playbooks: ["osha-hazcom"],
     roles: ["owner", "admin", "hr"],
   },
   {
@@ -248,7 +253,7 @@ export const FEATURES: FeatureGuide[] = [
     ],
     doneWhen: "No element is a gap, and you have a current board report.",
     roles: ["owner", "admin"],
-    playbooks: ["audit-ready"],
+    playbooks: ["audit-ready", "board-review"],
   },
   {
     slug: "controlled-substances", title: "Controlled Substances", route: "/controlled-substances", category: "Operations",
@@ -272,6 +277,7 @@ export const FEATURES: FeatureGuide[] = [
       "Print the personal-property-tax worksheet before the May 15 filing.",
     ],
     doneWhen: "Assets are cataloged by location and taxable items are classified for the annual filing.",
+    playbooks: ["ppt-filing"],
     roles: ["owner", "admin"],
   },
   {
