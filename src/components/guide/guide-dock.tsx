@@ -155,6 +155,11 @@ export function GuideDock() {
             <CheckCircle2 className="size-4" /> You're on the right page.
           </div>
         )}
+        {g.isAutoDone(active.slug, step.key) && (
+          <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-xs text-success">
+            <CheckCircle2 className="size-3.5" /> Detected as done from your live data.
+          </div>
+        )}
         {step.ask && (
           <Button variant="outline" className="w-full" onClick={() => askSage(step.ask!)}>
             <MessageSquare className="size-4" /> Ask Sage to help with this

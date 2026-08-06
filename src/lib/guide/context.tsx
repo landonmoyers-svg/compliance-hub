@@ -37,6 +37,10 @@ interface GuideState {
   isDone: (slug: string, stepKey: string) => boolean;
   toggleDone: (slug: string, stepKey: string) => void;
   doneCount: (slug: string) => number;
+  /** True if this step was auto-detected as done from live data (not manual). */
+  isAutoDone: (slug: string, stepKey: string) => boolean;
+  /** Feed the latest live-data completion map (called by the Guide page). */
+  setAutoDone: (map: Record<string, string[]>) => void;
 
   // Committed weekly plan (the "keep me on track" loop).
   plan: WeekPlan | null;
@@ -58,6 +62,7 @@ export function GuideProvider({ children }: { children: ReactNode }) {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState<Record<string, string[]>>({});
+  const [autoDone, setAutoDoneState] = useState<Record<string, string[]>>({});
   const [plan, setPlan] = useState<WeekPlan | null>(null);
 
   // Hydrate persisted prefs/progress/plan on mount (client only).
@@ -120,8 +125,12 @@ export function GuideProvider({ children }: { children: ReactNode }) {
   const prev = useCallback(() => setStepIndex((i) => Math.max(i - 1, 0)), []);
   const goTo = useCallback((i: number) => setStepIndex(i), []);
 
-  const isDone = useCallback((slug: string, stepKey: string) => (progress[slug] ?? []).includes(stepKey), [progress]);
-  const doneCount = useCallback((slug: string) => (progress[slug] ?? []).length, [progress]);
+  const isAutoDone = useCallback((slug: string, stepKey: string) => (autoDone[slug] ?? []).includes(stepKey), [autoDone]);
+  const isDone = useCallback((slug: string, stepKey: string) =>
+    (progress[slug] ?? []).includes(stepKey) || (autoDone[slug] ?? []).includes(stepKey), [progress, autoDone]);
+  const doneCount = useCallback((slug: string) =>
+    new Set([...(progress[slug] ?? []), ...(autoDone[slug] ?? [])]).size, [progress, autoDone]);
+  const setAutoDone = useCallback((map: Record<string, string[]>) => setAutoDoneState(map), []);
 
   const toggleDone = useCallback((slug: string, stepKey: string) => {
     setProgress((prev) => {
@@ -135,9 +144,9 @@ export function GuideProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<GuideState>(() => ({
     style, setStyle, active, stepIndex, start, stop, next, prev, goTo,
-    isDone, toggleDone, doneCount,
+    isDone, toggleDone, doneCount, isAutoDone, setAutoDone,
     plan, commitPlan, setPlanDone, reschedule, clearPlan,
-  }), [style, setStyle, active, stepIndex, start, stop, next, prev, goTo, isDone, toggleDone, doneCount, plan, commitPlan, setPlanDone, reschedule, clearPlan]);
+  }), [style, setStyle, active, stepIndex, start, stop, next, prev, goTo, isDone, toggleDone, doneCount, isAutoDone, setAutoDone, plan, commitPlan, setPlanDone, reschedule, clearPlan]);
 
   return <GuideContext.Provider value={value}>{children}</GuideContext.Provider>;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Compass, GraduationCap, Route, CalendarRange, ArrowUpRight, Plus, Play,
@@ -19,6 +19,7 @@ import { buildAgenda, type WorkItem } from "@/lib/agenda";
 import { daysUntil } from "@/lib/dates";
 import { FEATURES, FEATURE_CATEGORIES, type FeatureGuide } from "@/lib/guide/features";
 import { PLAYBOOKS, type Playbook } from "@/lib/guide/playbooks";
+import { autoDoneSteps } from "@/lib/guide/checks";
 import { useGuide, askSage } from "@/lib/guide/context";
 
 type GuideCtx = ReturnType<typeof useGuide>;
@@ -62,6 +63,7 @@ export default function GuidePage() {
   const screenings = useCollection("exclusionScreenings");
   const employees = useCollection("employees");
   const backupsQ = useCollection("backups");
+  const auditsQ = useCollection("audits");
   const createTask = useCreate("tasks");
 
   const loading = [credentials, training, documents, capas, sra, incidents, breaches, insurance, vendors, tasks].some((q) => q.isLoading);
@@ -90,6 +92,24 @@ export default function GuidePage() {
     lastBackupAt: (backupsQ.data ?? []).slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate))[0]?.createdDate ?? null,
     employees: employees.data ?? [],
   }), [credentials.data, training.data, documents.data, capas.data, sra.data, incidents.data, breaches.data, insurance.data, vendors.data, tasks.data, screeningDueCount, backupsQ.data, employees.data]);
+
+  // Auto-detect which playbook steps are satisfied by live data, and feed the
+  // Guide engine so walkthroughs reflect reality (not just manual check-offs).
+  const setAutoDone = g.setAutoDone;
+  const autoDoneMap = useMemo(() => {
+    const signals = {
+      openCategories: new Set(items.map((i) => i.category)),
+      hasSraFindings: (sra.data ?? []).length > 0,
+      hasAudit: (auditsQ.data ?? []).length > 0,
+    };
+    const map: Record<string, string[]> = {};
+    for (const pb of PLAYBOOKS) {
+      const done = autoDoneSteps(pb.slug, pb.steps.map((s) => s.key), signals);
+      if (done.length) map[pb.slug] = done;
+    }
+    return map;
+  }, [items, sra.data, auditsQ.data]);
+  useEffect(() => { setAutoDone(autoDoneMap); }, [autoDoneMap, setAutoDone]);
 
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const firstName = (profile?.fullName ?? "").split(" ")[0];
