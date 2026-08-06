@@ -351,7 +351,7 @@ export default function AuditsPage() {
           <select className="input" value={type} onChange={(e) => setType(e.target.value as Audit["auditType"])}>
             {(Object.keys(TYPE_LABEL) as Audit["auditType"][]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
           </select>
-          <Button onClick={start} disabled={starting}><Plus className="size-4" /> {starting ? "Starting…" : "Start audit"}</Button>
+          <Button data-guide="start-audit" onClick={start} disabled={starting}><Plus className="size-4" /> {starting ? "Starting…" : "Start audit"}</Button>
         </div>} />
       <Card>
         <CardHeader><p className="text-sm text-muted-foreground">Each audit is seeded from a checklist for its type. Failed items capture a finding + corrective action.</p></CardHeader>

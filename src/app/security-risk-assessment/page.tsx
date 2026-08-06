@@ -371,7 +371,7 @@ export default function SraPage() {
       <PageHeader
         title="Security Risk Assessment"
         description="Conduct the required annual HIPAA Security Rule risk assessment: answer each safeguard with a tap, and let AI prefill from your live data."
-        actions={<Button onClick={startAssessment} disabled={starting}><Plus className="size-4" /> {starting ? "Starting…" : "Start assessment"}</Button>}
+        actions={<Button data-guide="sra-start" onClick={startAssessment} disabled={starting}><Plus className="size-4" /> {starting ? "Starting…" : "Start assessment"}</Button>}
       />
       <Card>
         <CardHeader><p className="text-sm text-muted-foreground">Each assessment walks the administrative, physical, technical, and organizational safeguards of 45 CFR 164.308–316. Answer with In place / Partial / Gap / N/A, check the controls that apply, and AI can propose cited answers from your data.</p></CardHeader>

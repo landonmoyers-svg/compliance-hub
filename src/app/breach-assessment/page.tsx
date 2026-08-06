@@ -245,7 +245,7 @@ export default function BreachAssessmentPage() {
       <PageHeader
         title="Breach Risk Assessment"
         description="The formal HIPAA four-factor determination (45 CFR 164.402) to run when an incident may involve PHI — decides if it's a reportable breach and tracks the 60-day notification clock."
-        actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>}
+        actions={<Button data-guide="four-factor" onClick={() => setEditing("new")}><Plus className="size-4" /> New assessment</Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">

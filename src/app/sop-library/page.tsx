@@ -538,7 +538,7 @@ export default function SOPLibraryPage() {
                 <Sparkles className="size-4" /> {backfilling ? "Reading…" : `Extract text (${needText.length})`}
               </Button>
             )}
-            <Button onClick={() => setEditing("new")}>
+            <Button data-guide="add-document" onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add document
             </Button>
           </div>

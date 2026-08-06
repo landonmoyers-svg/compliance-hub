@@ -106,7 +106,7 @@ export default function ProgramEffectivenessPage() {
     <div className="space-y-6">
       <PageTabs tabs={OVERVIEW_TABS} />
       <PageHeader title="Compliance Scorecard" description="Your compliance program mapped to the OIG's seven elements of an effective compliance program — with a board-ready summary."
-        actions={<Button onClick={generateReport} disabled={loadingReport}><Sparkles className="size-4" /> {loadingReport ? "Writing…" : "Generate board report"}</Button>} />
+        actions={<Button data-guide="board-report" onClick={generateReport} disabled={loadingReport}><Sparkles className="size-4" /> {loadingReport ? "Writing…" : "Generate board report"}</Button>} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Program maturity" value={`${overall}%`} icon={ShieldCheck} tone={overall >= 85 ? "success" : overall >= 60 ? "warning" : "destructive"} />

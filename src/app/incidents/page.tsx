@@ -345,7 +345,7 @@ function IncidentDetail({ incident, capas, isAdmin, owners, locations, onClose, 
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={() => { setShowCapa(false); setCitation(""); }}>Cancel</Button>
-                  <Button size="sm" disabled={!title.trim()} onClick={() => { onAddCapa({ title, rootCause, actionPlan, ownerName, dueDate }); setShowCapa(false); setTitle(""); setRootCause(""); setActionPlan(""); setOwnerName(""); setDueDate(""); setCitation(""); }}>Add corrective action</Button>
+                  <Button data-guide="add-capa" size="sm" disabled={!title.trim()} onClick={() => { onAddCapa({ title, rootCause, actionPlan, ownerName, dueDate }); setShowCapa(false); setTitle(""); setRootCause(""); setActionPlan(""); setOwnerName(""); setDueDate(""); setCitation(""); }}>Add corrective action</Button>
                 </div>
                 <datalist id="capa-root-causes">{ROOT_CAUSES.map((r) => <option key={r} value={r} />)}</datalist>
                 <datalist id="capa-owners">{owners.map((o) => <option key={o} value={o} />)}</datalist>
@@ -511,7 +511,7 @@ export default function IncidentsPage() {
       <PageHeader
         title="Incidents & Corrective Actions"
         description="The starting point when anything happens: staff report incidents and concerns here, and corrective actions are tracked to closure."
-        actions={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
+        actions={<Button data-guide="add-incident" onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">

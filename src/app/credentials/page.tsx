@@ -946,7 +946,7 @@ export default function CredentialsPage() {
             <Button variant="outline" onClick={reanalyze} disabled={reanalyzing}>
               <Sparkles className="size-4" /> {reanalyzing ? "Analyzing…" : "Auto-fill from files"}
             </Button>
-            <Button onClick={() => setEditing("new")}>
+            <Button data-guide="add-credential" onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add credential
             </Button>
           </div>

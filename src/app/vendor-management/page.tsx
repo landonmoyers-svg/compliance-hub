@@ -451,7 +451,7 @@ export default function VendorManagementPage() {
               describe={(v) => ({ title: v.vendorName, subtitle: [v.vendorType, v.contactEmail].filter(Boolean).join(" · ") })}
               score={(v) => (v.baaStatus === "signed" ? 2 : 0) + (v.contactEmail ? 1 : 0)}
             />
-            <Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add vendor</Button>
+            <Button data-guide="add-vendor" onClick={() => setEditing("new")}><Plus className="size-4" /> Add vendor</Button>
           </div>
         }
       />

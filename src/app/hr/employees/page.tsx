@@ -451,7 +451,7 @@ export default function EmployeesPage() {
               describe={(e) => ({ title: `${e.firstName} ${e.lastName}`.trim(), subtitle: [e.email, e.title].filter(Boolean).join(" · "), badges: e.workerType === "contractor" ? ["Contractor"] : undefined })}
               score={(e) => (e.userId ? 2 : 0) + (e.email ? 1 : 0)}
             />
-            <Button onClick={() => setEditing("new")}>
+            <Button data-guide="add-employee" onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add employee
             </Button>
           </div>

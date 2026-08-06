@@ -243,7 +243,7 @@ export default function ExclusionScreeningPage() {
       <PageHeader
         title="Exclusion Screening"
         description="OIG-LEIE is the federal list of people excluded from Medicare/Medicaid; SAM.gov is the government-wide exclusion database. Screening both monthly is a federal expectation — log each check here and keep dated proof."
-        actions={<Button onClick={() => setLogging(true)}><Plus className="size-4" /> Log screening</Button>}
+        actions={<Button data-guide="run-screening" onClick={() => setLogging(true)}><Plus className="size-4" /> Log screening</Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
