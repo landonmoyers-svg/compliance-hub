@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Compass,
   DatabaseBackup,
   Handshake,
   DollarSign,
@@ -61,9 +62,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Overview",
     items: [
       { label: "Home", href: "/", icon: LayoutDashboard },
-      { label: "Daily Priorities", href: "/chief-of-staff", icon: Sparkles, adminOnly: true, highlight: true },
+      { label: "Your Guide", href: "/guide", icon: Compass, adminOnly: true, highlight: true },
+      { label: "Daily Priorities", href: "/chief-of-staff", icon: Sparkles, adminOnly: true },
       { label: "Compliance Calendar", href: "/compliance-calendar", icon: CalendarDays, adminOnly: true },
-      { label: "Setup Guide", href: "/compliance-concierge", icon: Sparkles, adminOnly: true, highlight: true },
+      { label: "Setup Guide", href: "/compliance-concierge", icon: Sparkles, adminOnly: true },
     ],
   },
   // 2. Personal, daily-use tools every signed-in user has.

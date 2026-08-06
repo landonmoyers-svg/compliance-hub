@@ -6,6 +6,8 @@ import { Menu, ShieldCheck, X, Lock } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
 import { AssistantWidget } from "@/components/ai/assistant-widget";
+import { GuideProvider } from "@/lib/guide/context";
+import { GuideDock } from "@/components/guide/guide-dock";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
 import { canAccessPath, findNavItem } from "@/lib/nav";
@@ -66,6 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname, profile, loaded, allowed]);
 
   return (
+    <GuideProvider>
     <div className="min-h-screen bg-background">
       {/* Skip link — first focusable element, lets keyboard users jump past the
           ~15 sidebar items straight to page content (WCAG 2.4.1). */}
@@ -150,6 +153,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Site-wide, page-aware AI assistant */}
       <AssistantWidget />
+
+      {/* The Guide's walkthrough dock (panel / tour / chat) */}
+      <GuideDock />
     </div>
+    </GuideProvider>
   );
 }

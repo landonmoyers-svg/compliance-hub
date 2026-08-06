@@ -50,12 +50,30 @@ export function AssistantWidget() {
   const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const uid = profile?.userId ?? "anon";
 
   // Load saved chats once we know the user.
   useEffect(() => { setHistory(loadHistory(uid)); }, [uid]);
+
+  // The Guide (and its "Ask Sage" buttons) opens Sage with a prompt via a window
+  // event, so the walkthrough's "chat" style hands each step straight to Sage.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const p = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      if (p) { setOpen(true); setShowHistory(false); setPendingAsk(p); }
+    };
+    window.addEventListener("sage:ask", handler);
+    return () => window.removeEventListener("sage:ask", handler);
+  }, []);
+
+  // Send a queued Sage prompt once we're not mid-request.
+  useEffect(() => {
+    if (pendingAsk && !thinking) { const p = pendingAsk; setPendingAsk(null); void send(p); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAsk, thinking]);
 
   // Each page starts a fresh chat — the assistant doesn't carry a prior page's
   // conversation over. The previous chat is already saved in history to resume.

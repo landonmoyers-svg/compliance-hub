@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enforceAiCap } from "@/lib/ai/usage";
 import { getOrgName } from "@/lib/org-server";
 import { capabilityForPath } from "@/lib/ai/page-capabilities";
+import { featureForPath } from "@/lib/guide/features";
 import { buildComplianceSnapshot } from "@/lib/ai/evidence-snapshot";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -70,7 +71,11 @@ export async function POST(request: NextRequest) {
     getOrgName(supabase),
     buildComplianceSnapshot(supabase).catch(() => ""),
   ]);
-  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}\n\n=== LIVE SNAPSHOT (this practice's real data — use it to answer with specifics) ===\n${snapshot}\n=== END CONTEXT ===`;
+  const feat = featureForPath(path);
+  const featureBlock = feat
+    ? `\n\n=== FEATURE GUIDE (authoritative — teach from this; don't contradict it) ===\nWhat it is: ${feat.what}\nWhy it matters: ${feat.why}\nHow to use it:\n${feat.how.map((h, i) => `  ${i + 1}. ${h}`).join("\n")}\nDone when: ${feat.doneWhen}\n=== END FEATURE GUIDE ===`
+    : "";
+  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}${featureBlock}\n\n=== LIVE SNAPSHOT (this practice's real data — use it to answer with specifics) ===\n${snapshot}\n=== END CONTEXT ===`;
 
   let response: Anthropic.Messages.Message;
   try {
