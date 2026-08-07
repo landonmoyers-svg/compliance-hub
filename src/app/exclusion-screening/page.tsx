@@ -132,6 +132,10 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
   );
 }
 
+interface MatchHit { source: string; name: string; detail: string; }
+interface ScreenResult { key: string; hits: MatchHit[]; samChecked: boolean; clear: boolean; }
+interface ScreenRun { results: ScreenResult[]; leieCount: number; samEnabled: boolean; screenedDate: string; }
+
 export default function ExclusionScreeningPage() {
   const { profile } = useAuth();
   const screeningsQ = useCollection("exclusionScreenings");
@@ -141,6 +145,9 @@ export default function ExclusionScreeningPage() {
 
   const [logging, setLogging] = useState<Subject | true | null>(null);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [screenRun, setScreenRun] = useState<ScreenRun | null>(null);
 
   const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
 
@@ -232,6 +239,64 @@ export default function ExclusionScreeningPage() {
     finally { setSaving(false); }
   }
 
+  const sourcesLabel = () => (screenRun?.samEnabled ? "OIG-LEIE, SAM.gov (automated)" : "OIG-LEIE (automated)");
+
+  async function runScreening() {
+    setRunning(true);
+    try {
+      const payload = subjects.map((sub) => {
+        if (sub.type === "staff") {
+          const e = (employeesQ.data ?? []).find((x) => `s:${x.id}` === sub.key);
+          return { key: sub.key, type: "staff" as const, name: sub.name, firstName: e?.firstName, lastName: e?.lastName };
+        }
+        return { key: sub.key, type: "vendor" as const, name: sub.name };
+      });
+      const res = await fetch("/api/screening/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subjects: payload }) });
+      const data = await res.json() as ScreenRun & { error?: string };
+      if (!res.ok) { toast.error(data.error ?? "Automated screening failed."); return; }
+      setScreenRun(data);
+    } catch { toast.error("Automated screening failed — network error."); }
+    finally { setRunning(false); }
+  }
+
+  async function recordClears() {
+    if (!screenRun) return;
+    const clears = screenRun.results.filter((r) => r.clear);
+    setRecording(true);
+    try {
+      for (const r of clears) {
+        const sub = subjects.find((s) => s.key === r.key);
+        if (!sub) continue;
+        await createMut.mutateAsync({
+          subjectType: sub.type, subjectName: sub.name,
+          subjectUserId: sub.userId ?? null, vendorId: sub.vendorId ?? null,
+          sources: sourcesLabel(), screenedDate: dateInputToISO(screenRun.screenedDate),
+          result: "clear", screenedByName: profile?.fullName || undefined,
+          notes: "Automated screening — no match found.",
+        });
+      }
+      toast.success(`Recorded ${clears.length} clear screening${clears.length === 1 ? "" : "s"}`);
+      setScreenRun(null);
+    } catch { toast.error("Some records couldn't be saved."); }
+    finally { setRecording(false); }
+  }
+
+  async function logMatch(r: ScreenResult) {
+    const sub = subjects.find((s) => s.key === r.key);
+    if (!sub || !screenRun) return;
+    const detail = r.hits.map((h) => `${h.source}: ${h.name}${h.detail ? ` (${h.detail})` : ""}`).join("; ");
+    try {
+      await createMut.mutateAsync({
+        subjectType: sub.type, subjectName: sub.name,
+        subjectUserId: sub.userId ?? null, vendorId: sub.vendorId ?? null,
+        sources: sourcesLabel(), screenedDate: dateInputToISO(screenRun.screenedDate),
+        result: "pending", screenedByName: profile?.fullName || undefined,
+        notes: `POTENTIAL MATCH — verify before clearing/confirming: ${detail}`,
+      });
+      toast.success(`Logged ${sub.name} for review`);
+    } catch { toast.error("Couldn't log for review."); }
+  }
+
   if (screeningsQ.isError) return <div className="space-y-6"><PageHeader title="Exclusion Screening" /><ErrorState message="We couldn't load screenings." onRetry={() => void screeningsQ.refetch()} /></div>;
 
   const loading = screeningsQ.isLoading || employeesQ.isLoading || vendorsQ.isLoading;
@@ -240,10 +305,72 @@ export default function ExclusionScreeningPage() {
     <div className="space-y-6">
       {logging && <LogDialog subjects={subjects} initialSubject={logging === true ? undefined : logging} onClose={() => setLogging(null)} onSave={save} saving={saving} />}
 
+      {screenRun && (() => {
+        const clears = screenRun.results.filter((r) => r.clear);
+        const matches = screenRun.results.filter((r) => !r.clear);
+        const nameOf = (key: string) => subjects.find((s) => s.key === key)?.name ?? key;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && !recording && setScreenRun(null)}>
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+              <div className="flex items-start justify-between gap-2 border-b border-border px-5 py-4">
+                <div>
+                  <h2 className="font-semibold">Automated screening results</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Checked {screenRun.results.length} subject{screenRun.results.length === 1 ? "" : "s"} against OIG-LEIE ({screenRun.leieCount.toLocaleString()} entries){screenRun.samEnabled ? " and SAM.gov" : ""} · {screenRun.screenedDate}
+                  </p>
+                </div>
+                <button onClick={() => setScreenRun(null)} disabled={recording} className="rounded-md p-1 text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                {!screenRun.samEnabled && (
+                  <p className="rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">SAM.gov was not checked — add a <span className="font-medium">SAM_API_KEY</span> to enable it. OIG-LEIE was screened.</p>
+                )}
+                {matches.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><AlertTriangle className="size-4" /> {matches.length} potential match{matches.length === 1 ? "" : "es"} — review before clearing</p>
+                    <p className="text-xs text-muted-foreground">A name matched an exclusion list. Name collisions are common — verify identity (DOB/NPI) on the official list before treating this as a true exclusion.</p>
+                    {matches.map((r) => (
+                      <div key={r.key} className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{nameOf(r.key)}</p>
+                          <Button size="sm" variant="outline" onClick={() => void logMatch(r)}>Log for review</Button>
+                        </div>
+                        <ul className="mt-1 space-y-0.5">
+                          {r.hits.map((h, i) => <li key={i} className="text-xs text-muted-foreground"><span className="font-medium text-foreground">{h.source}:</span> {h.name}{h.detail ? ` · ${h.detail}` : ""}</li>)}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="flex items-center gap-2 text-sm text-success"><ShieldCheck className="size-4" /> No exclusion matches found.</p>
+                )}
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-sm font-medium">{clears.length} subject{clears.length === 1 ? "" : "s"} came back clear</p>
+                  <p className="text-xs text-muted-foreground">Record these as dated, automated screenings for your audit trail.</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+                <Button variant="outline" onClick={() => setScreenRun(null)} disabled={recording}>Close</Button>
+                <Button onClick={() => void recordClears()} disabled={recording || clears.length === 0}>
+                  {recording ? "Recording…" : `Record ${clears.length} clear${clears.length === 1 ? "" : "s"}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <PageHeader
         title="Exclusion Screening"
         description="OIG-LEIE is the federal list of people excluded from Medicare/Medicaid; SAM.gov is the government-wide exclusion database. Screening both monthly is a federal expectation — log each check here and keep dated proof."
-        actions={<Button data-guide="run-screening" onClick={() => setLogging(true)}><Plus className="size-4" /> Log screening</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button data-guide="run-screening" onClick={() => void runScreening()} disabled={running || loading || subjects.length === 0}>
+              <ShieldCheck className="size-4" /> {running ? "Screening…" : "Run automated screening"}
+            </Button>
+            <Button variant="outline" onClick={() => setLogging(true)}><Plus className="size-4" /> Log manually</Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
