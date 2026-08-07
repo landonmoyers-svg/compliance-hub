@@ -114,24 +114,31 @@ function matchLeie(idx: LeieIndex, s: Subject): MatchHit[] {
   return hits.filter((h) => { const k = `${h.source}:${h.name}:${h.detail}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
+interface SamExclusion {
+  exclusionIdentification?: { entityName?: string };
+  exclusionDetails?: { exclusionType?: string; exclusionProgram?: string; classificationType?: string };
+  exclusionActions?: { listOfActions?: { activateDate?: string; terminationDate?: string }[] };
+}
+
 async function matchSam(key: string, s: Subject): Promise<{ checked: boolean; hits: MatchHit[]; status: string }> {
   try {
-    // SAM.gov Entity Management API, exclusions section, searched by name.
-    const url = new URL("https://api.sam.gov/entity-information/v4/entities");
+    // SAM.gov Exclusions API — searched by name (partial/complete text).
+    const url = new URL("https://api.sam.gov/entity-information/v4/exclusions");
     url.searchParams.set("api_key", key);
-    url.searchParams.set("includeSections", "exclusions");
     url.searchParams.set("exclusionName", s.name);
     const res = await fetch(url.toString(), { headers: { accept: "application/json" } });
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
-      try { const j = await res.json() as { error?: { message?: string }; message?: string }; msg = j?.error?.message || j?.message || msg; } catch { /* keep msg */ }
+      try { const j = await res.json() as { error?: { message?: string } | string; message?: string; errormessage?: string }; msg = (typeof j?.error === "string" ? j.error : j?.error?.message) || j?.message || j?.errormessage || msg; } catch { /* keep msg */ }
       return { checked: false, hits: [], status: msg };
     }
-    const data = await res.json() as { excludedEntity?: { exclusionName?: string; classificationType?: string; exclusionType?: string; activationDate?: string }[] };
-    const hits: MatchHit[] = (data.excludedEntity ?? []).map((e) => ({
-      source: "SAM.gov", name: e.exclusionName ?? s.name,
-      detail: [e.exclusionType || e.classificationType, e.activationDate ? `active ${e.activationDate}` : ""].filter(Boolean).join(" · "),
-    }));
+    const data = await res.json() as { excludedEntity?: SamExclusion[] };
+    const hits: MatchHit[] = (data.excludedEntity ?? []).map((e) => {
+      const name = e.exclusionIdentification?.entityName ?? s.name;
+      const type = e.exclusionDetails?.exclusionType || e.exclusionDetails?.classificationType || "";
+      const act = e.exclusionActions?.listOfActions?.[0];
+      return { source: "SAM.gov", name, detail: [type, act?.activateDate ? `active ${act.activateDate}` : ""].filter(Boolean).join(" · ") };
+    });
     return { checked: true, hits, status: "ok" };
   } catch (e) {
     return { checked: false, hits: [], status: e instanceof Error ? e.message : "network error" };
