@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { CheckCircle2, Search, Plus } from "lucide-react";
+import { CheckCircle2, Search, FileText, X } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { useSort, SortHeader } from "@/components/shared/sortable";
@@ -15,19 +15,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
-import type { ComplianceDocument } from "@/lib/data/schema";
-import { toast } from "sonner";
+import type { ComplianceDocument, PolicyAcknowledgment } from "@/lib/data/schema";
+import { AttestDocumentDialog } from "@/components/attestation/attest-document-dialog";
+import { documentFingerprint, ackCoversCurrent, ackStatusFor, pendingAttestations, type AckStatus } from "@/lib/attestation";
+import { FileLink } from "@/components/shared/file-link";
+
+const ACK_STATUS_BADGE: Record<AckStatus, { label: string; variant: "success" | "secondary" | "warning" | "destructive" }> = {
+  current: { label: "Current", variant: "success" },
+  superseded: { label: "Superseded", variant: "secondary" },
+  expired: { label: "Expired", variant: "destructive" },
+  recorded: { label: "On record", variant: "secondary" },
+};
 
 export default function PolicyAttestationPage() {
   const { profile, isAdmin } = useAuth();
   const docsQ = useCollection("documents");
   const acksQ = useCollection("policyAcks");
   const employeesQ = useCollection("employees");
-  const createMut = useCreate("policyAcks");
 
   const [search, setSearch] = useState("");
-  const [acknowledging, setAcknowledging] = useState<ComplianceDocument | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [signingDoc, setSigningDoc] = useState<ComplianceDocument | null>(null);
+  const [viewingAck, setViewingAck] = useState<PolicyAcknowledgment | null>(null);
 
   const docs = useMemo(() => docsQ.data ?? [], [docsQ.data]);
   const acks = useMemo(() => acksQ.data ?? [], [acksQ.data]);
@@ -47,15 +55,14 @@ export default function PolicyAttestationPage() {
     [docs, search],
   );
 
-  // Which docs has the current user already acknowledged?
-  const ackedDocIds = useMemo(() => {
-    if (!profile) return new Set<string>();
-    return new Set(
-      acks
-        .filter((a) => a.userId === profile.userId && a.status === "acknowledged")
-        .map((a) => a.documentId),
-    );
-  }, [acks, profile]);
+  const docById = useMemo(() => new Map(docs.map((d) => [d.id, d])), [docs]);
+
+  // Policies the current user still needs to (re-)attest to — fingerprint-aware,
+  // so an updated policy reappears as pending until re-signed.
+  const myPendingIds = useMemo(
+    () => new Set(profile ? pendingAttestations(docs, acks, profile.userId).map((d) => d.id) : []),
+    [docs, acks, profile],
+  );
 
   const { sorted: sortedAcks, sort, toggle } = useSort(acks, {
     staff: (a) => a.userName,
@@ -64,8 +71,8 @@ export default function PolicyAttestationPage() {
     expires: (a) => a.expiresAt,
   });
 
-  const pending = requiresAck.filter((d) => !ackedDocIds.has(d.id)).length;
-  const acknowledged = requiresAck.filter((d) => ackedDocIds.has(d.id)).length;
+  const pending = requiresAck.filter((d) => myPendingIds.has(d.id)).length;
+  const acknowledged = requiresAck.length - pending;
 
   // ATT-1: org-wide completion per policy (admin view). Only active employees
   // with a login can acknowledge in-app, so that's the honest denominator; we
@@ -74,12 +81,13 @@ export default function PolicyAttestationPage() {
   const orgCompletion = useMemo(() => {
     const activeWithLogin = employees.filter((e) => e.employmentStatus === "active" && e.userId);
     const noLoginCount = employees.filter((e) => e.employmentStatus === "active" && !e.userId).length;
-    const now = new Date();
-    // userId -> set of documentIds acknowledged and not expired
+    // userId -> set of documentIds whose CURRENT version this user has signed.
+    const docFp = new Map(requiresAck.map((d) => [d.id, documentFingerprint(d)]));
     const ackedByUser = new Map<string, Set<string>>();
     for (const a of acks) {
-      if (!a.userId || a.status !== "acknowledged") continue;
-      if (a.expiresAt && new Date(a.expiresAt) < now) continue;
+      if (!a.userId) continue;
+      const fp = docFp.get(a.documentId);
+      if (!fp || !ackCoversCurrent(a, fp)) continue;
       if (!ackedByUser.has(a.userId)) ackedByUser.set(a.userId, new Set());
       ackedByUser.get(a.userId)!.add(a.documentId);
     }
@@ -90,31 +98,6 @@ export default function PolicyAttestationPage() {
     });
     return { perPolicy, activeWithLoginCount: activeWithLogin.length, noLoginCount };
   }, [employees, acks, requiresAck]);
-
-  async function acknowledge(doc: ComplianceDocument) {
-    if (!profile) { toast.error("You must be logged in to acknowledge."); return; }
-    setSaving(true);
-    try {
-      const now = new Date().toISOString();
-      const oneYear = new Date();
-      oneYear.setFullYear(oneYear.getFullYear() + 1);
-      await createMut.mutateAsync({
-        userId: profile.userId,
-        userName: profile.fullName,
-        documentId: doc.id,
-        documentTitle: doc.title,
-        status: "acknowledged",
-        acknowledgedAt: now,
-        expiresAt: oneYear.toISOString(),
-      });
-      toast.success(`Acknowledged: ${doc.title}`);
-      setAcknowledging(null);
-    } catch {
-      toast.error("Failed to record acknowledgment");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   if (isError) {
     return (
@@ -130,31 +113,32 @@ export default function PolicyAttestationPage() {
 
   return (
     <div className="space-y-6">
-      {/* Acknowledgment confirm modal */}
-      {acknowledging && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={(e) => e.target === e.currentTarget && !saving && setAcknowledging(null)}
-        >
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
-            <div className="border-b border-border px-5 py-4">
-              <h2 className="font-semibold">Acknowledge policy</h2>
+      {/* Read & sign the actual policy (records an immutable snapshot). */}
+      {signingDoc && profile && (
+        <AttestDocumentDialog doc={signingDoc} userId={profile.userId} userName={profile.fullName} onClose={() => setSigningDoc(null)} onSigned={() => void acksQ.refetch()} />
+      )}
+
+      {/* View the permanently-attached signed copy of a past attestation. */}
+      {viewingAck && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && setViewingAck(null)}>
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-start justify-between gap-2 border-b border-border px-5 py-4">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-primary">Signed copy on record</p>
+                <h2 className="font-semibold leading-tight">{viewingAck.documentTitle}</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">Signed by {viewingAck.userName}{viewingAck.acknowledgedAt ? ` on ${formatDate(viewingAck.acknowledgedAt)}` : ""}{viewingAck.documentVersion ? ` · version ${viewingAck.documentVersion}` : ""}</p>
+              </div>
+              <button onClick={() => setViewingAck(null)} className="rounded-md p-1 text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
             </div>
-            <div className="p-5 space-y-3">
-              <p className="font-medium">{acknowledging.title}</p>
-              {acknowledging.summary && (
-                <p className="text-sm text-muted-foreground">{acknowledging.summary}</p>
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {viewingAck.signedContent ? (
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">{viewingAck.signedContent}</div>
+              ) : viewingAck.signedFileUrl ? (
+                <FileLink path={viewingAck.signedFileUrl} label="Open the signed document"
+                  className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90" />
+              ) : (
+                <p className="text-sm text-muted-foreground">This is a legacy attestation recorded before signed copies were captured; only the signature date is on record.</p>
               )}
-              <p className="text-sm text-muted-foreground">
-                By clicking <strong>Acknowledge</strong>, you confirm that you have read and
-                understand this policy. Your acknowledgment will be recorded with a timestamp.
-              </p>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-              <Button variant="outline" onClick={() => setAcknowledging(null)} disabled={saving}>Cancel</Button>
-              <Button onClick={() => acknowledge(acknowledging)} disabled={saving}>
-                {saving ? "Recording…" : "Acknowledge"}
-              </Button>
             </div>
           </div>
         </div>
@@ -162,7 +146,7 @@ export default function PolicyAttestationPage() {
 
       <PageHeader
         title="Policy Attestation"
-        description="Staff acknowledgments for required policies. Each acknowledgment is timestamped and expires annually."
+        description="Staff read and sign the actual policy. Each signature captures an immutable copy of the exact version signed — if a policy is updated, staff are prompted to re-attest and the prior signature is kept, marked superseded."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -204,8 +188,9 @@ export default function PolicyAttestationPage() {
           ) : (
             <div className="space-y-3">
               {requiresAck.map((doc) => {
-                const acked = ackedDocIds.has(doc.id);
-                const ackRecord = acks.find((a) => a.documentId === doc.id && a.userId === profile?.userId);
+                const acked = !myPendingIds.has(doc.id);
+                const fp = documentFingerprint(doc);
+                const ackRecord = acks.find((a) => a.documentId === doc.id && a.userId === profile?.userId && ackCoversCurrent(a, fp));
                 return (
                   <div key={doc.id} className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
                     <div className="min-w-0 flex-1">
@@ -227,11 +212,11 @@ export default function PolicyAttestationPage() {
                     <div className="shrink-0">
                       {acked ? (
                         <Badge variant="success" className="flex items-center gap-1">
-                          <CheckCircle2 className="size-3" /> Acknowledged
+                          <CheckCircle2 className="size-3" /> Signed
                         </Badge>
                       ) : (
-                        <Button size="sm" onClick={() => setAcknowledging(doc)}>
-                          <Plus className="size-3" /> Acknowledge
+                        <Button size="sm" onClick={() => setSigningDoc(doc)}>
+                          <FileText className="size-3" /> Read &amp; sign
                         </Button>
                       )}
                     </div>
@@ -301,27 +286,39 @@ export default function PolicyAttestationPage() {
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <SortHeader label="Staff member" sortKey="staff" sort={sort} onToggle={toggle} />
                     <SortHeader label="Document" sortKey="document" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Acknowledged" sortKey="acknowledged" sort={sort} onToggle={toggle} />
-                    <SortHeader label="Expires" sortKey="expires" sort={sort} onToggle={toggle} className="pr-0" />
+                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <SortHeader label="Signed" sortKey="acknowledged" sort={sort} onToggle={toggle} />
+                    <SortHeader label="Expires" sortKey="expires" sort={sort} onToggle={toggle} />
+                    <th className="pb-2 font-medium">Signed copy</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedAcks.map((a) => (
+                  {sortedAcks.map((a) => {
+                    const st = ackStatusFor(a, docById.get(a.documentId));
+                    const badge = ACK_STATUS_BADGE[st];
+                    return (
                     <tr key={a.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Staff member" className="py-2.5 pr-4 font-medium">
                         <PersonLink userId={a.userId ?? null} name={a.userName} />
                       </td>
-                      <td data-label="Document" className="py-2.5 pr-4">{a.documentTitle}</td>
-                      <td data-label="Acknowledged" className="py-2.5 pr-4">{a.acknowledgedAt ? formatDate(a.acknowledgedAt) : "—"}</td>
-                      <td data-label="Expires" className="py-2.5">
+                      <td data-label="Document" className="py-2.5 pr-4">{a.documentTitle}{a.documentVersion ? <span className="text-muted-foreground"> · v{a.documentVersion}</span> : null}</td>
+                      <td data-label="Status" className="py-2.5 pr-4"><Badge variant={badge.variant}>{badge.label}</Badge></td>
+                      <td data-label="Signed" className="py-2.5 pr-4">{a.acknowledgedAt ? formatDate(a.acknowledgedAt) : "—"}</td>
+                      <td data-label="Expires" className="py-2.5 pr-4">
                         {a.expiresAt ? (
                           <span className={new Date(a.expiresAt) < new Date() ? "text-destructive" : ""}>
                             {formatDate(a.expiresAt)}
                           </span>
                         ) : "—"}
                       </td>
+                      <td data-label="Signed copy" className="py-2.5">
+                        {(a.signedContent || a.signedFileUrl) ? (
+                          <Button size="sm" variant="ghost" onClick={() => setViewingAck(a)}>View</Button>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

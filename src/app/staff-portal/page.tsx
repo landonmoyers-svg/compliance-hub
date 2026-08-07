@@ -7,7 +7,9 @@ import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
 import { AttestModuleDialog } from "@/components/training/attest-module-dialog";
-import type { TrainingAssignment, TrainingModule } from "@/lib/data/schema";
+import { AttestDocumentDialog } from "@/components/attestation/attest-document-dialog";
+import { pendingAttestations } from "@/lib/attestation";
+import type { TrainingAssignment, TrainingModule, ComplianceDocument } from "@/lib/data/schema";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -49,6 +51,7 @@ export default function StaffPortalPage() {
   const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
   const [attesting, setAttesting] = useState<{ module: TrainingModule; assignment: TrainingAssignment } | null>(null);
   const [attestBusy, setAttestBusy] = useState(false);
+  const [signingDoc, setSigningDoc] = useState<ComplianceDocument | null>(null);
   const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
 
   const training = useMemo(() => trainingQ.data ?? [], [trainingQ.data]);
@@ -155,16 +158,14 @@ export default function StaffPortalPage() {
     [insurance, myUserId, myName],
   );
 
-  // Documents requiring acknowledgment, split into pending vs done for this user
+  // Policies this user must still (re-)attest to. Fingerprint-aware: if a policy
+  // was updated after they signed, it reappears here for a fresh attestation.
   const ackDocs = useMemo(() => documents.filter((d) => d.status === "active" && d.requiresAcknowledgment), [documents]);
-  const myAckedDocIds = useMemo(
-    () => new Set(acks.filter((a) => a.userId === myUserId && a.status === "acknowledged").map((a) => a.documentId)),
-    [acks, myUserId],
-  );
   const pendingAcks = useMemo(
-    () => ackDocs.filter((d) => !myAckedDocIds.has(d.id)),
-    [ackDocs, myAckedDocIds],
+    () => pendingAttestations(documents, acks, myUserId),
+    [documents, acks, myUserId],
   );
+  const pendingIds = useMemo(() => new Set(pendingAcks.map((d) => d.id)), [pendingAcks]);
 
   const myTrainingStats = useMemo(() => ({
     completed: myTraining.filter((a) => a.status === "completed").length,
@@ -182,7 +183,7 @@ export default function StaffPortalPage() {
     const items: { label: string; href: string; tone: "destructive" | "warning" }[] = [];
     if (myTrainingStats.overdue > 0) items.push({ label: `${myTrainingStats.overdue} overdue training assignment${myTrainingStats.overdue > 1 ? "s" : ""}`, href: "/staff-portal", tone: "destructive" });
     if (expiringCreds > 0) items.push({ label: `${expiringCreds} credential${expiringCreds > 1 ? "s" : ""} expiring or expired`, href: "/credentials", tone: "warning" });
-    if (pendingAcks.length > 0) items.push({ label: `${pendingAcks.length} polic${pendingAcks.length > 1 ? "ies" : "y"} awaiting your acknowledgment`, href: "/policy-attestation", tone: "warning" });
+    if (pendingAcks.length > 0) items.push({ label: `${pendingAcks.length} polic${pendingAcks.length > 1 ? "ies" : "y"} to read & sign`, href: "#policies-to-sign", tone: "warning" });
     return items;
   }, [myTrainingStats.overdue, expiringCreds, pendingAcks.length]);
 
@@ -244,6 +245,10 @@ export default function StaffPortalPage() {
         </Card>
       )}
 
+      {signingDoc && myUserId && (
+        <AttestDocumentDialog doc={signingDoc} userId={myUserId} userName={myName} onClose={() => setSigningDoc(null)} onSigned={() => void acksQ.refetch()} />
+      )}
+
       {/* Action items */}
       {!loading && actionItems.length > 0 && (
         <Card className="border-warning/40">
@@ -258,6 +263,30 @@ export default function StaffPortalPage() {
                 <li key={i} className="flex items-center justify-between gap-3">
                   <span className={`text-sm ${item.tone === "destructive" ? "text-destructive" : "text-foreground"}`}>{item.label}</span>
                   <Link href={item.href}><Button size="sm" variant="outline">Resolve</Button></Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Policies to read & sign — staff attest to the actual document here */}
+      {!loading && pendingAcks.length > 0 && (
+        <Card id="policies-to-sign" className="scroll-mt-24 border-primary/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="size-4 text-primary" /> Policies to read &amp; sign
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {pendingAcks.map((doc) => (
+                <li key={doc.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{doc.title}</p>
+                    <p className="text-xs text-muted-foreground">Version {doc.version || "1.0"}{doc.summary ? ` · ${doc.summary}` : ""}</p>
+                  </div>
+                  <Button size="sm" onClick={() => setSigningDoc(doc)}>Read &amp; sign</Button>
                 </li>
               ))}
             </ul>
@@ -396,14 +425,14 @@ export default function StaffPortalPage() {
             ) : (
               <ul className="divide-y divide-border">
                 {ackDocs.map((d) => {
-                  const done = myAckedDocIds.has(d.id);
+                  const done = !pendingIds.has(d.id);
                   return (
                     <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                       <DocName url={d.fileUrl} name={d.title} />
                       {done ? (
-                        <Badge variant="success">Acknowledged</Badge>
+                        <Badge variant="success">Signed</Badge>
                       ) : (
-                        <Link href="/policy-attestation"><Badge variant="warning" className="cursor-pointer">Sign now</Badge></Link>
+                        <Button size="sm" onClick={() => setSigningDoc(d)}>Read &amp; sign</Button>
                       )}
                     </li>
                   );

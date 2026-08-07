@@ -462,6 +462,13 @@ export const PolicyAcknowledgment = z.object({
   status: z.enum(["acknowledged", "expired"]).default("acknowledged"),
   acknowledgedAt: z.string().nullable().optional(),
   expiresAt: z.string().nullable().optional(),
+  // Immutable snapshot of exactly what was attested to. `documentFingerprint`
+  // detects when the policy changes (→ a fresh attestation is required);
+  // `signedContent`/`signedFileUrl`/`documentVersion` preserve the signed version.
+  documentVersion: z.string().nullable().optional(),
+  documentFingerprint: z.string().nullable().optional(),
+  signedContent: z.string().nullable().optional(),
+  signedFileUrl: z.string().nullable().optional(),
 });
 export type PolicyAcknowledgment = z.infer<typeof PolicyAcknowledgment>;
 

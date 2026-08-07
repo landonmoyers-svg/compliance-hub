@@ -902,6 +902,10 @@ function ackFrom(r: Record<string, unknown>): PolicyAcknowledgment {
     status: r.status as PolicyAcknowledgment["status"],
     acknowledgedAt: toISO(r.acknowledged_at as string),
     expiresAt: toISO(r.expires_at as string),
+    documentVersion: (r.document_version as string | null) ?? null,
+    documentFingerprint: (r.document_fingerprint as string | null) ?? null,
+    signedContent: (r.signed_content as string | null) ?? null,
+    signedFileUrl: (r.signed_file_url as string | null) ?? null,
   };
 }
 function ackTo(d: Partial<PolicyAcknowledgment>) {
@@ -913,6 +917,10 @@ function ackTo(d: Partial<PolicyAcknowledgment>) {
     ...(d.status !== undefined && { status: d.status }),
     ...(d.acknowledgedAt !== undefined && { acknowledged_at: d.acknowledgedAt }),
     ...(d.expiresAt !== undefined && { expires_at: d.expiresAt }),
+    ...(d.documentVersion !== undefined && { document_version: d.documentVersion }),
+    ...(d.documentFingerprint !== undefined && { document_fingerprint: d.documentFingerprint }),
+    ...(d.signedContent !== undefined && { signed_content: d.signedContent }),
+    ...(d.signedFileUrl !== undefined && { signed_file_url: d.signedFileUrl }),
   };
 }
 
