@@ -150,6 +150,12 @@ const CAPABILITIES: Record<string, PageCapability> = {
     actions: [TASK],
     examples: ["Who has open requirement gaps?", "Create a task to define requirements for the MA role"],
   },
+  "/hr/payroll": {
+    title: "Payroll records",
+    purpose: "A searchable archive of historical payroll records (Owners and HR only). Ask questions and Sage searches and aggregates the records.",
+    actions: [TASK],
+    examples: ["What did we pay Jane Doe in 2025?", "Total net pay last quarter", "Who had the highest gross pay this year?"],
+  },
   "/hr/employees": {
     title: "Employees",
     purpose: "Manage the employee directory and provision app logins.",

@@ -1,20 +1,19 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { DollarSign, Download, Plus, X } from "lucide-react";
+import { DollarSign, Download, Plus, X, Sparkles, Search, FileClock } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
-import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useCollection, useCreate } from "@/lib/data/hooks";
 import { logAudit } from "@/lib/data/audit";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import type { PayrollRecord } from "@/lib/data/schema";
-import { humanizeLabel } from "@/lib/format";
+import { askSage } from "@/lib/guide/context";
 import { toast } from "sonner";
 
 function formatCents(cents: number): string {
@@ -28,12 +27,6 @@ function toDollars(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-const STATUS_VARIANT: Record<PayrollRecord["status"], "success" | "warning" | "secondary" | "destructive"> = {
-  paid: "success",
-  approved: "warning",
-  draft: "secondary",
-  voided: "destructive",
-};
 
 const DEDUCTION_FIELDS = [
   ["federalTaxCents", "Federal tax"],
@@ -87,13 +80,12 @@ export default function PayrollPage() {
   const empQ = useCollection("employees");
   const payQ = useCollection("payrollRecords");
   const createMut = useCreate("payrollRecords");
-  const updateMut = useUpdate("payrollRecords");
 
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
   const records = useMemo(() => payQ.data ?? [], [payQ.data]);
 
   const [filterEmployee, setFilterEmployee] = useState("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | PayrollRecord["status"]>("all");
+  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
@@ -103,29 +95,26 @@ export default function PayrollPage() {
   const netCents = grossCents - totalDeductionCents;
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return records.filter((r) => {
       if (filterEmployee !== "all" && r.employeeId !== filterEmployee) return false;
-      if (filterStatus !== "all" && r.status !== filterStatus) return false;
+      if (q && !(r.employeeName.toLowerCase().includes(q) || `${r.periodStart} ${r.periodEnd}`.includes(q))) return false;
       return true;
     });
-  }, [records, filterEmployee, filterStatus]);
+  }, [records, filterEmployee, search]);
 
   const { sorted, sort, toggle } = useSort(filtered, {
     employee: (r) => r.employeeName,
     period: (r) => r.periodStart,
     gross: (r) => r.grossPayCents,
     net: (r) => r.netPayCents,
-    status: (r) => r.status,
   });
 
-  const stats = useMemo(() => {
-    const paid = records.filter((r) => r.status === "paid");
-    return {
-      totalPaid: paid.reduce((s, r) => s + r.netPayCents, 0),
-      pending: records.filter((r) => r.status === "draft" || r.status === "approved").length,
-      draft: records.filter((r) => r.status === "draft").length,
-    };
-  }, [records]);
+  const stats = useMemo(() => ({
+    totalNet: records.reduce((s, r) => s + r.netPayCents, 0),
+    count: records.length,
+    employees: new Set(records.map((r) => r.employeeId)).size,
+  }), [records]);
 
   async function saveRecord() {
     const emp = employees.find((e) => e.id === form.employeeId);
@@ -154,40 +143,28 @@ export default function PayrollPage() {
         otherDeductionsCents: toCents(form.deductions.otherDeductionsCents),
         netPayCents: netCents,
         paymentMethod: form.paymentMethod,
-        status: "draft",
+        // Historical repository: records represent payroll that already happened.
+        status: "paid",
       });
       // Audit is written server-side by a DB trigger on payroll_records.
       setShowForm(false);
       setForm(EMPTY_FORM);
-      toast.success("Payroll draft created");
+      toast.success("Payroll record added");
     } catch {
-      toast.error("Failed to create payroll record.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function transition(r: PayrollRecord, status: PayrollRecord["status"], label: string) {
-    setBusy(true);
-    try {
-      await updateMut.mutateAsync({ id: r.id, patch: { status } });
-      // Audit is written server-side by a DB trigger on payroll_records.
-      toast.success(`Payroll ${label}`);
-    } catch {
-      toast.error("Failed to update payroll record.");
+      toast.error("Failed to add payroll record.");
     } finally {
       setBusy(false);
     }
   }
 
   function exportCSV() {
-    const header = ["Employee", "Period Start", "Period End", "Gross", "Deductions", "Net Pay", "Method", "Status"];
+    const header = ["Employee", "Period Start", "Period End", "Gross", "Deductions", "Net Pay", "Method"];
     const rows = filtered.map((r) => [
       r.employeeName, r.periodStart, r.periodEnd,
       toDollars(r.grossPayCents),
       toDollars(r.grossPayCents - r.netPayCents),
       toDollars(r.netPayCents),
-      r.paymentMethod, r.status,
+      r.paymentMethod,
     ]);
     const csv = [header, ...rows].map((row) => row.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -215,7 +192,7 @@ export default function PayrollPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="font-semibold">New payroll record</h2>
+              <h2 className="font-semibold">Add historical payroll record</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
             </div>
             <div className="space-y-4 p-5">
@@ -281,42 +258,40 @@ export default function PayrollPage() {
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
               <Button variant="outline" onClick={() => setShowForm(false)} disabled={busy}>Cancel</Button>
-              <Button onClick={saveRecord} disabled={busy}>Create draft</Button>
+              <Button onClick={saveRecord} disabled={busy}>Add record</Button>
             </div>
           </div>
         </div>
       )}
 
       <PageHeader
-        title="Payroll"
-        description="Pay-period records with a draft → approved → paid workflow. All changes are written to the audit trail."
+        title="Payroll records"
+        description="A searchable archive of historical payroll records — visible only to Owners and HR. Ask Sage to search it (“what did we pay Jane in 2025?”). This is a record repository, not a payroll processor."
         actions={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => askSage("Search our payroll records and summarize what you find.")}><Sparkles className="size-4" /> Ask Sage</Button>
             <Button variant="outline" onClick={exportCSV}><Download className="size-4" /> Export CSV</Button>
-            <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> New record</Button>
+            <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> Add record</Button>
           </div>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Net pay paid (all time)" value={formatCents(stats.totalPaid)} icon={DollarSign} tone="success" loading={loading} />
-        <StatCard label="Awaiting payment" value={stats.pending} icon={DollarSign} tone={stats.pending > 0 ? "warning" : "default"} loading={loading} />
-        <StatCard label="Drafts" value={stats.draft} icon={DollarSign} loading={loading} />
+        <StatCard label="Total net pay (on record)" value={formatCents(stats.totalNet)} icon={DollarSign} tone="success" loading={loading} />
+        <StatCard label="Records" value={stats.count} icon={FileClock} loading={loading} />
+        <StatCard label="Employees on record" value={stats.employees} icon={DollarSign} loading={loading} />
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap gap-3">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input className="input w-full pl-9" placeholder="Search by employee or period…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
             <select className="input" value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)}>
               <option value="all">All employees</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
-            </select>
-            <select className="input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
-              <option value="all">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="approved">Approved</option>
-              <option value="paid">Paid</option>
-              <option value="voided">Voided</option>
             </select>
           </div>
         </CardHeader>
@@ -324,7 +299,7 @@ export default function PayrollPage() {
           {loading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           ) : filtered.length === 0 ? (
-            <EmptyState icon={DollarSign} title="No payroll records" description="Create a payroll record to get started." action={<Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> New record</Button>} />
+            <EmptyState icon={DollarSign} title="No payroll records" description="Add historical payroll records to build a searchable archive." action={<Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }}><Plus className="size-4" /> Add record</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">
@@ -334,8 +309,6 @@ export default function PayrollPage() {
                     <SortHeader label="Pay period" sortKey="period" sort={sort} onToggle={toggle} />
                     <SortHeader label="Gross" sortKey="gross" sort={sort} onToggle={toggle} align="right" className="text-right" />
                     <SortHeader label="Net pay" sortKey="net" sort={sort} onToggle={toggle} align="right" className="text-right" />
-                    <SortHeader label="Status" sortKey="status" sort={sort} onToggle={toggle} />
-                    <th className="pb-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -345,24 +318,6 @@ export default function PayrollPage() {
                       <td data-label="Pay period" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{r.periodStart} – {r.periodEnd}</td>
                       <td data-label="Gross" className="py-3 pr-4 text-right tabular-nums">{formatCents(r.grossPayCents)}</td>
                       <td data-label="Net pay" className="py-3 pr-4 text-right font-medium tabular-nums">{formatCents(r.netPayCents)}</td>
-                      <td data-label="Status" className="py-3 pr-4"><Badge variant={STATUS_VARIANT[r.status]} className="capitalize">{humanizeLabel(r.status)}</Badge></td>
-                      <td data-label="" className="py-3">
-                        <div className="flex gap-1.5 md:justify-end">
-                          {r.status === "draft" && (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => transition(r, "approved", "approved")} disabled={busy}>Approve</Button>
-                              <Button size="sm" variant="ghost" onClick={() => transition(r, "voided", "voided")} disabled={busy}>Void</Button>
-                            </>
-                          )}
-                          {r.status === "approved" && (
-                            <>
-                              <Button size="sm" onClick={() => transition(r, "paid", "marked paid")} disabled={busy}>Mark paid</Button>
-                              <Button size="sm" variant="ghost" onClick={() => transition(r, "voided", "voided")} disabled={busy}>Void</Button>
-                            </>
-                          )}
-                          {(r.status === "paid" || r.status === "voided") && <span className="text-xs text-muted-foreground">—</span>}
-                        </div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

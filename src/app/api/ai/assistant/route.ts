@@ -75,7 +75,29 @@ export async function POST(request: NextRequest) {
   const featureBlock = feat
     ? `\n\n=== FEATURE GUIDE (authoritative — teach from this; don't contradict it) ===\nWhat it is: ${feat.what}\nWhy it matters: ${feat.why}\nHow to use it:\n${feat.how.map((h, i) => `  ${i + 1}. ${h}`).join("\n")}\nDone when: ${feat.doneWhen}\n=== END FEATURE GUIDE ===`
     : "";
-  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}${featureBlock}\n\n=== LIVE SNAPSHOT (this practice's real data — use it to answer with specifics) ===\n${snapshot}\n=== END CONTEXT ===`;
+
+  // Payroll is sensitive and RLS-gated to Owner/HR. Only pull it in when the user
+  // is actually asking about pay — and because this query runs as the user, RLS
+  // returns nothing for anyone who isn't Owner/HR, so it can never leak.
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const wantsPayroll = path.startsWith("/hr/payroll") || /pay ?roll|pay ?check|pay ?stub|salar|wage|compensation|gross pay|net pay|take[- ]home|how much (did|do) we pay/i.test(lastUserMsg);
+  let payrollBlock = "";
+  if (wantsPayroll) {
+    try {
+      const { data: pr } = await supabase
+        .from("payroll_records")
+        .select("employee_name, period_start, period_end, gross_pay_cents, net_pay_cents, payment_method")
+        .order("period_end", { ascending: false })
+        .limit(400);
+      if (pr && pr.length) {
+        const usd = (c: number) => `$${((c ?? 0) / 100).toLocaleString()}`;
+        const lines = pr.map((r) => `${r.employee_name} | ${r.period_start}..${r.period_end} | gross ${usd(r.gross_pay_cents)} | net ${usd(r.net_pay_cents)}`);
+        payrollBlock = `\n\n=== PAYROLL RECORDS (historical archive — Owner/HR only; search & aggregate these to answer pay questions) ===\n${lines.join("\n")}${pr.length === 400 ? "\n(showing the 400 most recent records)" : ""}\n=== END PAYROLL RECORDS ===`;
+      }
+    } catch { /* table/columns unavailable — skip silently */ }
+  }
+
+  const context = `\n\n=== CURRENT CONTEXT ===\nToday: ${today ?? "unknown"}\nCurrent page: ${page.title}\nPage purpose: ${page.purpose}\nActions allowed on this page: ${page.actions.join(", ")}${featureBlock}${payrollBlock}\n\n=== LIVE SNAPSHOT (this practice's real data — use it to answer with specifics) ===\n${snapshot}\n=== END CONTEXT ===`;
 
   let response: Anthropic.Messages.Message;
   try {
