@@ -793,9 +793,9 @@ export default function CompetencyTrackerPage() {
               describe={(r) => ({ title: r.competencyName, subtitle: r.employeeName })}
               score={(r) => (r.score != null ? 1 : 0) + (r.validUntil ? 1 : 0)}
             />
-            <Button onClick={() => setEditing("new")}>
-              <Plus className="size-4" /> Add competency
-            </Button>
+            <span title="Competencies are derived automatically from completed trainings and assessments — there is no manual entry here. Open an existing row to record a score or validity date.">
+              <Button disabled className="pointer-events-none"><Plus className="size-4" /> Add competency</Button>
+            </span>
           </div>
         }
       />
@@ -866,12 +866,7 @@ export default function CompetencyTrackerPage() {
               description={
                 search || filterStatus !== "all" || filterType !== "all"
                   ? "Try adjusting your search or filters."
-                  : "Add your first competency assessment to start tracking."
-              }
-              action={
-                <Button onClick={() => setEditing("new")}>
-                  <Plus className="size-4" /> Add competency
-                </Button>
+                  : "Competencies appear here automatically as staff complete the trainings and assessments their role requires — there is nothing to add by hand."
               }
             />
           ) : (

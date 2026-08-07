@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Plus, Search, Check, X, AlertTriangle, Sparkles, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
+import { useHydrated } from "@/lib/use-hydrated";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, INCIDENT_TABS } from "@/components/shared/page-tabs";
@@ -374,6 +375,7 @@ export default function IncidentsPage() {
   const updateCapa = useUpdate("correctiveActions");
 
   const [reporting, setReporting] = useState(false);
+  const hydrated = useHydrated(); // gate the trigger until interactive, so a pre-hydration click is never dropped
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -511,7 +513,7 @@ export default function IncidentsPage() {
       <PageHeader
         title="Incidents & Corrective Actions"
         description="The starting point when anything happens: staff report incidents and concerns here, and corrective actions are tracked to closure."
-        actions={<Button data-guide="add-incident" onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
+        actions={<Button data-guide="add-incident" disabled={!hydrated} title={hydrated ? undefined : "Preparing…"} onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -531,7 +533,7 @@ export default function IncidentsPage() {
           {incidentsQ.isLoading ? (
             <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
           ) : filtered.length === 0 ? (
-            <EmptyState icon={ShieldAlert} title="No incidents" description={isAdmin ? "Reported incidents will appear here." : "You haven't reported any incidents."} action={<Button onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>} />
+            <EmptyState icon={ShieldAlert} title="No incidents" description={isAdmin ? "Reported incidents will appear here." : "You haven't reported any incidents."} action={<Button disabled={!hydrated} onClick={() => setReporting(true)}><Plus className="size-4" /> Report incident</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm rtable">
