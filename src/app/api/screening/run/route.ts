@@ -183,6 +183,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     results,
     leieCount: idx.count,
+    leieRetrievedAt: new Date(idx.at).toISOString(),
+    leieSource: LEIE_URL,
     samEnabled: !!samKey,
     samStatus,
     screenedDate: new Date().toISOString().slice(0, 10),

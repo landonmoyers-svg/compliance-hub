@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { UserCheck, Plus, X, AlertTriangle, ShieldCheck, ExternalLink, Upload } from "lucide-react";
+import { UserCheck, Plus, X, AlertTriangle, ShieldCheck, ExternalLink, Upload, Download } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -18,6 +18,8 @@ import { uploadFile } from "@/lib/storage";
 import { formatDate, dateInputToISO, daysUntil, todayInput } from "@/lib/dates";
 import type { ExclusionScreening } from "@/lib/data/schema";
 import { humanizeLabel } from "@/lib/format";
+import { openScreeningEvidence, type EvidenceRow } from "@/lib/screening-evidence";
+import { DEFAULT_ORG_NAME } from "@/lib/org";
 import { toast } from "sonner";
 
 const DUE_DAYS = 30; // OIG recommends monthly exclusion screening
@@ -134,7 +136,7 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
 
 interface MatchHit { source: string; name: string; detail: string; }
 interface ScreenResult { key: string; hits: MatchHit[]; samChecked: boolean; clear: boolean; }
-interface ScreenRun { results: ScreenResult[]; leieCount: number; samEnabled: boolean; samStatus?: string; screenedDate: string; }
+interface ScreenRun { results: ScreenResult[]; leieCount: number; leieRetrievedAt: string; leieSource: string; samEnabled: boolean; samStatus?: string; screenedDate: string; }
 
 export default function ExclusionScreeningPage() {
   const { profile } = useAuth();
@@ -239,7 +241,31 @@ export default function ExclusionScreeningPage() {
     finally { setSaving(false); }
   }
 
-  const sourcesLabel = () => (screenRun?.samEnabled ? "OIG-LEIE, SAM.gov (automated)" : "OIG-LEIE (automated)");
+  const samOk = () => !!screenRun?.samEnabled && screenRun.samStatus === "ok";
+  const sourcesLabel = () => (samOk() ? "OIG-LEIE + SAM.gov (automated)" : "OIG-LEIE (automated)");
+  const provenanceNote = () => screenRun
+    ? `OIG-LEIE ${screenRun.leieCount.toLocaleString()} entries, retrieved ${new Date(screenRun.leieRetrievedAt).toLocaleDateString()}${samOk() ? "; SAM.gov checked" : ""}.`
+    : "";
+
+  function downloadEvidence() {
+    if (!screenRun) return;
+    const rows: EvidenceRow[] = screenRun.results.map((r) => {
+      const sub = subjects.find((s) => s.key === r.key);
+      return {
+        name: sub?.name ?? r.key,
+        type: sub?.type ?? "other",
+        result: r.clear ? "clear" : "potential_match",
+        detail: r.clear ? undefined : r.hits.map((h) => `${h.source}: ${h.name}${h.detail ? ` (${h.detail})` : ""}`).join("; "),
+      };
+    });
+    const ok = openScreeningEvidence({
+      orgName: DEFAULT_ORG_NAME, runBy: profile?.fullName || "Unknown",
+      screenedDate: screenRun.screenedDate,
+      leieCount: screenRun.leieCount, leieRetrievedAt: screenRun.leieRetrievedAt, leieSource: screenRun.leieSource,
+      samEnabled: screenRun.samEnabled, samStatus: screenRun.samStatus, rows,
+    });
+    if (!ok) toast.error("Allow pop-ups to open the evidence report.");
+  }
 
   async function runScreening() {
     setRunning(true);
@@ -272,7 +298,7 @@ export default function ExclusionScreeningPage() {
           subjectUserId: sub.userId ?? null, vendorId: sub.vendorId ?? null,
           sources: sourcesLabel(), screenedDate: dateInputToISO(screenRun.screenedDate),
           result: "clear", screenedByName: profile?.fullName || undefined,
-          notes: "Automated screening — no match found.",
+          notes: `Automated database match — no record found. ${provenanceNote()}`,
         });
       }
       toast.success(`Recorded ${clears.length} clear screening${clears.length === 1 ? "" : "s"}`);
@@ -291,7 +317,7 @@ export default function ExclusionScreeningPage() {
         subjectUserId: sub.userId ?? null, vendorId: sub.vendorId ?? null,
         sources: sourcesLabel(), screenedDate: dateInputToISO(screenRun.screenedDate),
         result: "pending", screenedByName: profile?.fullName || undefined,
-        notes: `POTENTIAL MATCH — verify before clearing/confirming: ${detail}`,
+        notes: `POTENTIAL MATCH — verify identity (DOB/NPI) before clearing/confirming: ${detail} — ${provenanceNote()}`,
       });
       toast.success(`Logged ${sub.name} for review`);
     } catch { toast.error("Couldn't log for review."); }
@@ -350,10 +376,11 @@ export default function ExclusionScreeningPage() {
                 )}
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-sm font-medium">{clears.length} subject{clears.length === 1 ? "" : "s"} came back clear</p>
-                  <p className="text-xs text-muted-foreground">Record these as dated, automated screenings for your audit trail.</p>
+                  <p className="text-xs text-muted-foreground">Recording them captures the list source, size, and retrieval date on each dated record. Download the evidence report for a printable, auditor-ready proof of this run.</p>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <div className="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-3">
+                <Button variant="outline" onClick={downloadEvidence} className="mr-auto"><Download className="size-4" /> Download evidence report</Button>
                 <Button variant="outline" onClick={() => setScreenRun(null)} disabled={recording}>Close</Button>
                 <Button onClick={() => void recordClears()} disabled={recording || clears.length === 0}>
                   {recording ? "Recording…" : `Record ${clears.length} clear${clears.length === 1 ? "" : "s"}`}
