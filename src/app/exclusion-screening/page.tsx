@@ -150,6 +150,7 @@ export default function ExclusionScreeningPage() {
   const [running, setRunning] = useState(false);
   const [recording, setRecording] = useState(false);
   const [screenRun, setScreenRun] = useState<ScreenRun | null>(null);
+  const [resolved, setResolved] = useState<Set<string>>(new Set());
 
   const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
 
@@ -280,6 +281,7 @@ export default function ExclusionScreeningPage() {
       const res = await fetch("/api/screening/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subjects: payload }) });
       const data = await res.json() as ScreenRun & { error?: string };
       if (!res.ok) { toast.error(data.error ?? "Automated screening failed."); return; }
+      setResolved(new Set());
       setScreenRun(data);
     } catch { toast.error("Automated screening failed — network error."); }
     finally { setRunning(false); }
@@ -307,20 +309,25 @@ export default function ExclusionScreeningPage() {
     finally { setRecording(false); }
   }
 
-  async function logMatch(r: ScreenResult) {
+  async function resolveMatch(r: ScreenResult, result: "clear" | "hit" | "pending") {
     const sub = subjects.find((s) => s.key === r.key);
     if (!sub || !screenRun) return;
     const detail = r.hits.map((h) => `${h.source}: ${h.name}${h.detail ? ` (${h.detail})` : ""}`).join("; ");
+    const note = result === "hit"
+      ? `CONFIRMED exclusion after review of the official record: ${detail}. ${provenanceNote()}`
+      : result === "clear"
+        ? `Reviewed potential match — NOT this individual (name collision; verified by DOB/NPI on the official list). Flagged record was: ${detail}. ${provenanceNote()}`
+        : `Flagged for later review — identity not yet verified: ${detail}. ${provenanceNote()}`;
     try {
       await createMut.mutateAsync({
         subjectType: sub.type, subjectName: sub.name,
         subjectUserId: sub.userId ?? null, vendorId: sub.vendorId ?? null,
         sources: sourcesLabel(), screenedDate: dateInputToISO(screenRun.screenedDate),
-        result: "pending", screenedByName: profile?.fullName || undefined,
-        notes: `POTENTIAL MATCH — verify identity (DOB/NPI) before clearing/confirming: ${detail} — ${provenanceNote()}`,
+        result, screenedByName: profile?.fullName || undefined, notes: note,
       });
-      toast.success(`Logged ${sub.name} for review`);
-    } catch { toast.error("Couldn't log for review."); }
+      setResolved((prev) => new Set(prev).add(r.key));
+      toast.success(result === "hit" ? `Recorded CONFIRMED exclusion for ${sub.name}` : result === "clear" ? `Cleared ${sub.name} — not a match` : `Logged ${sub.name} for review`);
+    } catch { toast.error("Couldn't save the determination."); }
   }
 
   if (screeningsQ.isError) return <div className="space-y-6"><PageHeader title="Exclusion Screening" /><ErrorState message="We couldn't load screenings." onRetry={() => void screeningsQ.refetch()} /></div>;
@@ -355,25 +362,34 @@ export default function ExclusionScreeningPage() {
                 ) : (
                   <p className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">OIG-LEIE was screened, but the SAM.gov check failed: <span className="font-medium">{screenRun.samStatus || "no response"}</span>. Send me this message and I&apos;ll fix the SAM endpoint.</p>
                 )}
-                {matches.length > 0 ? (
+                {(() => {
+                  const open = matches.filter((r) => !resolved.has(r.key));
+                  const doneCount = matches.length - open.length;
+                  if (matches.length === 0) return <p className="flex items-center gap-2 text-sm text-success"><ShieldCheck className="size-4" /> No exclusion matches found.</p>;
+                  return (
                   <div className="space-y-2">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><AlertTriangle className="size-4" /> {matches.length} potential match{matches.length === 1 ? "" : "es"} — review before clearing</p>
-                    <p className="text-xs text-muted-foreground">A name matched an exclusion list. Name collisions are common — verify identity (DOB/NPI) on the official list before treating this as a true exclusion.</p>
-                    {matches.map((r) => (
+                    <p className="flex items-center gap-2 text-sm font-semibold text-destructive"><AlertTriangle className="size-4" /> {open.length} potential match{open.length === 1 ? "" : "es"} to review{doneCount > 0 && <span className="font-normal text-muted-foreground">· {doneCount} resolved</span>}</p>
+                    <p className="text-xs text-muted-foreground">Open the official list, verify identity by <span className="font-medium">DOB or NPI</span>, then record the determination. A name match alone is not a confirmed exclusion.</p>
+                    {open.map((r) => (
                       <div key={r.key} className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">{nameOf(r.key)}</p>
-                          <Button size="sm" variant="outline" onClick={() => void logMatch(r)}>Log for review</Button>
-                        </div>
+                        <p className="text-sm font-medium">{nameOf(r.key)}</p>
                         <ul className="mt-1 space-y-0.5">
                           {r.hits.map((h, i) => <li key={i} className="text-xs text-muted-foreground"><span className="font-medium text-foreground">{h.source}:</span> {h.name}{h.detail ? ` · ${h.detail}` : ""}</li>)}
                         </ul>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <a href={oigLeieUrl()} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="outline"><ExternalLink className="size-3.5" /> OIG-LEIE</Button></a>
+                          {screenRun.samEnabled && <a href={samGovUrl(nameOf(r.key))} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="outline"><ExternalLink className="size-3.5" /> SAM.gov</Button></a>}
+                          <span className="ml-1 mr-0.5 text-xs text-muted-foreground">Record:</span>
+                          <Button size="sm" variant="outline" onClick={() => void resolveMatch(r, "clear")}>Not a match</Button>
+                          <Button size="sm" variant="destructive" onClick={() => void resolveMatch(r, "hit")}>Confirmed match</Button>
+                          <Button size="sm" variant="ghost" onClick={() => void resolveMatch(r, "pending")}>Later</Button>
+                        </div>
                       </div>
                     ))}
+                    {open.length === 0 && <p className="flex items-center gap-2 text-sm text-success"><ShieldCheck className="size-4" /> All potential matches reviewed.</p>}
                   </div>
-                ) : (
-                  <p className="flex items-center gap-2 text-sm text-success"><ShieldCheck className="size-4" /> No exclusion matches found.</p>
-                )}
+                  );
+                })()}
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-sm font-medium">{clears.length} subject{clears.length === 1 ? "" : "s"} came back clear</p>
                   <p className="text-xs text-muted-foreground">Recording them captures the list source, size, and retrieval date on each dated record. Download the evidence report for a printable, auditor-ready proof of this run.</p>
