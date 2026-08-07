@@ -114,22 +114,27 @@ function matchLeie(idx: LeieIndex, s: Subject): MatchHit[] {
   return hits.filter((h) => { const k = `${h.source}:${h.name}:${h.detail}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
-async function matchSam(key: string, s: Subject): Promise<{ checked: boolean; hits: MatchHit[] }> {
+async function matchSam(key: string, s: Subject): Promise<{ checked: boolean; hits: MatchHit[]; status: string }> {
   try {
+    // SAM.gov Entity Management API, exclusions section, searched by name.
     const url = new URL("https://api.sam.gov/entity-information/v4/entities");
     url.searchParams.set("api_key", key);
     url.searchParams.set("includeSections", "exclusions");
     url.searchParams.set("exclusionName", s.name);
     const res = await fetch(url.toString(), { headers: { accept: "application/json" } });
-    if (!res.ok) return { checked: false, hits: [] };
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json() as { error?: { message?: string }; message?: string }; msg = j?.error?.message || j?.message || msg; } catch { /* keep msg */ }
+      return { checked: false, hits: [], status: msg };
+    }
     const data = await res.json() as { excludedEntity?: { exclusionName?: string; classificationType?: string; exclusionType?: string; activationDate?: string }[] };
     const hits: MatchHit[] = (data.excludedEntity ?? []).map((e) => ({
       source: "SAM.gov", name: e.exclusionName ?? s.name,
       detail: [e.exclusionType || e.classificationType, e.activationDate ? `active ${e.activationDate}` : ""].filter(Boolean).join(" · "),
     }));
-    return { checked: true, hits };
-  } catch {
-    return { checked: false, hits: [] };
+    return { checked: true, hits, status: "ok" };
+  } catch (e) {
+    return { checked: false, hits: [], status: e instanceof Error ? e.message : "network error" };
   }
 }
 
@@ -149,15 +154,22 @@ export async function POST(request: NextRequest) {
   catch { return NextResponse.json({ error: "Couldn't download the OIG-LEIE list right now. Try again shortly." }, { status: 502 }); }
 
   const samKey = process.env.SAM_API_KEY;
+  let samStatus = samKey ? "ok" : "disabled";
+  let samBroken = false; // stop calling SAM after the first hard failure this run
   const results = [];
   for (const s of subjects) {
     const leie = matchLeie(idx, s);
-    const sam = samKey ? await matchSam(samKey, s) : { checked: false, hits: [] };
+    let samHits: MatchHit[] = [];
+    if (samKey && !samBroken) {
+      const sam = await matchSam(samKey, s);
+      if (sam.checked) samHits = sam.hits;
+      else { samBroken = true; samStatus = sam.status; }
+    }
     results.push({
       key: s.key,
-      hits: [...leie, ...sam.hits],
-      samChecked: sam.checked,
-      clear: leie.length === 0 && sam.hits.length === 0,
+      hits: [...leie, ...samHits],
+      samChecked: !!samKey && !samBroken,
+      clear: leie.length === 0 && samHits.length === 0,
     });
   }
 
@@ -165,6 +177,7 @@ export async function POST(request: NextRequest) {
     results,
     leieCount: idx.count,
     samEnabled: !!samKey,
+    samStatus,
     screenedDate: new Date().toISOString().slice(0, 10),
   });
 }

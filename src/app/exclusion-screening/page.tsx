@@ -134,7 +134,7 @@ function LogDialog({ subjects, initialSubject, onClose, onSave, saving }: {
 
 interface MatchHit { source: string; name: string; detail: string; }
 interface ScreenResult { key: string; hits: MatchHit[]; samChecked: boolean; clear: boolean; }
-interface ScreenRun { results: ScreenResult[]; leieCount: number; samEnabled: boolean; screenedDate: string; }
+interface ScreenRun { results: ScreenResult[]; leieCount: number; samEnabled: boolean; samStatus?: string; screenedDate: string; }
 
 export default function ExclusionScreeningPage() {
   const { profile } = useAuth();
@@ -322,8 +322,12 @@ export default function ExclusionScreeningPage() {
                 <button onClick={() => setScreenRun(null)} disabled={recording} className="rounded-md p-1 text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-                {!screenRun.samEnabled && (
+                {!screenRun.samEnabled ? (
                   <p className="rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">SAM.gov was not checked — add a <span className="font-medium">SAM_API_KEY</span> to enable it. OIG-LEIE was screened.</p>
+                ) : screenRun.samStatus === "ok" ? (
+                  <p className="rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-xs text-success">Checked both OIG-LEIE and SAM.gov.</p>
+                ) : (
+                  <p className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">OIG-LEIE was screened, but the SAM.gov check failed: <span className="font-medium">{screenRun.samStatus || "no response"}</span>. Send me this message and I&apos;ll fix the SAM endpoint.</p>
                 )}
                 {matches.length > 0 ? (
                   <div className="space-y-2">
