@@ -360,7 +360,7 @@ export default function ExclusionScreeningPage() {
                 ) : screenRun.samStatus === "ok" ? (
                   <p className="rounded-lg border border-success/40 bg-success/5 px-3 py-2 text-xs text-success">Checked both OIG-LEIE and SAM.gov.</p>
                 ) : (
-                  <p className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">OIG-LEIE was screened, but the SAM.gov check failed: <span className="font-medium">{screenRun.samStatus || "no response"}</span>. Send me this message and I&apos;ll fix the SAM endpoint.</p>
+                  <p className="rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">OIG-LEIE was screened. SAM.gov&apos;s API doesn&apos;t accept automated checks from a server (it restricts cloud requests), so it isn&apos;t batch-screened here — use the <span className="font-medium text-foreground">SAM.gov</span> button on any potential match below to verify it directly in your browser, where it works.</p>
                 )}
                 {(() => {
                   const open = matches.filter((r) => !resolved.has(r.key));

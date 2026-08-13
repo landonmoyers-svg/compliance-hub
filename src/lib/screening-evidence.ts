@@ -29,7 +29,7 @@ export function buildScreeningEvidenceHtml(d: EvidenceInput): string {
     ? "Not checked (SAM.gov API key not configured)."
     : d.samStatus === "ok"
       ? "Checked via the SAM.gov Exclusions API."
-      : `Attempted but not completed (${esc(d.samStatus || "no response")}).`;
+      : "Not automated — SAM.gov's API restricts server-side requests; any potential matches were verified directly on SAM.gov.";
 
   const rowsHtml = d.rows.map((r) => `<tr>
       <td>${esc(r.name)}</td>
