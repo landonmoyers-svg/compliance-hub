@@ -608,6 +608,24 @@ export default function FillableDocumentsPage() {
     }
   }
 
+  // Fill a template directly — no prior assignment needed. Records the completed
+  // form against the current user. Uses a synthetic assignment (id === "") so the
+  // existing FormFiller works unchanged; submitFilled skips the assignment update.
+  function fillTemplateNow(t: FillableFormTemplate) {
+    setPreview(null);
+    const me = employees.find((e) => fullName(e).toLowerCase() === signerName.toLowerCase());
+    setFilling({
+      id: "",
+      templateId: t.id,
+      templateTitle: t.title,
+      assignedToUserId: me?.id ?? null,
+      assignedToName: me ? fullName(me) : (signerName || "—"),
+      status: "assigned",
+      dueDate: null,
+      completedFormId: null,
+    } as FormAssignment);
+  }
+
   async function submitFilled(values: Record<string, string>, signature: string) {
     if (!filling) return;
     const template = templateById.get(filling.templateId);
@@ -624,7 +642,11 @@ export default function FillableDocumentsPage() {
         signedByName: template.requiresSignature ? signature || undefined : undefined,
         completedAt: now,
       });
-      await updateAssignment.mutateAsync({ id: filling.id, patch: { status: "completed", completedFormId: created.id } });
+      // Only update an assignment when this fill came from a real one. Ad-hoc
+      // "Fill out" from a template has no backing assignment row (id === "").
+      if (filling.id && assignments.some((a) => a.id === filling.id)) {
+        await updateAssignment.mutateAsync({ id: filling.id, patch: { status: "completed", completedFormId: created.id } });
+      }
       setFilling(null);
       toast.success("Form completed");
     } catch {
@@ -710,7 +732,16 @@ export default function FillableDocumentsPage() {
         />
       )}
       {preview && (
-        <FormPreview template={preview.template} values={preview.values} meta={preview.meta} linkedPolicy={resolvePolicy(preview.template)} onClose={() => setPreview(null)} />
+        <FormPreview
+          template={preview.template}
+          values={preview.values}
+          meta={preview.meta}
+          linkedPolicy={resolvePolicy(preview.template)}
+          footer={!preview.values && preview.template?.status === "active"
+            ? <Button onClick={() => fillTemplateNow(preview.template!)}><PenLine className="size-3" /> Fill out this form</Button>
+            : undefined}
+          onClose={() => setPreview(null)}
+        />
       )}
 
       <PageHeader
@@ -825,6 +856,9 @@ export default function FillableDocumentsPage() {
                       <td data-label="Status" className="py-3 pr-4"><Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{humanizeLabel(t.status)}</Badge></td>
                       <td data-label="" className="py-3">
                         <div className="flex gap-2 md:justify-end">
+                          {t.status === "active" && (
+                            <Button size="sm" onClick={() => fillTemplateNow(t)}><PenLine className="size-3" /> Fill out</Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => archiveTemplate(t)}><Archive className="size-3" /> {t.status === "archived" ? "Restore" : "Archive"}</Button>
                           <AdminDeleteButton collection="formTemplates" id={t.id} label={t.title} noun="form template" onDeleted={() => void templatesQ.refetch()} />

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { MessageSquare, Send, BookOpen, Plus } from "lucide-react";
+import Link from "next/link";
+import { MessageSquare, Send, BookOpen, Plus, ChevronRight } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
@@ -223,14 +224,20 @@ export default function PolicyAssistantPage() {
                 <Skeleton className="h-16 w-full" />
               ) : (
                 <>
-                  <div>
-                    <p className="font-medium">{activeDocs} active documents</p>
-                    <p className="text-muted-foreground">Policies, SOPs, procedures</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">{activeRegs} regulatory sources</p>
-                    <p className="text-muted-foreground">HIPAA, OSHA, state regs</p>
-                  </div>
+                  <Link href="/sop-library" className="group flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 hover:bg-secondary/50">
+                    <div>
+                      <p className="font-medium">{activeDocs} active documents</p>
+                      <p className="text-muted-foreground">Policies, SOPs, procedures</p>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <Link href="/regulatory-sources" className="group flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 hover:bg-secondary/50">
+                    <div>
+                      <p className="font-medium">{activeRegs} regulatory sources</p>
+                      <p className="text-muted-foreground">HIPAA, OSHA, state regs</p>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
                   <div className="rounded-md border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
                     Answers are limited to your approved content. The assistant remembers your earlier conversations but will not speculate beyond approved sources.
                   </div>
