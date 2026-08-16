@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download, Sparkles } from "lucide-react";
+import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download, Sparkles, ShieldCheck, Wand2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { downloadCompletedFormPdf } from "@/lib/pdf";
@@ -320,6 +320,8 @@ function AssignDialog({
 
 /* ─── form filler dialog ────────────────────────────────────── */
 
+interface ReviewIssue { fieldKey: string; fieldLabel: string; severity: "high" | "medium" | "low"; note: string; suggestion: string }
+
 function FormFiller({
   template,
   assignment,
@@ -347,8 +349,14 @@ function FormFiller({
   const [signature, setSignature] = useState(signerName);
   const [aiSources, setAiSources] = useState<Record<string, string>>({});
   const [prefilling, setPrefilling] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [review, setReview] = useState<{ issues: ReviewIssue[]; overall: string } | null>(null);
 
-  const set = (key: string, value: string) => setValues((p) => ({ ...p, [key]: value }));
+  const set = (key: string, value: string) => {
+    setValues((p) => ({ ...p, [key]: value }));
+    // Editing a field clears its stale review flag so fixing an issue feels instant.
+    setReview((r) => (r && r.issues.some((i) => i.fieldKey === key) ? { ...r, issues: r.issues.filter((i) => i.fieldKey !== key) } : r));
+  };
 
   async function aiPrefill() {
     setPrefilling(true);
@@ -375,6 +383,30 @@ function FormFiller({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "AI prefill failed.");
     } finally { setPrefilling(false); }
+  }
+
+  async function runReview() {
+    setReviewing(true);
+    setReview(null);
+    try {
+      const res = await fetch("/api/ai/form-review", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateTitle: template.title,
+          category: template.category,
+          purpose: template.description ?? template.bodyText ?? "",
+          fields: template.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, required: f.required, guidance: f.guidance })),
+          values,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Review failed");
+      setReview({ issues: (data.issues ?? []) as ReviewIssue[], overall: String(data.overall ?? "") });
+      const n = (data.issues ?? []).length;
+      toast[n ? "info" : "success"](n ? `${n} suggestion${n === 1 ? "" : "s"} to tighten this up.` : "Looks clear and defensible.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI review failed.");
+    } finally { setReviewing(false); }
   }
 
   function handleSubmit() {
@@ -409,6 +441,12 @@ function FormFiller({
         </div>
 
         <div className="grid gap-4 overflow-y-auto p-5">
+          {template.completionGuidance && (
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary"><ShieldCheck className="size-3.5" /> How to complete this properly</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{template.completionGuidance}</p>
+            </div>
+          )}
           {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
           {template.bodyText && (
             <div className="rounded-lg border border-border bg-secondary/20 p-4">
@@ -429,6 +467,7 @@ function FormFiller({
               <label className="text-sm font-medium">
                 {f.label}{f.required && <span className="text-destructive"> *</span>}
               </label>
+              {f.guidance && <p className="text-xs text-muted-foreground">{f.guidance}</p>}
               {f.type === "textarea" ? (
                 <textarea className="input w-full" rows={3} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
               ) : f.type === "select" ? (
@@ -445,8 +484,23 @@ function FormFiller({
                 <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} className="input w-full" value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
               )}
               {aiSources[f.key] && <p className="flex items-center gap-1 text-[11px] text-primary"><Sparkles className="size-3" /> AI-filled from {aiSources[f.key]} — verify</p>}
+              {review?.issues.filter((i) => i.fieldKey === f.key).map((i, idx) => (
+                <div key={idx} className={`rounded-md border p-2 text-xs ${i.severity === "high" ? "border-destructive/40 bg-destructive/5" : "border-border bg-secondary/40"}`}>
+                  <p className="flex items-start gap-1 font-medium"><AlertTriangle className="mt-0.5 size-3 shrink-0" /> {i.note}</p>
+                  {i.suggestion && <p className="mt-1 pl-4 text-muted-foreground"><span className="font-medium text-foreground/70">Try:</span> {i.suggestion}</p>}
+                </div>
+              ))}
             </div>
           ))}
+
+          {review && review.issues.length === 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+              <Check className="size-4 shrink-0" /> {review.overall || "Looks clear, factual, and defensible — ready to submit."}
+            </div>
+          )}
+          {review && review.issues.length > 0 && review.overall && (
+            <p className="text-xs text-muted-foreground">{review.overall}</p>
+          )}
 
           {template.requiresSignature && (
             <div className="rounded-lg border border-border bg-secondary/20 p-3">
@@ -459,11 +513,20 @@ function FormFiller({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving ? "Submitting…" : <><Check className="size-3" /> Submit form</>}
-          </Button>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+          <div>
+            {template.fields.some((f) => f.type === "text" || f.type === "textarea") && (
+              <Button variant="outline" onClick={runReview} disabled={reviewing || saving} title="AI checks your wording for accuracy and legal defensibility">
+                <ShieldCheck className="size-3.5" /> {reviewing ? "Reviewing…" : "Review answers"}
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? "Submitting…" : <><Check className="size-3" /> Submit form</>}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -497,6 +560,7 @@ export default function FillableDocumentsPage() {
   const [filling, setFilling] = useState<FormAssignment | null>(null);
   const [preview, setPreview] = useState<{ template?: FillableFormTemplate; values?: Record<string, string>; meta?: { title: string; category?: FormCategory; subtitle?: string; signedByName?: string; completedAt?: string | null } } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [guidanceBusy, setGuidanceBusy] = useState<string | null>(null); // template id or "all"
 
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
   const assignments = useMemo(() => assignmentsQ.data ?? [], [assignmentsQ.data]);
@@ -593,6 +657,52 @@ export default function FillableDocumentsPage() {
     } catch {
       toast.error("Failed to update template.");
     }
+  }
+
+  // Generate the guidance layer (legal-protective completion notes + per-field
+  // help + safe field-type upgrades) for one template and save it. Returns true
+  // on success so the batch runner can report progress.
+  async function generateGuidanceFor(t: FillableFormTemplate): Promise<boolean> {
+    if (t.fields.length === 0) return false;
+    const res = await fetch("/api/ai/form-guidance", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: t.title, category: t.category, description: t.description, bodyText: t.bodyText, fields: t.fields }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Guidance generation failed");
+    // The endpoint returns FormField-shaped objects merged onto the real fields
+    // (keys preserved, valid types, guidance included) — use them directly.
+    const nextFields = ((data.fields ?? []) as FormField[]).filter((f) => f.key && f.label);
+    await updateTemplate.mutateAsync({ id: t.id, patch: {
+      completionGuidance: data.completionGuidance || null,
+      ...(nextFields.length === t.fields.length ? { fields: nextFields } : {}),
+    } });
+    return true;
+  }
+
+  async function generateOneGuidance(t: FillableFormTemplate) {
+    setGuidanceBusy(t.id);
+    try {
+      await generateGuidanceFor(t);
+      toast.success(`Guidance added to "${t.title}"`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Guidance generation failed.");
+    } finally { setGuidanceBusy(null); }
+  }
+
+  async function generateAllGuidance() {
+    const targets = templates.filter((t) => t.status !== "archived" && t.fields.length > 0 && !t.completionGuidance);
+    if (targets.length === 0) { toast.info("Every active form already has guidance."); return; }
+    setGuidanceBusy("all");
+    let done = 0, failed = 0;
+    const tid = toast.loading(`Adding guidance… 0/${targets.length}`);
+    for (const t of targets) {
+      try { await generateGuidanceFor(t); done++; }
+      catch { failed++; }
+      toast.loading(`Adding guidance… ${done + failed}/${targets.length}`, { id: tid });
+    }
+    toast.success(`Guidance added to ${done} form${done === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""}`, { id: tid });
+    setGuidanceBusy(null);
   }
 
   async function saveAssignment(data: { templateId: string; employeeId: string; dueDate: string }) {
@@ -769,6 +879,9 @@ export default function FillableDocumentsPage() {
                 score={(t) => (t.fileUrl ? 2 : 0) + ((t.fields?.length ?? 0) > 0 ? 1 : 0)}
                 label="Find duplicate templates"
               />
+              <Button variant="outline" onClick={() => void generateAllGuidance()} disabled={guidanceBusy !== null} title="AI adds completion guidance + per-field help to every active form">
+                <Wand2 className="size-4" /> {guidanceBusy === "all" ? "Adding guidance…" : "Add guidance to all"}
+              </Button>
               <Button onClick={() => setEditingTemplate("new")}><Plus className="size-4" /> New template</Button>
             </div>
           ) : tab === "assignments" ? (
@@ -858,10 +971,11 @@ export default function FillableDocumentsPage() {
                       <td data-label="Fields" className="py-3 pr-4 text-right tabular-nums">{t.fields.length}</td>
                       <td data-label="Flags" className="py-3 pr-4">
                         <div className="flex flex-wrap gap-1">
+                          {t.completionGuidance && <Badge variant="success"><ShieldCheck className="size-3" /> Guided</Badge>}
                           {t.requiresSignature && <Badge variant="secondary"><PenLine className="size-3" /> Signature</Badge>}
                           {t.sensitive && <Badge variant="destructive">Sensitive</Badge>}
                           {t.isDraft && <Badge variant="warning">Draft</Badge>}
-                          {!t.requiresSignature && !t.sensitive && !t.isDraft && <span className="text-muted-foreground">—</span>}
+                          {!t.completionGuidance && !t.requiresSignature && !t.sensitive && !t.isDraft && <span className="text-muted-foreground">—</span>}
                         </div>
                       </td>
                       <td data-label="Status" className="py-3 pr-4"><Badge variant={TEMPLATE_STATUS_VARIANT[t.status]} className="capitalize">{humanizeLabel(t.status)}</Badge></td>
@@ -869,6 +983,11 @@ export default function FillableDocumentsPage() {
                         <div className="flex gap-2 md:justify-end">
                           {t.status === "active" && (
                             <Button size="sm" onClick={() => fillTemplateNow(t)}><PenLine className="size-3" /> Fill out</Button>
+                          )}
+                          {t.fields.length > 0 && (
+                            <Button size="sm" variant="ghost" onClick={() => void generateOneGuidance(t)} disabled={guidanceBusy !== null} title={t.completionGuidance ? "Regenerate completion guidance + field help" : "Add completion guidance + per-field help"}>
+                              <Wand2 className="size-3" /> {guidanceBusy === t.id ? "…" : t.completionGuidance ? "Guidance" : "Add guidance"}
+                            </Button>
                           )}
                           <Button size="sm" variant="ghost" onClick={() => setEditingTemplate(t)}><Pencil className="size-3" /> Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => archiveTemplate(t)}><Archive className="size-3" /> {t.status === "archived" ? "Restore" : "Archive"}</Button>

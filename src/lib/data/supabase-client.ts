@@ -1793,6 +1793,7 @@ function formTemplateFrom(r: Record<string, unknown>): FillableFormTemplate {
     isDraft: r.is_draft as boolean,
     fileUrl: r.file_url as string | undefined,
     bodyText: r.body_text as string | null | undefined,
+    completionGuidance: r.completion_guidance as string | null | undefined,
     linkedDocumentId: r.linked_document_id as string | null | undefined,
   };
 }
@@ -1808,6 +1809,7 @@ function formTemplateTo(d: Partial<FillableFormTemplate>) {
     ...(d.isDraft !== undefined && { is_draft: d.isDraft }),
     ...(d.fileUrl !== undefined && { file_url: d.fileUrl }),
     ...(d.bodyText !== undefined && { body_text: d.bodyText }),
+    ...(d.completionGuidance !== undefined && { completion_guidance: d.completionGuidance }),
     ...(d.linkedDocumentId !== undefined && { linked_document_id: d.linkedDocumentId }),
   };
 }

@@ -1297,6 +1297,9 @@ export const FormField = z.object({
   type: z.enum(["text", "textarea", "date", "number", "checkbox", "select"]).default("text"),
   required: z.boolean().default(false),
   options: z.array(z.string()).default([]),
+  // Short instructional help shown under the field: what to enter and how to
+  // phrase it accurately and defensibly. Stored inside the fields jsonb.
+  guidance: z.string().optional(),
 });
 export type FormField = z.infer<typeof FormField>;
 
@@ -1313,6 +1316,9 @@ export const FillableFormTemplate = z.object({
   fileUrl: z.string().nullable().optional(),
   // The statement the signer is actually attesting to (shown above the signature).
   bodyText: z.string().nullable().optional(),
+  // "How to complete this properly" guidance shown at the top of the filler:
+  // documentation best-practices + legal-protective framing for this form type.
+  completionGuidance: z.string().nullable().optional(),
   // Optional link to the governing policy/SOP in the document library (documents.id).
   linkedDocumentId: z.string().nullable().optional(),
 });

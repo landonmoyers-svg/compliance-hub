@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileLink } from "@/components/shared/file-link";
@@ -60,6 +60,12 @@ export function FormPreview({ template, values, meta, linkedPolicy, footer, onCl
         </div>
 
         <div className="space-y-4 px-6 py-5">
+          {!filled && template?.completionGuidance && (
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary"><ShieldCheck className="size-3.5" /> How to complete this properly</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{template.completionGuidance}</p>
+            </div>
+          )}
           {template?.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
 
           {template?.bodyText && (
@@ -87,6 +93,7 @@ export function FormPreview({ template, values, meta, linkedPolicy, footer, onCl
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <label className="text-sm font-medium">{f.label}{f.required && <span className="text-destructive"> *</span>}</label>
+              {!filled && f.guidance && <p className="text-xs text-muted-foreground">{f.guidance}</p>}
               {renderValue(f)}
             </div>
           ))}
