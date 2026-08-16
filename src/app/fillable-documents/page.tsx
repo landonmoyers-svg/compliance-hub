@@ -670,11 +670,14 @@ export default function FillableDocumentsPage() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Guidance generation failed");
+    // Never persist an empty result — treat it as a failure so the batch retries
+    // it rather than silently marking the form "done" with no guidance.
+    if (!(data.completionGuidance ?? "").trim()) throw new Error("No guidance returned");
     // The endpoint returns FormField-shaped objects merged onto the real fields
     // (keys preserved, valid types, guidance included) — use them directly.
     const nextFields = ((data.fields ?? []) as FormField[]).filter((f) => f.key && f.label);
     await updateTemplate.mutateAsync({ id: t.id, patch: {
-      completionGuidance: data.completionGuidance || null,
+      completionGuidance: data.completionGuidance,
       ...(nextFields.length === t.fields.length ? { fields: nextFields } : {}),
     } });
     return true;

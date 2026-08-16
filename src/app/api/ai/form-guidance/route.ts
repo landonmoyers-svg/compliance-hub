@@ -42,24 +42,31 @@ export async function POST(request: NextRequest) {
   if (fields.length === 0) return NextResponse.json({ error: "Template has no fields." }, { status: 400 });
 
   const VALID_TYPES = new Set(["text", "textarea", "date", "number", "checkbox", "select"]);
+  const userMsg = `FORM TITLE: ${body.title ?? "Untitled"}\nCATEGORY: ${body.category ?? "other"}\nPURPOSE: ${body.description ?? body.bodyText ?? "—"}\n\nFIELDS:\n${JSON.stringify(fields.map((f) => ({ key: f.key, label: f.label, type: f.type })))}\n\nReturn the JSON.`;
 
-  try {
+  type Parsed = { completionGuidance?: string; fields?: { key?: string; guidance?: string; type?: string; options?: string[] }[] };
+  async function generateOnce(): Promise<Parsed> {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2000,
       system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{
-        role: "user",
-        content: `FORM TITLE: ${body.title ?? "Untitled"}\nCATEGORY: ${body.category ?? "other"}\nPURPOSE: ${body.description ?? body.bodyText ?? "—"}\n\nFIELDS:\n${JSON.stringify(fields.map((f) => ({ key: f.key, label: f.label, type: f.type })))}\n\nReturn the JSON.`,
-      }],
+      messages: [{ role: "user", content: userMsg }],
     });
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No JSON in model output");
-    const parsed = JSON.parse(match[0]) as {
-      completionGuidance?: string;
-      fields?: { key?: string; guidance?: string; type?: string; options?: string[] }[];
-    };
+    return JSON.parse(match[0]) as Parsed;
+  }
+
+  try {
+    // Haiku occasionally returns JSON with an empty/missing completionGuidance;
+    // retry a couple of times so a form never silently ends up unguided.
+    let parsed: Parsed = {};
+    for (let attempt = 0; attempt < 3; attempt++) {
+      parsed = await generateOnce();
+      if ((parsed.completionGuidance ?? "").trim()) break;
+    }
+    if (!(parsed.completionGuidance ?? "").trim()) throw new Error("Model returned no guidance");
 
     // Merge the model output back onto the REAL fields (never trust it to
     // reconstruct the field set — only enrich existing keys).
