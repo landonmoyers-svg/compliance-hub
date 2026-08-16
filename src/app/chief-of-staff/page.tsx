@@ -236,10 +236,10 @@ export default function ChiefOfStaffPage() {
                     <Card key={item.key}>
                       <CardContent className="flex items-center gap-3 py-3">
                         <span className={`size-2.5 shrink-0 rounded-full ${RISK_DOT[item.risk]}`} title={`risk ${item.risk}`} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{item.title}</p>
+                        <Link href={item.href} className="min-w-0 flex-1 group">
+                          <p className="truncate text-sm font-medium group-hover:underline">{item.title}</p>
                           <p className="truncate text-xs text-muted-foreground">{item.why}{item.daysUntil !== null && <span className={item.daysUntil < 0 ? "text-destructive" : ""}> · {dueLabel(item)}</span>}</p>
-                        </div>
+                        </Link>
                         <div className="flex shrink-0 items-center gap-1">
                           <Button size="sm" variant="ghost" onClick={() => void addTask(item)} title="Add to my tasks"><Plus className="size-4" /></Button>
                           <Button size="sm" variant="ghost" onClick={() => void snooze(item)} title="Snooze 7 days"><BellOff className="size-4" /></Button>

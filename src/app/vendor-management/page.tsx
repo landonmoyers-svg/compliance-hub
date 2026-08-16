@@ -529,7 +529,7 @@ export default function VendorManagementPage() {
                       <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/20 ${gap ? "bg-destructive/5" : ""}`}>
                         <td data-label="Vendor" className="py-3 pr-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{v.vendorName}</span>
+                            <button type="button" onClick={() => setEditing(v)} className="text-left font-medium text-primary hover:underline">{v.vendorName}</button>
                             {gap && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">
                                 <AlertTriangle className="size-3" /> BAA gap

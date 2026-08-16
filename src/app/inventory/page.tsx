@@ -918,7 +918,7 @@ export default function InventoryPage() {
                         <div className="flex items-center gap-3">
                           <SignedImage path={i.imageUrl} alt={i.itemName} className="size-10 shrink-0 rounded-md border border-border" />
                           <div>
-                            <div className="font-medium">{i.itemName}</div>
+                            <button type="button" onClick={() => setEditing(i)} className="text-left font-medium text-primary hover:underline">{i.itemName}</button>
                             <div className="text-xs capitalize text-muted-foreground">
                               {humanizeLabel(i.itemType)}{i.aiIdentified && <span className="ml-1 inline-flex items-center gap-0.5 text-primary"><Sparkles className="size-3" />AI</span>}
                             </div>

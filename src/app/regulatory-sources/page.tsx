@@ -550,7 +550,7 @@ export default function RegulatorySourcesPage() {
                   {sorted.map((s) => (
                     <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Title" className="py-3 pr-4">
-                        <div className="font-medium">{s.title}</div>
+                        <button type="button" onClick={() => setEditing(s)} className="text-left font-medium text-primary hover:underline">{s.title}</button>
                         {s.jurisdiction && <div className="text-xs text-muted-foreground">{s.jurisdiction}</div>}
                       </td>
                       <td data-label="Citation" className="py-3 pr-4 font-mono text-xs">{s.citationLabel ?? "—"}</td>

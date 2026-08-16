@@ -546,7 +546,7 @@ function CredentialFileView({ files, locName, reqFor, onEdit, onDeleted }: {
                   {/* Current */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>
-                    <span className="font-medium">{current.credentialName}</span>
+                    <button type="button" onClick={() => onEdit(current)} className="text-left font-medium text-primary hover:underline">{current.credentialName}</button>
                     {current.credentialNumber && <span className="text-xs text-muted-foreground">#{current.credentialNumber}</span>}
                     <button type="button" onClick={() => onEdit(current)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                       <Badge variant={f.former ? "secondary" : STATUS_VARIANT[st]}>{STATUS_LABEL[st]}</Badge>
@@ -1059,7 +1059,7 @@ export default function CredentialsPage() {
                           </span>
                         </td>
                         <td data-label="Credential" className="py-3 pr-4">
-                          <div>{c.credentialName}</div>
+                          <button type="button" onClick={() => setEditing(c)} className="text-left text-primary hover:underline">{c.credentialName}</button>
                           {c.credentialNumber && (
                             <div className="text-xs text-muted-foreground">#{c.credentialNumber}</div>
                           )}
