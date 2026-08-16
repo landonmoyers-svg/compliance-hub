@@ -453,6 +453,16 @@ export default function CompetencyTrackerPage() {
 
   const records = useMemo(() => data ?? [], [data]);
   const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+  // Competency records key people by roster id; PersonLink needs the auth userId
+  // so the person panel (incl. their policy acks) matches correctly.
+  const authUserIdFor = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const e of employees) {
+      m.set(e.id, e.userId ?? null);
+      if (e.userId) m.set(e.userId, e.userId);
+    }
+    return (id?: string | null) => (id ? m.get(id) ?? null : null);
+  }, [employees]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -895,7 +905,7 @@ export default function CompetencyTrackerPage() {
                         className="border-b border-border/50 hover:bg-secondary/20"
                       >
                         <td data-label="Employee" className="py-3 pr-4 font-medium">
-                          <PersonLink userId={null} name={r.employeeName} />
+                          <PersonLink userId={authUserIdFor(r.employeeId)} name={r.employeeName} />
                         </td>
                         <td data-label="Competency" className="py-3 pr-4">{r.competencyName}</td>
                         <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(r.competencyType)}</td>

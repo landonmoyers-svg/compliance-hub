@@ -502,6 +502,17 @@ export default function FillableDocumentsPage() {
   const assignments = useMemo(() => assignmentsQ.data ?? [], [assignmentsQ.data]);
   const completed = useMemo(() => completedQ.data ?? [], [completedQ.data]);
   const employees = useMemo(() => employeesQ.data ?? [], [employeesQ.data]);
+  // PersonLink expects an auth userId, but form assignments/completed forms key
+  // people by the employees roster id. Resolve either kind of id to the person's
+  // auth userId so the person panel (incl. their policy acks) matches correctly.
+  const authUserIdFor = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const e of employees) {
+      m.set(e.id, e.userId ?? null);
+      if (e.userId) m.set(e.userId, e.userId);
+    }
+    return (id?: string | null) => (id ? m.get(id) ?? null : null);
+  }, [employees]);
   const documents = useMemo(() => documentsQ.data ?? [], [documentsQ.data]);
 
   const templateById = useMemo(() => new Map(templates.map((t) => [t.id, t])), [templates]);
@@ -908,7 +919,7 @@ export default function FillableDocumentsPage() {
                         <td data-label="Form" className="py-3 pr-4">
                           <button className="text-left font-medium text-primary hover:underline disabled:text-foreground disabled:no-underline" disabled={!templateById.has(a.templateId)} onClick={() => setPreview({ template: templateById.get(a.templateId), meta: { title: a.templateTitle } })}>{a.templateTitle}</button>
                         </td>
-                        <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={a.assignedToUserId ?? null} name={a.assignedToName} /></td>
+                        <td data-label="Assigned to" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={authUserIdFor(a.assignedToUserId)} name={a.assignedToName} /></td>
                         <td data-label="Due" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{a.dueDate ? formatDate(a.dueDate) : "—"}</td>
                         <td data-label="Status" className="py-3 pr-4"><Badge variant={ASSIGNMENT_STATUS_VARIANT[a.status]} className="capitalize">{humanizeLabel(a.status)}</Badge></td>
                         <td data-label="" className="py-3 text-right">
@@ -956,7 +967,7 @@ export default function FillableDocumentsPage() {
                         <td data-label="Form" className="py-3 pr-4">
                           <button className="text-left font-medium text-primary hover:underline" onClick={() => setPreview({ template: templateById.get(c.templateId), values: c.fieldValues, meta: { title: c.templateTitle, subtitle: c.employeeName, signedByName: c.signedByName, completedAt: c.completedAt } })}>{c.templateTitle}</button>
                         </td>
-                        <td data-label="Employee" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={c.employeeId ?? null} name={c.employeeName} /></td>
+                        <td data-label="Employee" className="py-3 pr-4 text-muted-foreground"><PersonLink userId={authUserIdFor(c.employeeId)} name={c.employeeName} /></td>
                         <td data-label="Signed by" className="py-3 pr-4 text-muted-foreground">{c.signedByName ?? "—"}</td>
                         <td data-label="Completed" className="whitespace-nowrap py-3 pr-4 text-muted-foreground">
                           {c.completedAt ? new Date(c.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—"}

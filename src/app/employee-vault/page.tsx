@@ -357,9 +357,10 @@ function DocumentDialog({
 
 /* ─── grouped-view row ──────────────────────────────────────── */
 
-function DocLine({ d, hideEmployee, hideType, onEdit, onDelete, isAdmin }: {
+function DocLine({ d, hideEmployee, hideType, onEdit, onDelete, isAdmin, personUserId }: {
   d: EmployeeDocument; hideEmployee?: boolean; hideType?: boolean;
   onEdit: (d: EmployeeDocument) => void; onDelete: (d: EmployeeDocument) => void; isAdmin: boolean;
+  personUserId?: string | null;
 }) {
   const restricted = d.sensitive || RESTRICTED_EMPLOYEE_DOC_TYPES.includes(d.documentType);
   return (
@@ -368,7 +369,7 @@ function DocLine({ d, hideEmployee, hideType, onEdit, onDelete, isAdmin }: {
         <button type="button" onClick={() => onEdit(d)} className="block truncate text-left text-sm font-medium text-primary hover:underline">{d.title}</button>
         <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {!hideType && <span>{DOC_TYPE_LABEL[d.documentType]}</span>}
-          {!hideEmployee && <><span aria-hidden>·</span><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></>}
+          {!hideEmployee && <><span aria-hidden>·</span><PersonLink userId={personUserId ?? null} name={d.employeeName} /></>}
           <span aria-hidden>·</span><span>{formatDate(d.createdDate)}</span>
           {d.uploadedByName && <><span aria-hidden>·</span><span>by {d.uploadedByName}</span></>}
         </div>
@@ -407,6 +408,16 @@ export default function EmployeeVaultPage() {
 
   const documents = useMemo(() => docsQ.data ?? [], [docsQ.data]);
   const employees = useMemo(() => empQ.data ?? [], [empQ.data]);
+  // Employee documents key people by the roster id; PersonLink needs the auth
+  // userId so the person panel (incl. their policy acks) matches correctly.
+  const authUserIdFor = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const e of employees) {
+      m.set(e.id, e.userId ?? null);
+      if (e.userId) m.set(e.userId, e.userId);
+    }
+    return (id?: string | null) => (id ? m.get(id) ?? null : null);
+  }, [employees]);
 
   const toggleGroup = (k: string) => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -664,7 +675,7 @@ export default function EmployeeVaultPage() {
                     {isOpen && (
                       <div className="divide-y divide-border/50 border-t border-border px-3">
                         {g.docs.map((d) => (
-                          <DocLine key={d.id} d={d} hideEmployee={viewMode === "employee"} hideType={viewMode === "type"} onEdit={setEditing} onDelete={handleDelete} isAdmin={isAdmin} />
+                          <DocLine key={d.id} d={d} hideEmployee={viewMode === "employee"} hideType={viewMode === "type"} onEdit={setEditing} onDelete={handleDelete} isAdmin={isAdmin} personUserId={authUserIdFor(d.employeeId)} />
                         ))}
                       </div>
                     )}
@@ -691,7 +702,7 @@ export default function EmployeeVaultPage() {
                   {sorted.map((d) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
                       <td data-label="Title" className="py-3 pr-4"><button type="button" onClick={() => setEditing(d)} className="text-left font-medium text-primary hover:underline">{d.title}</button></td>
-                      <td data-label="Employee" className="py-3 pr-4"><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></td>
+                      <td data-label="Employee" className="py-3 pr-4"><PersonLink userId={authUserIdFor(d.employeeId)} name={d.employeeName} /></td>
                       <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
                       <td data-label="Flag" className="py-3 pr-4">
                         {d.sensitive ? (
