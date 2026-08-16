@@ -82,15 +82,17 @@ interface DraftField {
   type: FormField["type"];
   required: boolean;
   optionsText: string; // comma-separated, only used for select
+  guidance: string;    // per-field help shown to the person filling it out
 }
 
-const EMPTY_DRAFT_FIELD: DraftField = { label: "", type: "text", required: false, optionsText: "" };
+const EMPTY_DRAFT_FIELD: DraftField = { label: "", type: "text", required: false, optionsText: "", guidance: "" };
 
 interface TemplateForm {
   title: string;
   category: FormCategory;
   description: string;
   bodyText: string;
+  completionGuidance: string;
   linkedDocumentId: string;
   requiresSignature: boolean;
   sensitive: boolean;
@@ -104,6 +106,7 @@ function templateToForm(t?: FillableFormTemplate): TemplateForm {
       category: "other",
       description: "",
       bodyText: "",
+      completionGuidance: "",
       linkedDocumentId: "",
       requiresSignature: false,
       sensitive: false,
@@ -115,11 +118,12 @@ function templateToForm(t?: FillableFormTemplate): TemplateForm {
     category: t.category,
     description: t.description ?? "",
     bodyText: t.bodyText ?? "",
+    completionGuidance: t.completionGuidance ?? "",
     linkedDocumentId: t.linkedDocumentId ?? "",
     requiresSignature: t.requiresSignature,
     sensitive: t.sensitive,
     fields: t.fields.length
-      ? t.fields.map((f) => ({ label: f.label, type: f.type, required: f.required, optionsText: f.options.join(", ") }))
+      ? t.fields.map((f) => ({ label: f.label, type: f.type, required: f.required, optionsText: f.options.join(", "), guidance: f.guidance ?? "" }))
       : [{ ...EMPTY_DRAFT_FIELD }],
   };
 }
@@ -136,6 +140,7 @@ function buildFields(drafts: DraftField[]): FormField[] {
         d.type === "select"
           ? d.optionsText.split(",").map((o) => o.trim()).filter(Boolean)
           : [],
+      guidance: d.guidance.trim() || undefined,
     }));
 }
 
@@ -198,6 +203,12 @@ function TemplateDialog({
           </div>
 
           <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-medium"><ShieldCheck className="size-3.5 text-primary" /> How to complete this properly</label>
+            <textarea className="input w-full" rows={4} value={form.completionGuidance} onChange={(e) => setForm((p) => ({ ...p, completionGuidance: e.target.value }))} placeholder="Documentation guidance shown at the top of the form — e.g. record objective facts, avoid speculation or blame, be specific, complete promptly…" />
+            <p className="text-xs text-muted-foreground">Legal-protective completion guidance shown to whoever fills this out. Use “Add guidance” on the Templates list to generate this with AI, then edit here.</p>
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-sm font-medium">Governing policy (optional)</label>
             <select className="input w-full" value={form.linkedDocumentId} onChange={(e) => setForm((p) => ({ ...p, linkedDocumentId: e.target.value }))}>
               <option value="">No linked policy</option>
@@ -245,6 +256,7 @@ function TemplateDialog({
                 {f.type === "select" && (
                   <input className="input w-full" value={f.optionsText} onChange={(e) => setField(i, { optionsText: e.target.value })} placeholder="Options, comma-separated (e.g. Yes, No, N/A)" />
                 )}
+                <input className="input w-full text-xs" value={f.guidance} onChange={(e) => setField(i, { guidance: e.target.value })} placeholder="Field guidance (optional) — what to enter and how to phrase it accurately/defensibly" />
               </div>
             ))}
           </div>
@@ -630,6 +642,7 @@ export default function FillableDocumentsPage() {
         category: form.category,
         description: form.description.trim() || undefined,
         bodyText: form.bodyText.trim() || null,
+        completionGuidance: form.completionGuidance.trim() || null,
         linkedDocumentId: form.linkedDocumentId || null,
         fields: buildFields(form.fields),
         requiresSignature: form.requiresSignature,

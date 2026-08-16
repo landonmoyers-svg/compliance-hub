@@ -518,11 +518,11 @@ export default function InsuranceVaultPage() {
   }, [sorted, groupBy]);
 
   const stats = useMemo(() => {
-    // A prior-term policy replaced by a current renewal is history, not a lapse —
-    // exclude superseded so the headline count matches the "Superseded"-labelled
-    // file view below it (and the compliance score).
+    // A prior-term policy replaced by a current renewal, or a former holder's
+    // policy, is history — not a live lapse. Exclude both so the headline count
+    // matches the file view below it and the compliance score.
     const superseded = supersededInsuranceIds(policies);
-    const current = policies.filter((p) => !superseded.has(p.id));
+    const current = policies.filter((p) => !superseded.has(p.id) && !isFormerHolder(p));
     const expired = current.filter((p) => isExpired(p.renewalDate));
     const expiringSoon = current.filter((p) => {
       const d = daysUntil(p.renewalDate);

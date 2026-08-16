@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrgName } from "@/lib/org-server";
+import { supersededCredentialIds, type CredInput, type CredClass } from "@/lib/credentials";
 
 /**
  * Builds a plain-text snapshot of the practice's OWN live compliance data,
@@ -44,8 +45,11 @@ export async function buildComplianceSnapshot(supabase: SupabaseClient): Promise
     countRows("policy_acks"),
     countRows("locations"),
     countRows("credentials"),
-    // Expired creds: fetch holder fields so we can exclude former staff below.
-    supabase.from("credentials").select("employee_user_id, employee_name").lt("expiration_date", new Date().toISOString().slice(0, 10)),
+    // Fetch ALL creds with the fields needed to (a) exclude former staff and
+    // (b) exclude superseded copies (an expired license already renewed). We
+    // must see the whole set per holder to know which are superseded, so we
+    // can't pre-filter to expired-only here.
+    supabase.from("credentials").select("id, employee_user_id, employee_name, credential_name, credential_type, credential_class, board_type, expiration_date, issue_date, created_date, location_id"),
     countRows("sds_records"),
     countRows("osha_records"),
     countRows("emergency_drills"),
@@ -66,10 +70,27 @@ export async function buildComplianceSnapshot(supabase: SupabaseClient): Promise
     const n = normName(`${e.first_name} ${e.last_name}`);
     if (n) nameActive.set(n, nameActive.get(n) === true ? true : active);
   }
-  const expiredRows = (credExpired?.data ?? []) as { employee_user_id: string | null; employee_name: string | null }[];
-  const credExpiredActive = expiredRows.filter((c) => {
-    if (c.employee_user_id && activeIds.has(c.employee_user_id)) return true;
-    return nameActive.get(normName(c.employee_name)) !== false;
+  const credRows = (credExpired?.data ?? []) as {
+    id: string; employee_user_id: string | null; employee_name: string | null;
+    credential_name: string | null; credential_type: string | null; credential_class: string | null;
+    board_type: string | null; expiration_date: string | null; issue_date: string | null;
+    created_date: string | null; location_id: string | null;
+  }[];
+  const credInputs: CredInput[] = credRows.map((c) => ({
+    id: c.id, employeeUserId: c.employee_user_id, employeeName: c.employee_name,
+    credentialName: c.credential_name, credentialType: c.credential_type,
+    credentialClass: (c.credential_class as CredClass | null) ?? null, boardType: c.board_type,
+    expirationDate: c.expiration_date, issueDate: c.issue_date, createdDate: c.created_date, locationId: c.location_id,
+  }));
+  // A credential already replaced by a newer copy (a renewal on file) is history,
+  // not a current lapse — exclude it, mirroring the compliance score.
+  const supersededIds = supersededCredentialIds(credInputs);
+  const today = new Date().toISOString().slice(0, 10);
+  const credExpiredActive = credInputs.filter((c) => {
+    if (supersededIds.has(c.id)) return false;
+    if (!(c.expirationDate && c.expirationDate < today)) return false;
+    if (c.employeeUserId && activeIds.has(c.employeeUserId)) return true;
+    return nameActive.get(normName(c.employeeName)) !== false;
   }).length;
 
   return `PRACTICE: ${orgName}

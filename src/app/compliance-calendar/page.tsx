@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
-import { credentialStatus, assignmentIsOverdue, supersededInsuranceIds } from "@/lib/compliance";
+import { credentialStatus, assignmentIsOverdue, supersededInsuranceIds, buildHolderIndex, holderIsActive } from "@/lib/compliance";
 import { supersededCredentialIds } from "@/lib/credentials";
 import { parseDate, formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
@@ -94,6 +94,7 @@ export default function ComplianceCalendarPage() {
   const drillsQ = useCollection("emergencyDrills");
   const payerEnrollQ = useCollection("payerEnrollments");
   const payerContractQ = useCollection("payerContracts");
+  const employeesQ = useCollection("employees");
 
   const [current, setCurrent] = useState(() => new Date());
 
@@ -114,12 +115,14 @@ export default function ComplianceCalendarPage() {
       if (d) out.push({ id, date: d, label, type, urgent });
     };
 
-    // A credential/policy replaced by a current renewal is history — don't plot
-    // the superseded one as an urgent (expired/expiring) calendar event.
+    // A credential/policy replaced by a current renewal, or belonging to a former
+    // employee, is history — don't plot it as an urgent (expired/expiring) event.
     const supersededCreds = supersededCredentialIds(credsQ.data ?? []);
     const supersededIns = supersededInsuranceIds(insQ.data ?? []);
+    const holderIdx = buildHolderIndex(employeesQ.data ?? []);
     for (const c of credsQ.data ?? []) {
       if (supersededCreds.has(c.id)) continue;
+      if (!holderIsActive(c, holderIdx)) continue;
       const st = credentialStatus(c);
       if (st !== "no_expiry") {
         push(`cred-${c.id}`, c.expirationDate, `${c.credentialName} (${c.employeeName})`, "credential", st === "expired" || st === "expiring_soon");
@@ -137,6 +140,7 @@ export default function ComplianceCalendarPage() {
     }
     for (const i of insQ.data ?? []) {
       if (supersededIns.has(i.id)) continue;
+      if (!holderIsActive({ employeeUserId: i.holderUserId, employeeName: i.holderName }, holderIdx)) continue;
       push(`ins-${i.id}`, i.renewalDate, `Renew: ${i.policyName}`, "insurance");
     }
     for (const dr of drillsQ.data ?? []) {
@@ -169,7 +173,7 @@ export default function ComplianceCalendarPage() {
     }
 
     return out;
-  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data, payerEnrollQ.data, payerContractQ.data, current]);
+  }, [credsQ.data, trainingQ.data, docsQ.data, insQ.data, drillsQ.data, payerEnrollQ.data, payerContractQ.data, employeesQ.data, current]);
 
   // Build grid for current month: weeks × days, with leading/trailing empty cells
   const monthStart = startOfMonth(current);
