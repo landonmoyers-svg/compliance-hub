@@ -445,8 +445,8 @@ export default function OSHATrackerPage() {
                 <tbody>
                   {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Title" className="py-3 pr-4 font-medium">
-                        {r.recordTitle}
+                      <td data-label="Title" className="py-3 pr-4">
+                        <button type="button" onClick={() => setEditing(r)} className="text-left font-medium text-primary hover:underline">{r.recordTitle}</button>
                         {r.injuredEmployeeName && <span className="block text-xs font-normal text-muted-foreground">{r.injuredEmployeeName}{r.caseOutcome ? ` · ${CASE_OUTCOME_LABEL[r.caseOutcome]}` : ""}</span>}
                       </td>
                       <td data-label="Type" className="py-3 pr-4">{RECORD_TYPE_LABEL[r.recordType]}</td>

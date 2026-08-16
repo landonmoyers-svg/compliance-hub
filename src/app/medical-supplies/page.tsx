@@ -599,7 +599,7 @@ export default function MedicalSuppliesPage() {
                               {i.imageUrl ? <SignedImage path={i.imageUrl} alt={i.name} className="size-full" /> : <div className="flex size-full items-center justify-center bg-secondary/40 text-muted-foreground"><Syringe className="size-4" /></div>}
                             </div>
                             <div>
-                              <p className="font-medium">{i.name}</p>
+                              <p><button type="button" onClick={() => setEditing(i)} className="text-left font-medium text-primary hover:underline">{i.name}</button></p>
                               {(i.sku || i.lotNumber) && <p className="font-mono text-[11px] text-muted-foreground">{[i.sku, i.lotNumber ? `lot ${i.lotNumber}` : ""].filter(Boolean).join(" · ")}</p>}
                             </div>
                           </div>

@@ -586,7 +586,7 @@ function LocationsTab() {
               <li key={loc.id} className="flex items-center justify-between gap-3 py-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{loc.name}</p>
+                    <p><button type="button" onClick={() => open(loc)} className="text-left font-medium text-primary hover:underline">{loc.name}</button></p>
                     <Badge variant="outline" className="capitalize">{humanizeLabel(loc.type)}</Badge>
                     {!loc.active && <Badge variant="secondary">Inactive</Badge>}
                   </div>

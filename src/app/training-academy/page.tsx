@@ -391,7 +391,7 @@ export default function TrainingAcademyPage() {
                   <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-border p-4 hover:border-border/80">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium">{m.title}</p>
+                        <p><button type="button" onClick={() => setEditing(m)} className="text-left font-medium text-primary hover:underline">{m.title}</button></p>
                         {!m.active && <Badge variant="secondary">Inactive</Badge>}
                         <Badge variant="outline" className="capitalize">{humanizeLabel(m.trainingType)}</Badge>
                         {quizCount > 0 && <Badge variant="secondary">{quizCount} quiz Q{quizCount !== 1 ? "s" : ""}</Badge>}

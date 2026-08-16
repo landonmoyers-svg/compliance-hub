@@ -436,7 +436,7 @@ export default function UserManagementPage() {
                           <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
                             {r.name.charAt(0)}
                           </div>
-                          <span className="font-medium">{r.name}</span>
+                          {r.profile ? <button type="button" onClick={() => setEditing(r.profile!)} className="text-left font-medium text-primary hover:underline">{r.name}</button> : <span className="font-medium">{r.name}</span>}
                         </div>
                       </td>
                       <td data-label="Email" className="py-3 pr-4 text-muted-foreground">{r.email || "—"}</td>

@@ -301,7 +301,7 @@ export default function EmployeesPage() {
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
             {e.firstName.charAt(0)}{e.lastName.charAt(0)}
           </div>
-          <span className="font-medium">{e.firstName} {e.lastName}</span>
+          <button type="button" onClick={() => setEditing(e)} className="text-left font-medium text-primary hover:underline">{e.firstName} {e.lastName}</button>
           {e.workerType === "contractor" && <Badge variant="outline" className="border-primary/40 text-primary">Contractor</Badge>}
         </div>
       </td>

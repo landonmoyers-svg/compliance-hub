@@ -402,7 +402,7 @@ export default function DisciplinaryPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{r.employeeName || "—"}</p>
+                        <p><button type="button" onClick={() => setEditing(r)} className="text-left font-semibold text-primary hover:underline">{r.employeeName || "—"}</button></p>
                         <Badge variant={TYPE_VARIANT[r.actionType]}>{TYPE_LABEL[r.actionType]}</Badge>
                         <button
                           type="button"

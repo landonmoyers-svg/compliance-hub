@@ -313,7 +313,7 @@ export default function EmergencyPreparednessPage() {
                     const overdue = d.status === "scheduled" && isExpired(d.scheduledDate);
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td data-label="Title" className="py-3 pr-4 font-medium">{d.drillTitle}</td>
+                        <td data-label="Title" className="py-3 pr-4"><button type="button" onClick={() => setEditing(d)} className="text-left font-medium text-primary hover:underline">{d.drillTitle}</button></td>
                         <td data-label="Type" className="py-3 pr-4 capitalize">{humanizeLabel(d.drillType)}</td>
                         <td data-label="Date" className="py-3 pr-4">
                           {d.scheduledDate ? (

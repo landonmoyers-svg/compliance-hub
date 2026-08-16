@@ -963,7 +963,7 @@ export default function FillableDocumentsPage() {
                         </td>
                         <td data-label="PDF" className="py-3">
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
+                            <Button size="sm" variant="ghost" onClick={() => void downloadCompletedFormPdf(c, templateById.get(c.templateId), orgName)}>
                               <Download className="size-4" /> PDF
                             </Button>
                             <AdminDeleteButton collection="completedForms" id={c.id} label={`${c.templateTitle}${c.employeeName ? ` — ${c.employeeName}` : ""}`} noun="completed form" onDeleted={() => void completedQ.refetch()} />

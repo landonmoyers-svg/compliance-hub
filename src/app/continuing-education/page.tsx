@@ -204,7 +204,7 @@ function CeList({ records, onEdit, onRemove }: { records: CeRecord[]; onEdit: (r
       {records.map((r) => (
         <div key={r.id} className="flex items-center gap-3 py-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{r.title}</div>
+            <button type="button" onClick={() => onEdit(r)} className="block truncate text-left text-sm font-medium text-primary hover:underline">{r.title}</button>
             <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
               <span>{r.hours} hrs</span>
               <span>· {CE_CATEGORY_LABEL[r.category]}</span>

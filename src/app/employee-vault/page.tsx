@@ -365,7 +365,7 @@ function DocLine({ d, hideEmployee, hideType, onEdit, onDelete, isAdmin }: {
   return (
     <div className="flex items-center gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{d.title}</div>
+        <button type="button" onClick={() => onEdit(d)} className="block truncate text-left text-sm font-medium text-primary hover:underline">{d.title}</button>
         <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {!hideType && <span>{DOC_TYPE_LABEL[d.documentType]}</span>}
           {!hideEmployee && <><span aria-hidden>·</span><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></>}
@@ -690,7 +690,7 @@ export default function EmployeeVaultPage() {
                 <tbody>
                   {sorted.map((d) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Title" className="py-3 pr-4 font-medium">{d.title}</td>
+                      <td data-label="Title" className="py-3 pr-4"><button type="button" onClick={() => setEditing(d)} className="text-left font-medium text-primary hover:underline">{d.title}</button></td>
                       <td data-label="Employee" className="py-3 pr-4"><PersonLink userId={d.employeeId ?? null} name={d.employeeName} /></td>
                       <td data-label="Type" className="py-3 pr-4 text-muted-foreground">{DOC_TYPE_LABEL[d.documentType]}</td>
                       <td data-label="Flag" className="py-3 pr-4">

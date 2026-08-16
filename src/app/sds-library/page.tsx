@@ -870,8 +870,8 @@ export default function SDSLibraryPage() {
                 <tbody>
                   {sorted.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td data-label="Product" className="py-3 pr-4 font-medium">
-                        {r.productName}
+                      <td data-label="Product" className="py-3 pr-4">
+                        <button type="button" onClick={() => { setAiPrefill(null); setEditing(r); }} className="text-left font-medium text-primary hover:underline">{r.productName}</button>
                         {locations.length > 0 && (r.locationIds?.length ?? 0) > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {(r.locationIds ?? []).map((id) => (

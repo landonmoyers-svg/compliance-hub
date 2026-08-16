@@ -611,7 +611,7 @@ export default function SOPLibraryPage() {
                     return (
                       <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Title" className="py-3 pr-4">
-                          <div className="font-medium">{d.title}</div>
+                          <button type="button" onClick={() => setEditing(d)} className="block text-left font-medium text-primary hover:underline">{d.title}</button>
                           {d.requiresAcknowledgment && (
                             <div className="text-xs text-muted-foreground">Acknowledgment required</div>
                           )}

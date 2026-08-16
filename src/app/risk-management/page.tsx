@@ -309,7 +309,7 @@ export default function RiskManagementPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium">{c.caseTitle}</p>
+                        <p><button type="button" onClick={() => setEditing(c)} className="text-left font-medium text-primary hover:underline">{c.caseTitle}</button></p>
                         <Badge variant={SEVERITY_VARIANT[c.severity]}>{c.severity}</Badge>
                         <button type="button" onClick={() => setEditing(c)} title="Open to manage" className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                           <Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge>

@@ -145,7 +145,7 @@ function ProviderPanelView({ files, onEdit }: { files: ProviderPanelFile[]; onEd
               const attention = !f.former && enrollmentNeedsAttention(e);
               return (
                 <div key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3", attention && "bg-warning/5")}>
-                  <span className="font-medium">{e.payerName}</span>
+                  <button type="button" onClick={() => onEdit(e)} className="text-left font-medium text-primary hover:underline">{e.payerName}</button>
                   <button type="button" onClick={() => onEdit(e)} className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/40">
                     <Badge variant={f.former ? "secondary" : ENROLL_VARIANT[e.enrollmentStatus]}>{ENROLL_LABEL[e.enrollmentStatus]}</Badge>
                   </button>
@@ -659,7 +659,7 @@ export default function PayerEnrollmentPage() {
                     return (
                       <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Payer" className="py-3 pr-4">
-                          <span className="font-medium">{c.payerName}</span>
+                          <button type="button" onClick={() => setEditingContract(c)} className="text-left font-medium text-primary hover:underline">{c.payerName}</button>
                           {c.planNetwork && <p className="text-xs text-muted-foreground">{c.planNetwork}</p>}
                         </td>
                         <td data-label="Level" className="py-3 pr-4 text-muted-foreground capitalize">{c.contractLevel}</td>

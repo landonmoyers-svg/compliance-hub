@@ -621,7 +621,7 @@ export default function StaffSuppliesPage() {
                             {i.imageUrl ? <SignedImage path={i.imageUrl} alt={i.name} className="size-full" /> : <div className="flex size-full items-center justify-center bg-secondary/40 text-muted-foreground"><Boxes className="size-4" /></div>}
                           </div>
                           <div>
-                            <p className="font-medium">{i.name}{i.quantity > 1 ? <span className="text-muted-foreground"> ×{i.quantity}</span> : null}</p>
+                            <p><button type="button" onClick={() => setEditing(i)} className="text-left font-medium text-primary hover:underline">{i.name}</button>{i.quantity > 1 ? <span className="text-muted-foreground"> ×{i.quantity}</span> : null}</p>
                             {i.itemNumber && <p className="font-mono text-[11px] text-muted-foreground">{i.itemNumber}</p>}
                           </div>
                         </div>

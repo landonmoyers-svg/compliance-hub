@@ -375,7 +375,7 @@ export default function BenefitsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <CardTitle className="text-base">{b.planName}</CardTitle>
+                      <CardTitle className="text-base"><button type="button" onClick={() => setEditing(b)} className="text-left text-primary hover:underline">{b.planName}</button></CardTitle>
                       <p className="text-sm text-muted-foreground">
                         {b.provider || "No provider"}
                         {b.policyNumber ? ` · ${b.policyNumber}` : ""}
