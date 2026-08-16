@@ -23,8 +23,10 @@ import { daysUntil, formatDate } from "@/lib/dates";
 import {
   assignmentIsOverdue,
   bySoonest,
+  buildHolderIndex,
   computeComplianceScore,
   credentialStatus,
+  holderIsActive,
   supersededInsuranceIds,
 } from "@/lib/compliance";
 import { supersededCredentialIds } from "@/lib/credentials";
@@ -162,14 +164,15 @@ export default function ExecutiveDashboardPage() {
   // stats/lists below so they don't contradict the compliance score, which
   // already excludes superseded rows internally. (The `score` above is fed the
   // raw arrays on purpose — computeComplianceScore does its own exclusion.)
+  const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
   const activeCredentials = useMemo(() => {
     const superseded = supersededCredentialIds(credentials);
-    return credentials.filter((c) => !superseded.has(c.id));
-  }, [credentials]);
+    return credentials.filter((c) => !superseded.has(c.id) && holderIsActive(c, holderIdx));
+  }, [credentials, holderIdx]);
   const activeInsurance = useMemo(() => {
     const superseded = supersededInsuranceIds(insurance);
-    return insurance.filter((p) => !superseded.has(p.id));
-  }, [insurance]);
+    return insurance.filter((p) => !superseded.has(p.id) && holderIsActive({ employeeUserId: p.holderUserId, employeeName: p.holderName }, holderIdx));
+  }, [insurance, holderIdx]);
 
   // Canonical score: SAME inputs as Home (incl. employees + exclusion screenings)
   // so the executive number matches Home's exactly.
