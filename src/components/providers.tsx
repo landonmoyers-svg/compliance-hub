@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/context";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import { GlobalErrorListener } from "@/components/global-error-listener";
 
 function ThemedToaster() {
   const { resolved } = useTheme();
@@ -41,6 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <GlobalErrorListener />
         <AuthProvider>{children}</AuthProvider>
         <ThemedToaster />
       </ThemeProvider>
