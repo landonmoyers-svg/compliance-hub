@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/shared/states";
 import {
   buildHolderIndex,
   holderIsActive, credentialStatus, computeComplianceScore, assignmentIsOverdue, documentNeedsReview, taskIsOverdue } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { staffRequirementStats } from "@/lib/credential-requirements";
 import { ComplianceProgressCard } from "@/components/shared/compliance-progress-card";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
@@ -60,7 +61,12 @@ export default function ReportsPage() {
 
   // Context: former employees' items are history, not warnings.
   const holderIdx = useMemo(() => buildHolderIndex(employees), [employees]);
-  const activeCreds = useMemo(() => credentials.filter((c) => holderIsActive(c, holderIdx)), [credentials, holderIdx]);
+  const activeCreds = useMemo(() => {
+    // Exclude prior credentials already replaced by a current renewal — otherwise
+    // the exported report's Expired count is inflated vs the compliance score.
+    const superseded = supersededCredentialIds(credentials);
+    return credentials.filter((c) => !superseded.has(c.id) && holderIsActive(c, holderIdx));
+  }, [credentials, holderIdx]);
   const activeTrainingRows = useMemo(
     () => training.filter((a) => holderIsActive({ employeeUserId: a.assignedToUserId, employeeName: a.assignedToName }, holderIdx)),
     [training, holderIdx],

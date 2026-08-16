@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { formatDate } from "@/lib/dates";
 import { formatName, humanizeLabel } from "@/lib/format";
 import { roleLabel } from "@/lib/auth/roles";
@@ -174,7 +175,12 @@ export default function StaffPortalPage() {
   }), [myTraining]);
 
   const expiringCreds = useMemo(
-    () => myCreds.filter((c) => { const s = credentialStatus(c); return s === "expiring_soon" || s === "expired"; }).length,
+    () => {
+      // Don't count a credential the user already renewed (superseded) as a
+      // personal "expiring/expired" action item.
+      const superseded = supersededCredentialIds(myCreds);
+      return myCreds.filter((c) => { if (superseded.has(c.id)) return false; const s = credentialStatus(c); return s === "expiring_soon" || s === "expired"; }).length;
+    },
     [myCreds],
   );
 

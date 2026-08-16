@@ -25,7 +25,9 @@ import {
   bySoonest,
   computeComplianceScore,
   credentialStatus,
+  supersededInsuranceIds,
 } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { staffRequirementStats } from "@/lib/credential-requirements";
 import { ComplianceProgressCard } from "@/components/shared/compliance-progress-card";
 
@@ -155,6 +157,20 @@ export default function ExecutiveDashboardPage() {
   const insurance = useMemo(() => insQ.data ?? [], [insQ.data]);
   const screenings = useMemo(() => screeningsQ.data ?? [], [screeningsQ.data]);
 
+  // A credential/policy replaced by a newer one of the same kind (a current
+  // renewal on file) is history, not a live lapse — exclude it from the display
+  // stats/lists below so they don't contradict the compliance score, which
+  // already excludes superseded rows internally. (The `score` above is fed the
+  // raw arrays on purpose — computeComplianceScore does its own exclusion.)
+  const activeCredentials = useMemo(() => {
+    const superseded = supersededCredentialIds(credentials);
+    return credentials.filter((c) => !superseded.has(c.id));
+  }, [credentials]);
+  const activeInsurance = useMemo(() => {
+    const superseded = supersededInsuranceIds(insurance);
+    return insurance.filter((p) => !superseded.has(p.id));
+  }, [insurance]);
+
   // Canonical score: SAME inputs as Home (incl. employees + exclusion screenings)
   // so the executive number matches Home's exactly.
   const score = useMemo(
@@ -178,14 +194,14 @@ export default function ExecutiveDashboardPage() {
   // Credential status distribution (derived from expiration dates).
   const credSegments = useMemo(() => {
     const counts = { active: 0, expiring_soon: 0, expired: 0, no_expiry: 0 };
-    for (const c of credentials) counts[credentialStatus(c)]++;
+    for (const c of activeCredentials) counts[credentialStatus(c)]++;
     return [
       { label: "Active", value: counts.active, color: CHART.success },
       { label: "Expiring ≤30d", value: counts.expiring_soon, color: CHART.warning },
       { label: "Expired", value: counts.expired, color: CHART.destructive },
       { label: "No expiry", value: counts.no_expiry, color: CHART.muted },
     ];
-  }, [credentials]);
+  }, [activeCredentials]);
 
   // Multi-factor department compliance: an employee is compliant only with no
   // expired credentials AND no overdue training (the source app used overdue
@@ -196,7 +212,7 @@ export default function ExecutiveDashboardPage() {
       if (e.employmentStatus !== "active") continue;
       const dept = e.department ?? "other";
       const name = `${e.firstName} ${e.lastName}`;
-      const expiredCred = credentials.some(
+      const expiredCred = activeCredentials.some(
         (c) => c.employeeName === name && credentialStatus(c) === "expired",
       );
       const overdueTraining = training.some(
@@ -214,7 +230,7 @@ export default function ExecutiveDashboardPage() {
         pct: s.total ? Math.round((s.compliant / s.total) * 100) : 0,
       }))
       .sort((a, b) => a.pct - b.pct);
-  }, [employees, credentials, training]);
+  }, [employees, activeCredentials, training]);
 
   // Upcoming deadlines across sources, within a live 30-day window.
   const deadlines = useMemo(() => {
@@ -231,7 +247,7 @@ export default function ExecutiveDashboardPage() {
         out.push({ id, label, type, date, days });
       }
     };
-    credentials.forEach((c) =>
+    activeCredentials.forEach((c) =>
       push(`cred-${c.id}`, `${c.credentialName} — ${c.employeeName}`, "Credential", c.expirationDate),
     );
     training.forEach((a) => {
@@ -242,11 +258,11 @@ export default function ExecutiveDashboardPage() {
       if (d.status === "active")
         push(`doc-${d.id}`, `Review: ${d.title}`, "Document", d.reviewDate);
     });
-    insurance.forEach((i) =>
+    activeInsurance.forEach((i) =>
       push(`ins-${i.id}`, `Renew: ${i.policyName}`, "Insurance", i.renewalDate),
     );
     return out.sort(bySoonest((d) => d.date)).slice(0, 8);
-  }, [credentials, training, documents, insurance]);
+  }, [activeCredentials, training, documents, activeInsurance]);
 
   // Already-overdue / expired items. Surfaced explicitly so the dashboard can't
   // read as "all clear" (100% + nothing due) while the score is docked for them
@@ -255,7 +271,7 @@ export default function ExecutiveDashboardPage() {
   const overdue = useMemo(() => {
     type O = { id: string; label: string; type: string; detail: string };
     const out: O[] = [];
-    credentials.forEach((c) => {
+    activeCredentials.forEach((c) => {
       if (credentialStatus(c) === "expired")
         out.push({ id: `oc-${c.id}`, label: `${c.credentialName} — ${c.employeeName}`, type: "Credential", detail: c.expirationDate ? `Expired ${formatDate(c.expirationDate)}` : "Expired" });
     });
@@ -263,13 +279,13 @@ export default function ExecutiveDashboardPage() {
       if (a.status !== "completed" && assignmentIsOverdue(a))
         out.push({ id: `ot-${a.id}`, label: `${a.moduleTitle} — ${a.assignedToName}`, type: "Training", detail: a.dueDate ? `Due ${formatDate(a.dueDate)}` : "Overdue" });
     });
-    insurance.forEach((i) => {
+    activeInsurance.forEach((i) => {
       const d = daysUntil(i.renewalDate);
       if (d !== null && d < 0)
         out.push({ id: `oi-${i.id}`, label: `Renew: ${i.policyName}`, type: "Insurance", detail: i.renewalDate ? `Lapsed ${formatDate(i.renewalDate)}` : "Lapsed" });
     });
     return out;
-  }, [credentials, training, insurance]);
+  }, [activeCredentials, training, activeInsurance]);
 
   const openRisk = risk.filter((r) => r.status === "open" || r.status === "investigating");
   const riskBySeverity = useMemo(() => {
@@ -288,7 +304,7 @@ export default function ExecutiveDashboardPage() {
 
   const activeEmployees = employees.filter((e) => e.employmentStatus === "active").length;
   const docsUnderReview = documents.filter((d) => d.status === "under_review").length;
-  const expiringOrExpired = credentials.filter((c) => {
+  const expiringOrExpired = activeCredentials.filter((c) => {
     const s = credentialStatus(c);
     return s === "expired" || s === "expiring_soon";
   }).length;

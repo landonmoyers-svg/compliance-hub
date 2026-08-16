@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
-import { credentialStatus, assignmentIsOverdue } from "@/lib/compliance";
+import { credentialStatus, assignmentIsOverdue, supersededInsuranceIds } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { parseDate, formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
@@ -113,7 +114,12 @@ export default function ComplianceCalendarPage() {
       if (d) out.push({ id, date: d, label, type, urgent });
     };
 
+    // A credential/policy replaced by a current renewal is history — don't plot
+    // the superseded one as an urgent (expired/expiring) calendar event.
+    const supersededCreds = supersededCredentialIds(credsQ.data ?? []);
+    const supersededIns = supersededInsuranceIds(insQ.data ?? []);
     for (const c of credsQ.data ?? []) {
+      if (supersededCreds.has(c.id)) continue;
       const st = credentialStatus(c);
       if (st !== "no_expiry") {
         push(`cred-${c.id}`, c.expirationDate, `${c.credentialName} (${c.employeeName})`, "credential", st === "expired" || st === "expiring_soon");
@@ -130,6 +136,7 @@ export default function ComplianceCalendarPage() {
       }
     }
     for (const i of insQ.data ?? []) {
+      if (supersededIns.has(i.id)) continue;
       push(`ins-${i.id}`, i.renewalDate, `Renew: ${i.policyName}`, "insurance");
     }
     for (const dr of drillsQ.data ?? []) {

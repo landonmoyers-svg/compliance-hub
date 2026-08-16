@@ -9,7 +9,8 @@ import { FileLink } from "@/components/shared/file-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { credentialStatus } from "@/lib/compliance";
+import { credentialStatus, supersededInsuranceIds } from "@/lib/compliance";
+import { supersededCredentialIds } from "@/lib/credentials";
 import { formatDate } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import { inferProviderType } from "@/lib/credential-requirements";
@@ -85,6 +86,11 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
       .sort(byExpiryDesc((p) => p.renewalDate)),
     [insuranceQ.data, matchesPerson],
   );
+  // A credential/policy replaced by a current renewal is history, not a lapse —
+  // label it "Superseded" on screen and keep it out of the exported packet so a
+  // renewed license isn't presented to an auditor as an active expiry.
+  const supersededCredIds = useMemo(() => supersededCredentialIds(creds), [creds]);
+  const supersededInsIds = useMemo(() => supersededInsuranceIds(insurance), [insurance]);
   const empDocs = useMemo(
     () => (empDocsQ.data ?? []).filter((d) => matchesByEmployeeId({ eid: d.employeeId, nm: d.employeeName })),
     [empDocsQ.data, matchesByEmployeeId],
@@ -118,8 +124,8 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
       name,
       providerType,
       orgName: orgQ.data?.[0]?.orgName,
-      creds,
-      insurance,
+      creds: creds.filter((c) => !supersededCredIds.has(c.id)),
+      insurance: insurance.filter((p) => !supersededInsIds.has(p.id)),
       training: training.map((a) => ({ moduleTitle: a.moduleTitle, status: a.status, score: a.score, dueDate: a.dueDate })),
       competencies: competencies.map((c) => ({ competencyName: c.competencyName, competencyType: c.competencyType, status: c.status })),
       acks: acks.map((a) => ({ documentTitle: a.documentTitle, status: a.status, acknowledgedAt: a.acknowledgedAt })),
@@ -154,16 +160,21 @@ export function PersonRecordsPanel({ userId, name }: { userId: string | null; na
       {creds.length > 0 && (
         <Section icon={BadgeCheck} title="Credentials" count={creds.length} href="/credentials">
           {creds.map((c) => {
+            const superseded = supersededCredIds.has(c.id);
             const st = credentialStatus(c);
             return (
               <Row key={c.id}
                 left={<span className="font-medium">{c.credentialName}</span>}
                 sub={c.issuingBody ?? c.credentialType}
                 right={
-                  <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
-                    {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
-                    {c.expirationDate ? ` · ${formatDate(c.expirationDate)}` : ""}
-                  </Badge>
+                  superseded ? (
+                    <Badge variant="secondary">Superseded{c.expirationDate ? ` · ${formatDate(c.expirationDate)}` : ""}</Badge>
+                  ) : (
+                    <Badge variant={st === "active" ? "success" : st === "expiring_soon" ? "warning" : st === "expired" ? "destructive" : "secondary"}>
+                      {st === "no_expiry" ? "No expiry" : humanizeLabel(st)}
+                      {c.expirationDate ? ` · ${formatDate(c.expirationDate)}` : ""}
+                    </Badge>
+                  )
                 }
                 fileUrl={c.documentUrl ?? undefined}
               />

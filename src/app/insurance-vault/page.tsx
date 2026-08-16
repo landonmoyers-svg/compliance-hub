@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import { formatDate, daysUntil, isExpired, isExpiringSoon, parseDate, dateInputToISO } from "@/lib/dates";
-import { buildHolderIndex, holderStatus } from "@/lib/compliance";
+import { buildHolderIndex, holderStatus, supersededInsuranceIds } from "@/lib/compliance";
 import { humanizeLabel, formatName } from "@/lib/format";
 import { PersonSelect } from "@/components/shared/person-select";
 import { PersonLink } from "@/components/shared/person-link";
@@ -518,12 +518,17 @@ export default function InsuranceVaultPage() {
   }, [sorted, groupBy]);
 
   const stats = useMemo(() => {
-    const expired = policies.filter((p) => isExpired(p.renewalDate));
-    const expiringSoon = policies.filter((p) => {
+    // A prior-term policy replaced by a current renewal is history, not a lapse —
+    // exclude superseded so the headline count matches the "Superseded"-labelled
+    // file view below it (and the compliance score).
+    const superseded = supersededInsuranceIds(policies);
+    const current = policies.filter((p) => !superseded.has(p.id));
+    const expired = current.filter((p) => isExpired(p.renewalDate));
+    const expiringSoon = current.filter((p) => {
       const d = daysUntil(p.renewalDate);
       return d !== null && d >= 0 && d <= 60 && !isExpired(p.renewalDate);
     });
-    return { total: policies.length, expired: expired.length, expiringSoon: expiringSoon.length };
+    return { total: current.length, expired: expired.length, expiringSoon: expiringSoon.length };
   }, [policies]);
 
   // Re-read every policy with an attached document and fill missing fields from
