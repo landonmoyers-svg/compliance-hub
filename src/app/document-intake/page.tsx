@@ -5,7 +5,6 @@ import {
   Upload, FileText, Bot, Check, X, AlertCircle, ArrowRight, Folder, FileArchive,
   BadgeCheck, FlaskConical, ClipboardCheck, Shield, BookOpen, GraduationCap, FolderLock, Layers, Landmark,
 } from "lucide-react";
-import JSZip from "jszip";
 import { useAuth } from "@/lib/auth/context";
 import { useCreate, useRemove } from "@/lib/data/hooks";
 import type { CollectionName } from "@/lib/data/client";
@@ -37,6 +36,7 @@ async function fileToBase64(file: File): Promise<string> {
 /** Extract readable text from a .docx (it's a zip of XML) using the JSZip we already load. */
 async function docxToText(file: File): Promise<string | undefined> {
   try {
+    const { default: JSZip } = await import("jszip"); // code-split: keep jszip out of the route bundle
     const zip = await JSZip.loadAsync(file);
     const doc = zip.file("word/document.xml");
     if (!doc) return undefined;
@@ -78,6 +78,7 @@ async function expandInputs(inputs: File[]): Promise<File[]> {
     const isZip = /\.zip$/i.test(f.name) || f.type.includes("zip");
     if (isZip) {
       try {
+        const { default: JSZip } = await import("jszip"); // code-split: keep jszip out of the route bundle
         const zip = await JSZip.loadAsync(f);
         for (const entry of Object.values(zip.files)) {
           if (entry.dir || isJunk(entry.name)) continue;

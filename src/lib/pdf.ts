@@ -1,6 +1,5 @@
 "use client";
 
-import { jsPDF } from "jspdf";
 import type { CompletedForm, FillableFormTemplate } from "@/lib/data/schema";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 
@@ -9,11 +8,12 @@ import { DEFAULT_ORG_NAME } from "@/lib/org";
  * definitions (for labels + ordering) when available, otherwise falls back to
  * the raw stored field keys. Pure client-side render — no server round-trip.
  */
-export function downloadCompletedFormPdf(
+export async function downloadCompletedFormPdf(
   completed: CompletedForm,
   template?: FillableFormTemplate,
   orgName: string = DEFAULT_ORG_NAME,
-): void {
+): Promise<void> {
+  const { jsPDF } = await import("jspdf"); // code-split: keep jspdf out of the route bundle
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const margin = 56;
   const pageWidth = doc.internal.pageSize.getWidth();

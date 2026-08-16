@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import JSZip from "jszip";
 import { Download, DatabaseBackup, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 import { useCollection, useCreate } from "@/lib/data/hooks";
 import { db } from "@/lib/data";
@@ -51,6 +50,7 @@ export default function BackupPage() {
     try {
       const client = db() as unknown as Record<string, { list: () => Promise<Record<string, unknown>[]> }>;
       const names = Object.keys(client).filter((k) => typeof client[k]?.list === "function");
+      const { default: JSZip } = await import("jszip"); // code-split: keep jszip out of the route bundle
       const zip = new JSZip();
       const all: Record<string, unknown[]> = {};
       let total = 0;

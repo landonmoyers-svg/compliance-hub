@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 import { TrendingUp, Download, FileText } from "lucide-react";
 import { useCollection } from "@/lib/data/hooks";
@@ -117,12 +116,13 @@ export default function ReportsPage() {
     exportCSV([header, ...rows], "training-report.csv");
   }
 
-  function generateCompliancePacket() {
+  async function generateCompliancePacket() {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const generatedLabel = now.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
     const orgName = orgSettings[0]?.orgName ?? DEFAULT_ORG_NAME;
 
+    const { jsPDF } = await import("jspdf"); // code-split: keep jspdf out of the route bundle
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const margin = 56;
     const pageWidth = doc.internal.pageSize.getWidth();

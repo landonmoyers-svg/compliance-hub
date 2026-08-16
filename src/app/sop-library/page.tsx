@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useRef } from "react";
 import { FileText, Plus, Search, Upload, X, Sparkles, Pin } from "lucide-react";
-import JSZip from "jszip";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { uploadFile, getSignedUrl } from "@/lib/storage";
 import { useSort, SortHeader } from "@/components/shared/sortable";
@@ -29,6 +28,7 @@ const EXTRACT_MAX_MB = 12; // only send file bytes to the AI extractor below thi
 
 /** Extract readable text from a .docx (a zip of XML) with the JSZip we bundle. */
 async function docxToText(file: Blob): Promise<string> {
+  const { default: JSZip } = await import("jszip"); // code-split: keep jszip out of the route bundle
   const zip = await JSZip.loadAsync(file);
   const doc = zip.file("word/document.xml");
   if (!doc) return "";
