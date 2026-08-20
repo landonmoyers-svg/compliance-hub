@@ -1,6 +1,7 @@
 "use client";
 
 import { X, ShieldCheck } from "lucide-react";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileLink } from "@/components/shared/file-link";
@@ -66,6 +67,7 @@ export function FormPreview({ template, values, meta, linkedPolicy, footer, onCl
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{template.completionGuidance}</p>
             </div>
           )}
+          {!filled && <PhiNotice tone={template?.sensitive || ["hipaa", "insurance_risk"].includes(String(category)) ? "prominent" : "default"} />}
           {template?.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
 
           {template?.bodyText && (

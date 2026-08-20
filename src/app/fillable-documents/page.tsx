@@ -18,6 +18,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { FormPreview } from "@/components/shared/form-preview";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import { FileLink } from "@/components/shared/file-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
@@ -436,6 +437,11 @@ function FormFiller({
     onSubmit(values, signature.trim());
   }
 
+  // Forms that could tempt someone to type patient data get the prominent notice.
+  const phiRisk = template.sensitive
+    || ["hipaa", "insurance_risk"].includes(template.category)
+    || template.fields.some((f) => /patient|dob|date of birth|mrn|medical record|ssn|social security|diagnos/i.test(f.label));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
@@ -459,6 +465,7 @@ function FormFiller({
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{template.completionGuidance}</p>
             </div>
           )}
+          <PhiNotice tone={phiRisk ? "prominent" : "default"} />
           {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
           {template.bodyText && (
             <div className="rounded-lg border border-border bg-secondary/20 p-4">

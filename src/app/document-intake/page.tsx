@@ -11,6 +11,7 @@ import type { CollectionName } from "@/lib/data/client";
 import { uploadFile } from "@/lib/storage";
 import { FileLink } from "@/components/shared/file-link";
 import { PageHeader } from "@/components/shared/page-header";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -469,6 +470,8 @@ export default function DocumentIntakePage() {
         title="Document Intake & Migration"
         description="Bulk-migrate documents in one place — drop individual files, a whole folder, or a .zip archive. The AI detects what each document is and routes it to the right module (SOP Library, Credentials, SDS, OSHA, Insurance, and more). Review each destination, then file it."
       />
+
+      <PhiNotice tone="prominent" />
 
       <div
         className="group relative flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
