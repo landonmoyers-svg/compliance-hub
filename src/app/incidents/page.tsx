@@ -18,6 +18,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
+import { openIncidentLocalCopy } from "@/lib/incident-local-copy";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import type { Incident, CorrectiveAction } from "@/lib/data/schema";
@@ -105,6 +106,10 @@ function ReportDialog({ locations, onClose, onSubmit, saving }: {
   const [anonymous, setAnonymous] = useState(false);
   const [attested, setAttested] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  // Pre-save PHI checkpoint: an incident that names a patient must NOT be stored
+  // here — it belongs in the chart/EHR. "ask" gates the save; "blocked" routes
+  // the user to a local copy instead.
+  const [phiStep, setPhiStep] = useState<"none" | "ask" | "blocked">("none");
 
   const meta = REPORT_TYPES[reportType];
   const canAnon = meta.allowAnonymous;
@@ -115,6 +120,17 @@ function ReportDialog({ locations, onClose, onSubmit, saving }: {
   function pickType(t: ReportTypeKey) {
     setReportType(t);
     if (!REPORT_TYPES[t].allowAnonymous) setAnonymous(false);
+  }
+
+  // Save into the app — only reached once the reporter confirms it's de-identified.
+  function doSubmit() {
+    setPhiStep("none");
+    onSubmit({ reportType, title, description, severity, occurredDate, locationId, anonymous: effectiveAnon, attested: effectiveAnon ? false : attested, file });
+  }
+
+  function downloadLocalCopy() {
+    const ok = openIncidentLocalCopy({ reportTypeLabel: meta.label, title, description, severity: humanizeLabel(severity), occurredDate });
+    if (!ok) toast.error("Allow pop-ups to generate the local copy.");
   }
 
   return (
@@ -198,11 +214,52 @@ function ReportDialog({ locations, onClose, onSubmit, saving }: {
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={() => onSubmit({ reportType, title, description, severity, occurredDate, locationId, anonymous: effectiveAnon, attested: effectiveAnon ? false : attested, file })} disabled={!canSubmit}>
+          <Button onClick={() => setPhiStep("ask")} disabled={!canSubmit}>
             {saving ? "Submitting…" : "Submit report"}
           </Button>
         </div>
       </div>
+
+      {phiStep !== "none" && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setPhiStep("none")}>
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+            {phiStep === "ask" ? (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldAlert className="size-5 text-amber-500" />
+                  <h3 className="font-semibold">Does this report contain patient information?</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Before saving, confirm whether this report includes any <strong>patient PHI</strong> — a patient&apos;s name, date of birth, MRN, diagnosis, or anything that identifies a specific patient. Compliance Hub stores your practice&apos;s own records, not PHI.
+                </p>
+                <div className="mt-5 flex flex-col gap-2">
+                  <Button onClick={doSubmit} disabled={saving}>
+                    <Check className="size-4" /> No — it&apos;s de-identified, save it
+                  </Button>
+                  <Button variant="outline" onClick={() => setPhiStep("blocked")}>
+                    Yes — it contains patient information
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldAlert className="size-5 text-amber-500" />
+                  <h3 className="font-semibold">Keep this one out of the app</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Because it contains patient information, don&apos;t save it here. Instead, generate a <strong>local copy</strong> (below) and file it in the patient&apos;s chart / your HIPAA-compliant records — it&apos;s created on your device and never sent to Compliance Hub. Then log a <strong>de-identified</strong> version here (patient initials or MRN last 4) for your compliance tracking.
+                </p>
+                <div className="mt-5 flex flex-col gap-2">
+                  <Button onClick={downloadLocalCopy}>Download a local copy for the chart</Button>
+                  <Button variant="outline" onClick={() => setPhiStep("none")}>Go back &amp; de-identify it</Button>
+                  <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
