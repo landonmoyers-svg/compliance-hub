@@ -57,6 +57,7 @@ full rationale and what is safe to share.
 | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) | Categories, records, and the encrypted-blob schema |
 | [`docs/SPLIT-FROM-COMPLIANCE-HUB.md`](docs/SPLIT-FROM-COMPLIANCE-HUB.md) | Why standalone; what's shared vs. forked |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phased plan from scaffold → production |
+| [`DEPLOY.md`](DEPLOY.md) | Rollout runbook: preview → own repo → real backend |
 
 ## Running the scaffold
 
