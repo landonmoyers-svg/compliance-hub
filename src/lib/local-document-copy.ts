@@ -1,29 +1,36 @@
-// Generates a LOCAL copy of an incident report entirely in the browser — the
-// content is written straight to a new print window and never sent to the
-// server, so a report that contains PHI can be produced and filed in the
-// patient's chart / the practice's HIPAA-compliant records WITHOUT it ever
-// being saved in Compliance Hub. The user saves it as a PDF or prints it.
+// Generates a LOCAL copy of a document entirely in the browser — the content is
+// written straight to a new print window and never sent to the server, so a
+// record that contains PHI can be produced and filed in the patient's chart /
+// the practice's HIPAA-compliant records WITHOUT ever being saved in Compliance
+// Hub. The user saves it as a PDF or prints it. Shared by the incidents module
+// and the fillable-forms filler.
 
-export interface IncidentLocalCopy {
-  reportTypeLabel: string;
+export interface LocalDocRow { label: string; value: string }
+
+export interface LocalDocument {
+  docLabel: string;          // e.g. "Incident Report" / "Form"
   title: string;
-  description: string;
-  severity: string;
-  occurredDate: string;   // YYYY-MM-DD or ""
+  subtitle?: string;         // e.g. "Type: … · Severity: …"
+  rows: LocalDocRow[];
   orgName?: string;
+  requiresSignature?: boolean;
 }
 
 const esc = (s: unknown): string =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 /** Open a print-ready local copy. Returns false if pop-ups are blocked. */
-export function openIncidentLocalCopy(d: IncidentLocalCopy): boolean {
+export function openLocalDocumentCopy(d: LocalDocument): boolean {
   const win = window.open("", "_blank");
   if (!win) return false;
   const now = new Date();
+  const rowsHtml = d.rows.map((r) => `<div class="row"><div class="lbl">${esc(r.label)}</div><div class="val">${esc(r.value) || "—"}</div></div>`).join("");
+  const sigHtml = d.requiresSignature
+    ? `<div class="sig"><div>Signature (print &amp; sign)</div><div>Date</div></div>`
+    : `<div class="sig"><div>Completed by (print &amp; sign)</div><div>Date</div></div>`;
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Incident Report${d.title ? " — " + esc(d.title) : ""}</title>
+<title>${esc(d.docLabel)}${d.title ? " — " + esc(d.title) : ""}</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -43,17 +50,14 @@ export function openIncidentLocalCopy(d: IncidentLocalCopy): boolean {
 </style></head>
 <body>
   <div class="noprint"><button class="btn" onclick="window.print()">Print / Save as PDF</button></div>
-  <div class="banner"><strong>Local copy — not saved in Compliance Hub.</strong> This report was generated on your device and was never stored in the app. Because it may contain protected health information, file it in the patient's chart / your HIPAA-compliant records, and log only a de-identified summary in Compliance Hub.</div>
+  <div class="banner"><strong>Local copy — not saved in Compliance Hub.</strong> This document was generated on your device and was never stored in the app. Because it may contain protected health information, file it in the patient's chart / your HIPAA-compliant records, and log only a de-identified summary in Compliance Hub.</div>
   <header>
-    <div class="k">Incident Report${d.orgName ? " — " + esc(d.orgName) : ""}</div>
+    <div class="k">${esc(d.docLabel)}${d.orgName ? " — " + esc(d.orgName) : ""}</div>
     <h1>${esc(d.title) || "(untitled)"}</h1>
-    <div class="meta">Type: ${esc(d.reportTypeLabel)} · Severity: ${esc(d.severity)}${d.occurredDate ? " · Occurred: " + esc(d.occurredDate) : ""} · Generated ${esc(now.toLocaleString())}</div>
+    ${d.subtitle ? `<div class="meta">${esc(d.subtitle)} · Generated ${esc(now.toLocaleString())}</div>` : `<div class="meta">Generated ${esc(now.toLocaleString())}</div>`}
   </header>
-  <div class="row"><div class="lbl">Description</div><div class="val">${esc(d.description) || "—"}</div></div>
-  <div class="sig">
-    <div>Reported by (print &amp; sign)</div>
-    <div>Date</div>
-  </div>
+  ${rowsHtml}
+  ${sigHtml}
   <footer>Generated locally by Compliance Hub for filing in your HIPAA-compliant records. The app itself does not store patient PHI.</footer>
 </body></html>`;
   win.document.open();

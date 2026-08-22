@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import { documentNeedsReview } from "@/lib/compliance";
 import { formatDate, dateInputToISO } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
@@ -544,6 +545,8 @@ export default function SOPLibraryPage() {
           </div>
         }
       />
+
+      <PhiNotice tone="default" />
 
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Active" value={active} icon={FileText} tone="success" loading={isLoading} />

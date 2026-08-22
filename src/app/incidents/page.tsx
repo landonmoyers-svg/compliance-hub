@@ -18,7 +18,7 @@ import { ErrorState, EmptyState } from "@/components/shared/states";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
-import { openIncidentLocalCopy } from "@/lib/incident-local-copy";
+import { openLocalDocumentCopy } from "@/lib/local-document-copy";
 import { formatDate, dateInputToISO, isExpired } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import type { Incident, CorrectiveAction } from "@/lib/data/schema";
@@ -129,7 +129,12 @@ function ReportDialog({ locations, onClose, onSubmit, saving }: {
   }
 
   function downloadLocalCopy() {
-    const ok = openIncidentLocalCopy({ reportTypeLabel: meta.label, title, description, severity: humanizeLabel(severity), occurredDate });
+    const ok = openLocalDocumentCopy({
+      docLabel: "Incident Report",
+      title,
+      subtitle: `Type: ${meta.label} · Severity: ${humanizeLabel(severity)}${occurredDate ? ` · Occurred: ${occurredDate}` : ""}`,
+      rows: [{ label: "Description", value: description }],
+    });
     if (!ok) toast.error("Allow pop-ups to generate the local copy.");
   }
 

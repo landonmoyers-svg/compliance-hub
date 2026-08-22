@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download, Sparkles, ShieldCheck, Wand2, AlertTriangle } from "lucide-react";
+import { FileText, Plus, X, Check, Trash2, Pencil, Archive, ClipboardList, UserPlus, PenLine, Download, Sparkles, ShieldCheck, ShieldAlert, Wand2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { downloadCompletedFormPdf } from "@/lib/pdf";
@@ -19,6 +19,7 @@ import { PersonLink } from "@/components/shared/person-link";
 import { AdminDeleteButton } from "@/components/shared/admin-delete-button";
 import { FormPreview } from "@/components/shared/form-preview";
 import { PhiNotice } from "@/components/shared/phi-notice";
+import { openLocalDocumentCopy } from "@/lib/local-document-copy";
 import { FileLink } from "@/components/shared/file-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
@@ -364,6 +365,9 @@ function FormFiller({
   const [prefilling, setPrefilling] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [review, setReview] = useState<{ issues: ReviewIssue[]; overall: string } | null>(null);
+  // Pre-save PHI checkpoint for patient-touching forms: a completed form that
+  // names a patient must NOT be stored here — it belongs in the chart/EHR.
+  const [phiStep, setPhiStep] = useState<"none" | "ask" | "blocked">("none");
 
   const set = (key: string, value: string) => {
     setValues((p) => ({ ...p, [key]: value }));
@@ -422,6 +426,12 @@ function FormFiller({
     } finally { setReviewing(false); }
   }
 
+  // Forms that could tempt someone to type patient data get the prominent notice
+  // and the pre-save PHI checkpoint.
+  const phiRisk = template.sensitive
+    || ["hipaa", "insurance_risk"].includes(template.category)
+    || template.fields.some((f) => /patient|dob|date of birth|mrn|medical record|ssn|social security|diagnos/i.test(f.label));
+
   function handleSubmit() {
     const missing = template.fields.find(
       (f) => f.required && (f.type === "checkbox" ? values[f.key] !== "true" : !(values[f.key] ?? "").trim()),
@@ -434,13 +444,29 @@ function FormFiller({
       toast.error("Signature is required.");
       return;
     }
+    // Patient-touching forms: confirm it's de-identified before it's stored.
+    if (phiRisk) { setPhiStep("ask"); return; }
     onSubmit(values, signature.trim());
   }
 
-  // Forms that could tempt someone to type patient data get the prominent notice.
-  const phiRisk = template.sensitive
-    || ["hipaa", "insurance_risk"].includes(template.category)
-    || template.fields.some((f) => /patient|dob|date of birth|mrn|medical record|ssn|social security|diagnos/i.test(f.label));
+  function doSubmit() {
+    setPhiStep("none");
+    onSubmit(values, signature.trim());
+  }
+
+  function downloadLocalCopy() {
+    const ok = openLocalDocumentCopy({
+      docLabel: "Form",
+      title: template.title,
+      subtitle: `Category: ${CATEGORY_LABEL[template.category]}${assignment.assignedToName ? ` · For: ${assignment.assignedToName}` : ""}`,
+      rows: template.fields.map((f) => ({
+        label: f.label,
+        value: f.type === "checkbox" ? (values[f.key] === "true" ? "Yes" : "No") : (values[f.key] ?? ""),
+      })),
+      requiresSignature: template.requiresSignature,
+    });
+    if (!ok) toast.error("Allow pop-ups to generate the local copy.");
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -548,6 +574,47 @@ function FormFiller({
           </div>
         </div>
       </div>
+
+      {phiStep !== "none" && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setPhiStep("none")}>
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+            {phiStep === "ask" ? (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldAlert className="size-5 text-amber-500" />
+                  <h3 className="font-semibold">Does this form contain patient information?</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Before saving, confirm whether you entered any <strong>patient PHI</strong> — a patient&apos;s name, date of birth, MRN, diagnosis, or anything that identifies a specific patient. Compliance Hub stores your practice&apos;s own records, not PHI.
+                </p>
+                <div className="mt-5 flex flex-col gap-2">
+                  <Button onClick={doSubmit} disabled={saving}>
+                    <Check className="size-4" /> No — it&apos;s de-identified, save it
+                  </Button>
+                  <Button variant="outline" onClick={() => setPhiStep("blocked")}>
+                    Yes — it contains patient information
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldAlert className="size-5 text-amber-500" />
+                  <h3 className="font-semibold">Keep this one out of the app</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Because it contains patient information, don&apos;t save it here. Generate a <strong>local copy</strong> (below) and file it in the patient&apos;s chart / your HIPAA-compliant records — it&apos;s created on your device and never sent to Compliance Hub. Then log a <strong>de-identified</strong> version here (patient initials or MRN last 4) for your compliance tracking.
+                </p>
+                <div className="mt-5 flex flex-col gap-2">
+                  <Button onClick={downloadLocalCopy}>Download a local copy for the chart</Button>
+                  <Button variant="outline" onClick={() => setPhiStep("none")}>Go back &amp; de-identify it</Button>
+                  <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

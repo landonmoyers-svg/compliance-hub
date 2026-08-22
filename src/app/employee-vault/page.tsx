@@ -29,6 +29,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
 import { FileLink } from "@/components/shared/file-link";
 import { VersionHistoryButton } from "@/components/shared/version-history";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import type { EmployeeDocument, EmployeeDocType, Employee } from "@/lib/data/schema";
 import { employeeDocTypes, RESTRICTED_EMPLOYEE_DOC_TYPES } from "@/lib/data/schema";
 import { toast } from "sonner";
@@ -582,6 +583,8 @@ export default function EmployeeVaultPage() {
           </div>
         }
       />
+
+      <PhiNotice tone="prominent" />
 
       <div className="flex items-start gap-2 rounded-md border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
         <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />

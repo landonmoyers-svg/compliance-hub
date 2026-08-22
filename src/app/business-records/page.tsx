@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
+import { PhiNotice } from "@/components/shared/phi-notice";
 import { formatDate, daysUntil, isExpired, isExpiringSoon, parseDate, dateInputToISO } from "@/lib/dates";
 import { humanizeLabel } from "@/lib/format";
 import { businessRecordCategories } from "@/lib/data/schema";
@@ -625,6 +626,8 @@ export default function BusinessRecordsPage() {
           </div>
         }
       />
+
+      <PhiNotice tone="default" />
 
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Total records" value={stats.total} icon={Building2} loading={isLoading} />
