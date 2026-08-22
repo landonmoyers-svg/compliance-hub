@@ -1,6 +1,6 @@
 import { Users, UserCircle, KeyRound } from "lucide-react";
 import { Card, PageHeader, Badge, TierBadge } from "@/components/ui";
-import { DEMO_MEMBERS, DEMO_RECIPIENTS } from "@/lib/data/demo";
+import { getDataClient } from "@/lib/data/client";
 import type { SensitivityTier } from "@/lib/domain/categories";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -9,7 +9,10 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "Viewer",
 };
 
-export default function PeoplePage() {
+export default async function PeoplePage() {
+  const data = getDataClient();
+  const [members, recipients] = await Promise.all([data.listMembers(), data.listRecipients()]);
+
   return (
     <div>
       <PageHeader
@@ -25,7 +28,7 @@ export default function PeoplePage() {
             <h2 className="font-semibold">Household members</h2>
           </div>
           <ul className="flex flex-col divide-y divide-border">
-            {DEMO_MEMBERS.map((m) => (
+            {members.map((m) => (
               <li key={m.id} className="flex items-center justify-between py-3">
                 <span className="text-sm font-medium">{m.name}</span>
                 <Badge tone={m.role === "owner" ? "accent" : "neutral"}>{ROLE_LABEL[m.role]}</Badge>
@@ -44,7 +47,7 @@ export default function PeoplePage() {
             <h2 className="font-semibold">Designated recipients</h2>
           </div>
           <ul className="flex flex-col divide-y divide-border">
-            {DEMO_RECIPIENTS.map((r) => (
+            {recipients.map((r) => (
               <li key={r.id} className="py-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{r.name}</span>

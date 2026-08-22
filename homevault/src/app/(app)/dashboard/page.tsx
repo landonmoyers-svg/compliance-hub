@@ -1,16 +1,22 @@
 import { LayoutDashboard, ShieldCheck, FolderLock, KeyRound, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, PageHeader, StatCard, Badge } from "@/components/ui";
-import { DEMO_RECORDS, DEMO_PLANS, DEMO_RECIPIENTS } from "@/lib/data/demo";
+import { getDataClient } from "@/lib/data/client";
 import { completenessScore, coachSteps } from "@/lib/domain/coach";
 import { expiryStatus } from "@/lib/domain/records";
 
-export default function DashboardPage() {
-  const records = DEMO_RECORDS;
+export default async function DashboardPage() {
+  const data = getDataClient();
+  const [records, plans, recipients] = await Promise.all([
+    data.listRecords(),
+    data.listPlans(),
+    data.listRecipients(),
+  ]);
+
   const score = completenessScore(records);
   const steps = coachSteps(records).slice(0, 6);
   const expiring = records.filter((r) => ["soon", "expired"].includes(expiryStatus(r))).length;
   const criticalCount = records.filter((r) => r.tier === "critical").length;
-  const armedPlans = DEMO_PLANS.filter((p) => p.state === "ARMED").length;
+  const armedPlans = plans.filter((p) => p.state === "ARMED").length;
 
   const priorityTone = { high: "danger", medium: "warning", low: "neutral" } as const;
 
@@ -30,7 +36,7 @@ export default function DashboardPage() {
           icon={<ShieldCheck size={20} />}
         />
         <StatCard label="Critical records" value={criticalCount} hint="SSN, financial, estate, accounts" icon={<FolderLock size={20} />} />
-        <StatCard label="Handover plans armed" value={armedPlans} hint={`${DEMO_RECIPIENTS.length} designated recipients`} icon={<KeyRound size={20} />} />
+        <StatCard label="Handover plans armed" value={armedPlans} hint={`${recipients.length} designated recipients`} icon={<KeyRound size={20} />} />
         <StatCard label="Needs attention" value={expiring} hint="Documents expiring or expired" icon={<AlertTriangle size={20} />} />
       </div>
 
@@ -66,7 +72,7 @@ export default function DashboardPage() {
             Your household runs different handover rules per sensitivity tier.
           </p>
           <ul className="mt-4 flex flex-col gap-3">
-            {DEMO_PLANS.map((p) => (
+            {plans.map((p) => (
               <li key={p.id} className="rounded-lg border border-border bg-surface p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium capitalize">{p.tiers.join(", ")} tier</span>

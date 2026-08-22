@@ -1,6 +1,6 @@
 import { KeyRound, Users, Clock, Scale, ShieldCheck, ArrowRight } from "lucide-react";
 import { Card, PageHeader, Badge } from "@/components/ui";
-import { DEMO_PLANS, DEMO_RECIPIENTS } from "@/lib/data/demo";
+import { getDataClient } from "@/lib/data/client";
 import { validatePlan, type HandoverTrigger } from "@/lib/domain/handover";
 
 const MODELS = [
@@ -43,7 +43,10 @@ const STAGES = [
   "COMPLETED",
 ] as const;
 
-export default function HandoverPage() {
+export default async function HandoverPage() {
+  const data = getDataClient();
+  const [plans, allRecipients] = await Promise.all([data.listPlans(), data.listRecipients()]);
+
   return (
     <div>
       <PageHeader
@@ -73,9 +76,9 @@ export default function HandoverPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Your active plans</h2>
         <div className="grid gap-4">
-          {DEMO_PLANS.map((plan) => {
+          {plans.map((plan) => {
             const issues = validatePlan(plan);
-            const recipients = DEMO_RECIPIENTS.filter((r) => plan.recipientIds.includes(r.id));
+            const recipients = allRecipients.filter((r) => plan.recipientIds.includes(r.id));
             return (
               <Card key={plan.id} className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
