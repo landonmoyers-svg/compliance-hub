@@ -24,6 +24,8 @@ yarn-error.log*
 .env*.local
 .env.development.local
 .env.production.local
+# ...but DO track the no-secrets template (overrides the root .gitignore's .env* rule)
+!.env.example
 
 # typescript
 *.tsbuildinfo
