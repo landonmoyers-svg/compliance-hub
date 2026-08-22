@@ -49,6 +49,20 @@ WebAuthn PRF / device secret ─────────────────
   *both* PK **and** a device factor: the WebAuthn **PRF extension** output (or,
   where PRF is unavailable, a device-stored key protected by the platform
   authenticator). So a stolen passphrase alone cannot unwrap VK.
+- **Combining the two factors.** The diagram above draws this as `PK ⊕ PRF`. The
+  implementation (`crypto/keys.ts`) instead derives the key-encryption key as
+  **HKDF-SHA-256 over `PK ‖ PRF`**, salted with the household's KDF salt and
+  domain-separated with `info = "homevault:kek:v1"`. This preserves the required
+  property — neither factor alone unwraps VK — and is strictly more robust than a
+  raw XOR: it tolerates a device factor that isn't exactly 32 bytes, removes the
+  malleability of XOR (where an attacker who knows PK and can influence the PRF
+  output would control the KEK bit-for-bit), and prevents key reuse across
+  contexts. **Flagged for the Phase-1 cryptographic review.**
+- **KDF parameters are stored per household**, next to the salt, not read from a
+  constant at unlock time. Raising the cost for new vaults therefore cannot lock
+  anyone out of an existing one: a vault unwraps with the parameters it was
+  created under and is re-wrapped at the next successful unlock. Costs that can
+  never be migrated are a common and unfixable mistake in this design.
 - **Vault Key (VK)** — a random 256-bit AES key, the root of a household's
   vault. Stored only as *wrapped* copies: `wrap(VK, PK⊕PRF)` for the owner, plus
   the **escrow shares** for handover (§ HANDOVER.md). VK is what a recipient
