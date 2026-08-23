@@ -152,10 +152,14 @@ test("a garbled scan is reported as not confident rather than silently sent", ()
   assert.ok(result.warnings.some((w) => /hard to read|by hand/i.test(w)));
 });
 
-test("finding nothing is flagged, because it might mean the scan failed", () => {
+test("a readable page with nothing sensitive on it is still a confident result", () => {
+  // Confidence is about whether the text could be read, not about whether it
+  // contained secrets. Treating "found nothing" as suspect would block ordinary
+  // documents from being sorted at all.
   const result = redactText("This page appears to be blank apart from a heading.");
-  assert.equal(result.confident, false);
-  assert.ok(result.warnings.length > 0);
+  assert.equal(result.confident, true);
+  // Still worth mentioning, so a household can sanity-check an odd result.
+  assert.ok(result.warnings.some((w) => /nothing here was recognised/i.test(w)));
 });
 
 test("a clean document with real identifiers is confident", () => {

@@ -20,35 +20,70 @@ const doc = (over: Partial<DocumentInput> = {}): DocumentInput => ({
 
 // --- The guarantee ----------------------------------------------------------
 
-test("the ingest layer contains no network code at all", () => {
-  // This is the whole promise, and it is checkable rather than assertable.
-  // If someone adds a fetch here later, this fails loudly.
+/** Source of every non-test module in the core ingest layer, comments stripped. */
+function ingestSources(): Array<{ file: string; code: string }> {
   // fileURLToPath, not `.pathname` — the latter leaves the path percent-encoded
   // and "Claude Code" becomes "Claude%20Code".
   const dir = dirname(fileURLToPath(import.meta.url));
-  const offenders: string[] = [];
-  const scanned: string[] = [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .map((file) => ({
+      file,
+      // Strip comments so prose *about* networking doesn't trip the checks.
+      code: readFileSync(join(dir, file), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, ""),
+    }));
+}
 
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))) {
-    scanned.push(file);
-    const source = readFileSync(join(dir, file), "utf8");
-    // Strip comments so prose about networking doesn't trip the check.
-    const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    for (const pattern of [/\bfetch\s*\(/, /XMLHttpRequest/, /WebSocket/, /navigator\.sendBeacon/, /import\s*\(/]) {
+const NETWORK_PATTERNS = [/\bfetch\s*\(/, /XMLHttpRequest/, /WebSocket/, /navigator\.sendBeacon/];
+
+test("the core ingest layer contains no network code", () => {
+  // In Private mode this is the whole promise, and it is checkable by reading
+  // rather than something taken on trust. Cloud code lives in ./cloud and is
+  // reached only through the single dynamic import in pipeline.ts.
+  const sources = ingestSources();
+  const offenders: string[] = [];
+
+  for (const { file, code } of sources) {
+    for (const pattern of NETWORK_PATTERNS) {
       if (pattern.test(code)) offenders.push(`${file}: ${pattern}`);
     }
   }
 
-  assert.deepEqual(offenders, [], `ingest must never reach the network:\n${offenders.join("\n")}`);
+  assert.deepEqual(offenders, [], `core ingest must never reach the network:\n${offenders.join("\n")}`);
 
-  // A guard that silently scans nothing would pass forever while protecting
-  // nothing, so prove it actually read the modules it is meant to police.
-  assert.ok(scanned.includes("analyzer.ts"), `scanned only: ${scanned.join(", ")}`);
-  assert.ok(scanned.includes("redact.ts"), `scanned only: ${scanned.join(", ")}`);
+  // A guard that silently scanned nothing would pass forever while protecting
+  // nothing, so prove it read the modules it is meant to police.
+  const scanned = sources.map((s) => s.file);
+  for (const required of ["analyzer.ts", "redact.ts", "pipeline.ts"]) {
+    assert.ok(scanned.includes(required), `did not scan ${required}; saw ${scanned.join(", ")}`);
+  }
 
-  // And prove the detector works, by running it over a deliberate violation.
-  const violation = "async function leak() { await fetch('https://example.com', {}); }";
-  assert.ok(/\bfetch\s*\(/.test(violation), "the fetch detector itself is broken");
+  assert.ok(/\bfetch\s*\(/.test("await fetch('https://example.com')"), "the fetch detector is broken");
+});
+
+test("exactly one module can reach the cloud code, and it does so dynamically", () => {
+  // The quarantine is what keeps Private mode's guarantee real: the module that
+  // could transmit is never imported, so it is not in the running program. If a
+  // second entry point appears, this fails.
+  const sources = ingestSources();
+  const importers = sources.filter((s) => /["\']\.\/cloud\//.test(s.code)).map((s) => s.file);
+
+  assert.deepEqual(importers, ["pipeline.ts"], "only pipeline.ts may reference ./cloud");
+
+  const pipeline = sources.find((s) => s.file === "pipeline.ts")!.code;
+  // A static import would pull the cloud module into every bundle, including
+  // the one a Private-mode household loads.
+  assert.ok(
+    !/^\s*import\s+[^(]*from\s+["\']\.\/cloud\//m.test(pipeline),
+    "the cloud module must not be statically imported",
+  );
+  assert.equal(
+    (pipeline.match(/await import\(["\']\.\/cloud\//g) ?? []).length,
+    1,
+    "there should be exactly one dynamic import of the cloud module",
+  );
 });
 
 test("a local model is given no way to reach the network either", async () => {

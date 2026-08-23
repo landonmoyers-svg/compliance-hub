@@ -66,8 +66,12 @@ export interface Analysis {
    */
   groupKey?: string;
   confidence: number;
-  /** How this was worked out, shown in the UI so the household can judge it. */
-  via: "rules" | "local-model";
+  /**
+   * How this was worked out. Surfaced in the UI and written to the ingest log,
+   * so a household can always see which documents were identified here and
+   * which were sent — after the fact, not just at the moment of consent.
+   */
+  via: "rules" | "local-model" | "redacted-cloud";
 }
 
 export interface DocumentAnalyzer {

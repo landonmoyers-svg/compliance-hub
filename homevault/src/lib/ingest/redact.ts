@@ -338,11 +338,16 @@ export function redactText(text: string): RedactionResult {
   }
   if (spans.length === 0 && text.trim().length > 0) {
     warnings.push(
-      "Nothing was recognised as sensitive here. That may be correct, or it may mean the scan didn't read well.",
+      "Nothing here was recognised as sensitive. That may simply be true of this document.",
     );
   }
 
-  return { sanitized, spans, counts, confident: !garbled && spans.length > 0, warnings };
+  // Confidence is about whether the text could be READ, not about whether it
+  // happened to contain secrets. A clean page with nothing sensitive on it is a
+  // perfectly confident result — treating it as suspect would block ordinary
+  // documents from ever being sorted, which is the thing this exists to enable.
+  // `looksGarbled` is the real safety gate.
+  return { sanitized, spans, counts, confident: !garbled, warnings };
 }
 
 /**
@@ -368,6 +373,26 @@ export function redactionBoxes(words: OcrWord[], spans: RedactionSpan[]): OcrWor
     if (spans.some((s) => word.start < s.end && end > s.start)) boxes.push(word.box);
   }
   return boxes;
+}
+
+/**
+ * Final check immediately before anything is transmitted.
+ *
+ * The redactor has already run, so this should never fire. It exists because a
+ * bug up there would otherwise be silent and irreversible — a secret on the wire
+ * cannot be recalled. Cheap, and it fails closed.
+ */
+export function assertRedacted(sanitized: string): void {
+  const checks: Array<[RegExp, string]> = [
+    [/(?<!\d)\d{3}[-\s]\d{2}[-\s]\d{4}(?!\d)/, "a Social Security number"],
+    [/(?<!\d)\d{13,19}(?!\d)/, "a long card-like number"],
+    [/(?<!\d)\d{8,}(?!\d)/, "a long account-like number"],
+  ];
+  for (const [pattern, what] of checks) {
+    if (pattern.test(sanitized)) {
+      throw new Error(`Refusing to send: what looks like ${what} survived redaction.`);
+    }
+  }
 }
 
 /** One-line summary for the consent screen: "3 account numbers, 1 SSN, 2 names". */

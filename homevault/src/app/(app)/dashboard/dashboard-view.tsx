@@ -12,6 +12,7 @@ import { assessReadiness, maintenanceState, valueStatement } from "@/lib/domain/
 import { coachSteps } from "@/lib/domain/coach";
 import type { RecordMeta } from "@/lib/domain/records";
 import { ValueEstimate } from "@/components/value-estimate";
+import { SecurityModePicker } from "@/components/security-mode-picker";
 
 /**
  * The dashboard.
@@ -175,6 +176,10 @@ export function DashboardView({ records }: { records: RecordMeta[] }) {
 
       <div className="mt-6">
         <ValueEstimate journeyKey={effectiveJourney} />
+      </div>
+
+      <div className="mt-6">
+        <SecurityModePicker />
       </div>
 
       {/* What this doesn't measure — stated plainly rather than implied. */}
