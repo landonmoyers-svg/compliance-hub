@@ -44,7 +44,7 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-md p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        className="relative rounded-md p-2 text-current opacity-90 transition-opacity hover:opacity-100"
         aria-label={`Notifications${unread.length ? ` (${unread.length} unread)` : ""}`}
       >
         <Bell className="size-5" />

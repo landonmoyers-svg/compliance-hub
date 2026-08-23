@@ -63,7 +63,7 @@ export function JaneTopBar({ onToggleMobileNav }: { onToggleMobileNav?: () => vo
             const isActive = activeGroup?.label === g.label;
             return (
               <Link
-                key={g.label}
+                key={g.shortLabel ?? g.label}
                 href={first}
                 className={cn(
                   "flex shrink-0 items-center whitespace-nowrap px-4 text-[15px] transition-colors",
@@ -77,9 +77,9 @@ export function JaneTopBar({ onToggleMobileNav }: { onToggleMobileNav?: () => vo
         </nav>
 
         {/* brand */}
-        <Link href="/" className="hidden items-center gap-2 px-5 xl:flex" title={orgName}>
+        <Link href="/" className="hidden shrink-0 items-center gap-2 px-4 2xl:flex" title={orgName}>
           <ShieldCheck className="size-5 shrink-0" />
-          <span className="max-w-[16rem] truncate text-[15px] font-semibold">{orgName}</span>
+          <span className="max-w-[14rem] truncate text-[15px] font-semibold">{orgName}</span>
         </Link>
 
         {/* right cluster */}

@@ -47,6 +47,8 @@ export interface NavItem {
 }
 
 export interface NavGroup {
+  /** Compact label for the top section bar (Jane's tabs are single words). */
+  shortLabel?: string;
   label: string;
   items: NavItem[];
 }
@@ -59,7 +61,7 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   // 1. Command center + daily entry points — what a user lands on first.
   {
-    label: "Overview",
+    label: "Overview", shortLabel: "Overview",
     items: [
       { label: "Home", href: "/", icon: LayoutDashboard },
       { label: "Your Guide", href: "/guide", icon: Compass, adminOnly: true, highlight: true },
@@ -70,7 +72,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // 2. Personal, daily-use tools every signed-in user has.
   {
-    label: "My Workspace",
+    label: "My Workspace", shortLabel: "My Work",
     items: [
       { label: "My Portal", href: "/staff-portal", icon: UserCircle },
       { label: "Policy Q&A", href: "/policy-assistant", icon: MessageSquare },
@@ -78,7 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // 3. Core compliance every employee touches.
   {
-    label: "Training & Credentials",
+    label: "Training & Credentials", shortLabel: "Training",
     items: [
       { label: "Training", href: "/training", icon: GraduationCap },
       { label: "Credentials", href: "/credentials", icon: BadgeCheck },
@@ -88,7 +90,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Documents & Forms",
+    label: "Documents & Forms", shortLabel: "Documents",
     items: [
       { label: "SOP Library", href: "/sop-library", icon: FileText, adminOnly: true },
       { label: "Regulatory Sources", href: "/regulatory-sources", icon: BookOpen, adminOnly: true },
@@ -101,7 +103,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // 5. Compliance-officer risk functions: incidents, assessments, audits, third-party.
   {
-    label: "Risk & Compliance",
+    label: "Risk & Compliance", shortLabel: "Risk",
     items: [
       { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
       { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
@@ -114,7 +116,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // 6. Physical / clinical safety and assets.
   {
-    label: "Safety & Environment",
+    label: "Safety & Environment", shortLabel: "Safety",
     items: [
       { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
       { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
@@ -126,7 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "HR & Payroll",
+    label: "HR & Payroll", shortLabel: "HR",
     items: [
       { label: "Employees", href: "/hr/employees", icon: Users, adminOnly: true },
       { label: "Onboarding & Offboarding", href: "/employee-lifecycle", icon: ListChecks, adminOnly: true },
@@ -140,7 +142,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // 8. System administration + reference — least-frequent, so last.
   {
-    label: "Admin & Resources",
+    label: "Admin & Resources", shortLabel: "Admin",
     items: [
       { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
       { label: "Role Permissions", href: "/access-matrix", icon: Shield, adminOnly: true },
