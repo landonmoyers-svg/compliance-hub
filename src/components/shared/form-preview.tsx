@@ -67,7 +67,8 @@ export function FormPreview({ template, values, meta, linkedPolicy, footer, onCl
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{template.completionGuidance}</p>
             </div>
           )}
-          {!filled && <PhiNotice tone={template?.sensitive || ["hipaa", "insurance_risk"].includes(String(category)) ? "prominent" : "default"} />}
+          {/* Prominent only for patient-plausible forms — `sensitive` means restricted HR doc, not patient data. */}
+          {!filled && <PhiNotice tone={["hipaa", "insurance_risk"].includes(String(category)) ? "prominent" : "default"} />}
           {template?.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
 
           {template?.bodyText && (

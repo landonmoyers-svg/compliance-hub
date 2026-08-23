@@ -430,8 +430,11 @@ function FormFiller({
   // and the pre-save PHI checkpoint. Patient-CONTEXT signals only: an employee's
   // DOB/SSN on an HR or OSHA form is legitimate employment data (not PHI), and a
   // yes/no checkbox that merely mentions patients isn't identifying either.
-  const phiRisk = template.sensitive
-    || ["hipaa", "insurance_risk"].includes(template.category)
+  // NOTE: deliberately NOT keyed on `sensitive` — that flag means "restricted HR
+  // document" (offer letter, disciplinary, employee medical), not patient data.
+  // Including it fired the checkpoint on ~68% of forms; alert fatigue would make
+  // people click through it reflexively and defeat the guardrail.
+  const phiRisk = ["hipaa", "insurance_risk"].includes(template.category)
     || template.fields.some((f) => f.type !== "checkbox" && /patient|mrn|medical record|diagnos/i.test(f.label));
 
   function handleSubmit() {
