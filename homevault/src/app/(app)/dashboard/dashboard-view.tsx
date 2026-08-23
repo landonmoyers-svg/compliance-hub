@@ -11,6 +11,7 @@ import { JOURNEYS, JOURNEY_BY_KEY } from "@/lib/domain/journeys";
 import { assessReadiness, maintenanceState, valueStatement } from "@/lib/domain/readiness";
 import { coachSteps } from "@/lib/domain/coach";
 import type { RecordMeta } from "@/lib/domain/records";
+import { ValueEstimate } from "@/components/value-estimate";
 
 /**
  * The dashboard.
@@ -170,6 +171,10 @@ export function DashboardView({ records }: { records: RecordMeta[] }) {
             </p>
           ) : null}
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <ValueEstimate journeyKey={effectiveJourney} />
       </div>
 
       {/* What this doesn't measure — stated plainly rather than implied. */}
