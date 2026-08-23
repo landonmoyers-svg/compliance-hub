@@ -204,7 +204,21 @@ async function runScan(): Promise<{ created: number }> {
   const fresh = candidates.filter((c) => !seen.has(`${c.category}:${c.entity_id}`));
   if (fresh.length === 0) return { created: 0 };
 
-  const { error } = await admin.from("notifications").insert(fresh.map((f) => ({ ...f, read: false })));
+  // Multi-tenancy: service-role inserts have no auth.uid(), so set_org_id()
+  // can't derive the org — stamp it here. Prefer the target user's membership;
+  // fall back to the single org while the platform is single-tenant.
+  // (Phase 4 will run this scan per-org instead of system-wide.)
+  const { data: memberships } = await admin.from("org_memberships").select("user_id, org_id").eq("active", true);
+  const orgByUser = new Map((memberships ?? []).map((m) => [m.user_id as string, m.org_id as string]));
+  const { data: orgRows } = await admin.from("organizations").select("id").limit(2);
+  const soleOrg = (orgRows ?? []).length === 1 ? (orgRows![0].id as string) : null;
+
+  const { error } = await admin.from("notifications").insert(
+    fresh.map((f) => {
+      const org = (f.user_id ? orgByUser.get(f.user_id) : undefined) ?? soleOrg;
+      return { ...f, read: false, ...(org ? { org_id: org } : {}) };
+    }),
+  );
   if (error) throw new Error(error.message);
   return { created: fresh.length };
 }

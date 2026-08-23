@@ -67,6 +67,18 @@ export async function POST(request: NextRequest) {
   //    'staff') the moment inviteUserByEmail created the auth user, so UPSERT on
   //    user_id — a plain insert would collide with that row (user_id is unique)
   //    and the chosen role would be silently dropped.
+  // Multi-tenancy: the invitee joins the INVITING admin's organization. Service
+  // -role inserts have no auth.uid(), so the set_org_id() trigger can't derive
+  // it — we must pass it explicitly here.
+  const { data: callerMembership } = await admin
+    .from("org_memberships")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .limit(1)
+    .maybeSingle();
+  const orgId = callerMembership?.org_id ?? null;
+
   const { error: profileErr } = await admin.from("profiles").upsert({
     user_id: invited.user.id,
     full_name: fullName,
@@ -75,6 +87,7 @@ export async function POST(request: NextRequest) {
     staff_role: body.staffRole?.trim() || null,
     department: body.department?.trim() || null,
     active: true,
+    ...(orgId ? { org_id: orgId } : {}),
   }, { onConflict: "user_id" });
   if (profileErr) {
     return NextResponse.json({ error: `Invite sent but profile setup failed: ${profileErr.message}` }, { status: 500 });
@@ -84,6 +97,17 @@ export async function POST(request: NextRequest) {
   //    they had a login, so their My Portal shows them immediately (and RLS
   //    own-row access works). ilike without wildcards = case-insensitive equals.
   const newUserId = invited.user.id;
+  // The membership carries the role PER ORG — a global profiles.account_role
+  // would make this person an admin at every company.
+  if (orgId) {
+    await admin.from("org_memberships").upsert({
+      org_id: orgId,
+      user_id: newUserId,
+      account_role: requestedRole,
+      all_locations: true,
+      active: true,
+    }, { onConflict: "org_id,user_id" });
+  }
   await admin.from("credentials").update({ employee_user_id: newUserId }).is("employee_user_id", null).ilike("employee_name", fullName);
   await admin.from("insurance_policies").update({ holder_user_id: newUserId }).is("holder_user_id", null).ilike("holder_name", fullName);
   // Link the roster row to this login. Match on EMAIL first — it's definitive and
