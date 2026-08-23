@@ -85,6 +85,51 @@ test("no coach copy blames the household or invokes fear", () => {
   }
 });
 
+test("no copy assumes the household contains more than one adult", () => {
+  // The organized journey used to promise "Either of you can handle the money".
+  // Plenty of households have one adult in them, and for those the entire set of
+  // milestones described a person who doesn't exist.
+  //
+  // The win was never that a second person is capable — it's that the answer is
+  // available on demand instead of held in memory, which matters *more* when
+  // there's nobody to fall back on. So the subject of a milestone is the task or
+  // the record, never the people.
+  const assumesTwo = [
+    "either of you",
+    "neither of you",
+    "both of you",
+    "either of us",
+    "either partner",
+    "one of you",
+    "the other can",
+    "your partner",
+    "your spouse",
+  ];
+
+  const everything: string[] = [];
+  for (const journey of JOURNEYS) {
+    everything.push(journey.label, journey.goal, journey.tagline, journey.handoverFraming);
+    for (const m of journey.milestones) everything.push(m.title, m.why);
+
+    for (const records of [[], organisedHousehold()]) {
+      for (const step of coachSteps(records, journey.key, NO_PREFERENCES, NOW, 10)) {
+        everything.push(step.title, step.detail, step.because);
+      }
+      const value = valueStatement(assessReadiness(records, journey.key, NOW));
+      everything.push(value.headline, value.detail);
+    }
+  }
+
+  for (const text of everything) {
+    for (const phrase of assumesTwo) {
+      assert.ok(
+        !text.toLowerCase().includes(phrase),
+        `assumes a second adult ("${phrase}"): ${JSON.stringify(text)}`,
+      );
+    }
+  }
+});
+
 test("milestones are stated as capabilities gained, not chores outstanding", () => {
   for (const journey of JOURNEYS) {
     for (const m of journey.milestones) {
@@ -235,7 +280,7 @@ test("wins report what was achieved and never what is outstanding", () => {
   const readiness = assessReadiness(partial, "organized", NOW);
   const achieved = wins(readiness);
 
-  assert.deepEqual(achieved, ["Either of you can run the house"]);
+  assert.deepEqual(achieved, ["The everyday details are at hand"]);
   assert.equal(achieved.length, readiness.achieved);
 });
 

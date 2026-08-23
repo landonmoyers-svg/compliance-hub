@@ -29,8 +29,21 @@ export type JourneyKey = "organized" | "handover" | "caregiver" | "security";
 /**
  * A named, human-sized win. Milestones replace a bare percentage because
  * "you're at 47%" says nothing about what you got, and a number that only goes
- * up is a treadmill. "Either of you can pay any bill" is a thing you can finish
- * and feel.
+ * up is a treadmill. "Any bill can be paid without hunting" is a thing you can
+ * finish and feel.
+ *
+ * ## Never phrase the win as "someone else can do it"
+ *
+ * These used to read "Either of you can handle the money", which quietly
+ * requires the household to contain two adults. Plenty contain one. The win
+ * being described isn't that a second person is capable — it's that the
+ * information is available on demand instead of held in memory, which is just
+ * as valuable, arguably more so, when there is nobody to fall back on.
+ *
+ * So the subject of a milestone is the task or the record, never the people:
+ * "Any bill can be paid", not "either of you can pay any bill". That reads true
+ * for a couple, a single adult, and the sister who flies in and has to run the
+ * house for a fortnight.
  */
 export interface Milestone {
   key: string;
@@ -64,29 +77,29 @@ export interface Journey {
 export const JOURNEYS: Journey[] = [
   {
     key: "organized",
-    label: "Getting our household organised",
-    tagline: "So either of us can find what we need, when we need it.",
+    label: "Getting the household organised",
+    tagline: "So everything is findable, not remembered.",
     goal:
-      "Nothing important lives only in one person's head. Either partner can handle any household task without hunting or asking.",
+      "Nothing important lives only in someone's memory. Any household task can be handled without hunting, asking around, or resetting a password first.",
     handoverFraming:
       "Everything you organise here is also what your family would need if you were ever out of action for a while — but that is a side effect, not the point. Set it up when you're ready.",
     maintenanceCadenceDays: 180,
     milestones: [
       {
         key: "day-to-day",
-        title: "Either of you can run the house",
+        title: "The everyday details are at hand",
         why: "Wi-Fi, utilities, subscriptions and the numbers you need on an ordinary Tuesday.",
         requires: ["household", "contacts"],
       },
       {
         key: "money",
-        title: "Either of you can handle the money",
-        why: "If one of you is travelling, ill, or just unavailable, the other can still pay everything.",
+        title: "Any bill can be paid without hunting",
+        why: "Account numbers, due dates and logins — so paying something isn't a twenty-minute search, whoever ends up doing it.",
         requires: ["financial", "accounts"],
       },
       {
         key: "emergency",
-        title: "Either of you can handle an emergency",
+        title: "An emergency won't mean searching",
         why: "Allergies, medications, doctors and the insurance details you'd need at 2am.",
         requires: ["medical", "insurance"],
       },
@@ -172,8 +185,8 @@ export const JOURNEYS: Journey[] = [
   },
   {
     key: "security",
-    label: "Getting our digital life secure",
-    tagline: "So our accounts and identity aren't one breach away from chaos.",
+    label: "Locking down accounts and identity",
+    tagline: "So a single breach isn't the start of a very bad year.",
     goal:
       "Credentials and identity documents out of notes apps and spreadsheets, and into something that's actually encrypted.",
     handoverFraming:
