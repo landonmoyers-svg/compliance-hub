@@ -134,9 +134,24 @@ export function maintenanceState(readiness: Readiness): MaintenanceState {
  * Deliberately NOT a dollar figure. An invented "saves you $4,200 a year" would
  * be a fabricated number used to drive behaviour — the same manipulation the
  * rest of this design avoids, just pointed somewhere friendly. What we can say
- * honestly is what the household will no longer have to do, and the widely
- * reported fact that settling an estate takes executors months of work largely
- * spent locating things exactly like these.
+ * honestly is that the household's answers now live somewhere reliable, and the
+ * widely reported fact that settling an estate takes executors months of work
+ * largely spent locating things exactly like these.
+ *
+ * ## Three things this copy must not do
+ *
+ * 1. **Imply it's over.** "This is done" reads like a finished chore, but the
+ *    thing being offered is ongoing calm, not a completed task. The state to
+ *    describe is "this is held, and it stays held".
+ * 2. **Imply someone was carrying it before.** "…doesn't have to remember any
+ *    more" quietly asserts a past in which one person did everything. That's a
+ *    story about the household we have no business telling, and for anyone it
+ *    describes accurately it lands as a rebuke of the other person.
+ * 3. **Assume a partner.** "Neither of you" excludes anyone doing this alone —
+ *    and the shared responsibility on offer isn't only with another person. It
+ *    is with us. Someone with no co-owner at all should still read this and
+ *    feel they've stopped holding it by themselves, so the sharing is named
+ *    explicitly as "between you and us".
  */
 export function valueStatement(readiness: Readiness): { headline: string; detail: string } {
   const { journey, achieved } = readiness;
@@ -145,17 +160,17 @@ export function valueStatement(readiness: Readiness): { headline: string; detail
     return {
       headline: "Start with one thing",
       detail:
-        "Add a single record — the Wi-Fi password is a fine first one. The point of this isn't to finish today; it's to stop keeping it all in your head.",
+        "Add a single record — the Wi-Fi password is a fine first one. The point of this isn't to finish today; it's for this to live somewhere more reliable than memory.",
     };
   }
 
   if (readiness.finished) {
     return {
-      headline: "This is done",
+      headline: "It's all here",
       detail:
         journey.key === "organized"
-          ? "Neither of you has to be the one who remembers any more. We'll only get in touch when a document is actually about to expire."
-          : "Everything your family would need is recorded and findable. Settling an estate routinely costs executors months, most of it spent hunting for exactly these things. We'll check in rarely from here.",
+          ? "Everything's written down, and it stays that way. Keeping track of what's current is shared between you and us now, so you'll hear from us only when something is genuinely about to expire."
+          : "Everything your family would need is recorded and findable — settling an estate routinely costs executors months, most of it spent hunting for exactly these things. Keeping it current is shared between you and us now, so we'll check in rarely.",
     };
   }
 
@@ -163,7 +178,7 @@ export function valueStatement(readiness: Readiness): { headline: string; detail
     headline: `${achieved} of ${readiness.total} done`,
     detail:
       journey.key === "organized"
-        ? "Each one of these is something neither of you has to hold in your head any more."
-        : "Each one of these is a question your family won't have to answer from scratch.",
+        ? "Each of these is written down and shared — kept track of here, rather than in anyone's memory."
+        : "Each of these is a question your family won't have to answer from scratch.",
   };
 }

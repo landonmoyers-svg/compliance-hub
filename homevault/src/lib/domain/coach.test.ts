@@ -201,6 +201,35 @@ test("the value statement makes no fabricated financial claims", () => {
   }
 });
 
+test("the value statement doesn't end the story, assign a past, or assume a partner", () => {
+  // The finished state used to read "This is done — neither of you has to be the
+  // one who remembers any more". Three separate wrong notes in one sentence:
+  // it declared the thing over, it asserted a past where one person carried it
+  // all, and it excluded anyone doing this without a partner.
+  for (const journey of JOURNEYS) {
+    for (const records of [[], organisedHousehold()]) {
+      const { headline, detail } = valueStatement(assessReadiness(records, journey.key, NOW));
+      const text = `${headline} ${detail}`.toLowerCase();
+
+      // No second person who may not exist. The shared responsibility on offer
+      // is with us, and holds for a household of one.
+      for (const phrase of ["neither of you", "either of you", "both of you", "your partner"]) {
+        assert.ok(!text.includes(phrase), `assumes a partner: ${JSON.stringify(text)}`);
+      }
+
+      // No claim about how things used to be, or about who was carrying them.
+      for (const phrase of ["any more", "anymore", "no longer has to", "used to"]) {
+        assert.ok(!text.includes(phrase), `narrates a past: ${JSON.stringify(text)}`);
+      }
+    }
+  }
+
+  // And when it IS finished, it says so as a state that persists rather than an
+  // event that concluded.
+  const finished = valueStatement(assessReadiness(organisedHousehold(), "organized", NOW));
+  assert.match(finished.detail, /stays that way|shared between you and us/);
+});
+
 test("wins report what was achieved and never what is outstanding", () => {
   const partial = [rec("a", "household"), rec("b", "contacts")];
   const readiness = assessReadiness(partial, "organized", NOW);
