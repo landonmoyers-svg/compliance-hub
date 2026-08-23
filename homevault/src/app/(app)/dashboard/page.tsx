@@ -5,7 +5,7 @@ import { completenessScore, coachSteps } from "@/lib/domain/coach";
 import { expiryStatus } from "@/lib/domain/records";
 
 export default async function DashboardPage() {
-  const data = getDataClient();
+  const data = await getDataClient();
   const [records, plans, recipients] = await Promise.all([
     data.listRecords(),
     data.listPlans(),

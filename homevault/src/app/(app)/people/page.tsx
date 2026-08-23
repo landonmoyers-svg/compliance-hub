@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default async function PeoplePage() {
-  const data = getDataClient();
+  const data = await getDataClient();
   const [members, recipients] = await Promise.all([data.listMembers(), data.listRecipients()]);
 
   return (

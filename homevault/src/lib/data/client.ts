@@ -1,19 +1,23 @@
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { DataClient } from "./types";
 import { DemoDataClient } from "./demo-client";
 import { SupabaseDataClient } from "./supabase-client";
+import { createSupabaseServerClient, requireCurrentUser } from "../supabase/server";
 
 /**
- * Picks the `DataClient` implementation for this deployment.
+ * Picks the `DataClient` implementation for this request.
+ *
+ * This module is the app's **Data Access Layer**: the Next.js authentication
+ * guide is explicit that the proxy is only an optimistic filter and that the
+ * real authorization check belongs as close to the data as possible. That check
+ * is `requireCurrentUser()` below — every Supabase-backed read passes through
+ * here, so there is one place to audit.
+ *
+ * Server-only: it reads request cookies, so importing it from a Client
+ * Component will fail the build rather than silently misbehave.
  *
  * **Demo is the default, deliberately.** The Supabase adapter is used only when
- * `NEXT_PUBLIC_HOMEVAULT_BACKEND=supabase` is set explicitly. Phase 1 has the
- * backend provisioned but auth (passkey/WebAuthn + Argon2id, docs/SECURITY.md
- * § 2) is not built yet, so there is no signed-in user to scope RLS to. Until
- * that lands, the public deployment must keep serving the in-memory demo
- * rather than silently pointing at an empty — or worse, real — database.
- *
- * See docs/ROADMAP.md Phase 1 and DEPLOY.md Stage 2.
+ * `NEXT_PUBLIC_HOMEVAULT_BACKEND=supabase`. See docs/ROADMAP.md Phase 1.
  */
 
 export const HOMEVAULT_BACKEND = process.env.NEXT_PUBLIC_HOMEVAULT_BACKEND ?? "demo";
@@ -23,37 +27,40 @@ export function isSupabaseBackend(): boolean {
   return HOMEVAULT_BACKEND === "supabase";
 }
 
+/** The demo client is stateless and user-independent, so one instance is fine. */
+let demoClient: DemoDataClient | null = null;
+
 /**
- * The household to scope queries to. A single-tenant placeholder for Phase 1;
- * once auth lands this comes from the session's membership rather than config.
+ * Find the household this user belongs to.
+ *
+ * Derived from membership rather than configuration: the row is visible only if
+ * RLS says the caller is a member, so a user cannot reach another household's
+ * data by guessing an id. Returns the first membership — multi-household
+ * switching is a later concern.
  */
-const HOUSEHOLD_ID = process.env.NEXT_PUBLIC_HOMEVAULT_HOUSEHOLD_ID ?? "";
+async function resolveHouseholdId(supabase: SupabaseClient, user: User): Promise<string> {
+  const { data, error } = await supabase
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
 
-let cached: DataClient | null = null;
+  if (error) throw new Error(`Could not resolve your household — ${error.message}`);
+  if (!data) throw new Error("This account is not a member of any household yet.");
+  return (data as { household_id: string }).household_id;
+}
 
-export function getDataClient(): DataClient {
-  if (cached) return cached;
-
-  if (isSupabaseBackend()) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // Fail loudly on a half-configured backend. Falling back to demo data here
-    // would be worse than an error: the app would look healthy while showing a
-    // fictional household.
-    if (!url || !key) {
-      throw new Error(
-        "HOMEVAULT_BACKEND=supabase requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-      );
-    }
-    if (!HOUSEHOLD_ID) {
-      throw new Error("HOMEVAULT_BACKEND=supabase requires NEXT_PUBLIC_HOMEVAULT_HOUSEHOLD_ID.");
-    }
-
-    cached = new SupabaseDataClient(createClient(url, key), HOUSEHOLD_ID);
-  } else {
-    cached = new DemoDataClient();
+export async function getDataClient(): Promise<DataClient> {
+  if (!isSupabaseBackend()) {
+    demoClient ??= new DemoDataClient();
+    return demoClient;
   }
 
-  return cached;
+  // Never cached: the client below carries one user's session. Reusing it
+  // across requests would hand that session to the next caller.
+  const supabase = await createSupabaseServerClient();
+  const user = await requireCurrentUser();
+  const householdId = await resolveHouseholdId(supabase, user);
+  return new SupabaseDataClient(supabase, householdId);
 }

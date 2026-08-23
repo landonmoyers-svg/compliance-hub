@@ -44,7 +44,7 @@ const STAGES = [
 ] as const;
 
 export default async function HandoverPage() {
-  const data = getDataClient();
+  const data = await getDataClient();
   const [plans, allRecipients] = await Promise.all([data.listPlans(), data.listRecipients()]);
 
   return (
