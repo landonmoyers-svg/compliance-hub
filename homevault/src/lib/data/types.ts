@@ -1,6 +1,7 @@
 import type { RecordMeta } from "../domain/records";
 import type { HandoverPlan } from "../domain/handover";
 import type { SensitivityTier } from "../domain/categories";
+import type { SealedBytes } from "../crypto/envelope";
 
 /**
  * The data seam (see docs/ARCHITECTURE.md "data seam"). The UI depends only on
@@ -32,10 +33,37 @@ export interface Recipient {
   scopeTiers: SensitivityTier[];
 }
 
-/** Read surface the authenticated app shell needs. Reads are metadata-only. */
+/**
+ * The non-secret half of a record, as supplied by the caller. Server-managed
+ * fields (id, household, timestamps) are deliberately absent — a client does not
+ * get to choose which household a record lands in.
+ */
+export type RecordMetaInput = Omit<RecordMeta, "id" | "householdId" | "createdAt" | "updatedAt">;
+
+/**
+ * A record on its way to storage: metadata the server may read, plus a payload
+ * the server cannot. The sealing already happened in the browser — by the time
+ * anything reaches this interface it is opaque.
+ */
+export interface SealedRecordInput {
+  meta: RecordMetaInput;
+  sealed: SealedBytes;
+}
+
 export interface DataClient {
   listRecords(): Promise<RecordMeta[]>;
   listMembers(): Promise<HouseholdMember[]>;
   listRecipients(): Promise<Recipient[]>;
   listPlans(): Promise<HandoverPlan[]>;
+
+  /**
+   * The opaque payload for one record, fetched only when the user actually
+   * reveals it. Kept off `listRecords` on purpose: browsing the vault should
+   * never pull every household secret over the wire, even as ciphertext.
+   */
+  getSealedRecord(id: string): Promise<SealedBytes | null>;
+
+  createRecord(input: SealedRecordInput): Promise<RecordMeta>;
+  updateRecord(id: string, input: SealedRecordInput): Promise<RecordMeta>;
+  deleteRecord(id: string): Promise<void>;
 }

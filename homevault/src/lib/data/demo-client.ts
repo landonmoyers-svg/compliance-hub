@@ -33,4 +33,35 @@ export class DemoDataClient implements DataClient {
   async listPlans(): Promise<HandoverPlan[]> {
     return DEMO_PLANS;
   }
+
+  /**
+   * The demo has no stored ciphertext — the vault page seals its sample payloads
+   * live in the browser to show the round-trip. Returning null keeps callers on
+   * that path instead of inventing a fake blob here.
+   */
+  async getSealedRecord(): Promise<null> {
+    return null;
+  }
+
+  // --- Writes are deliberately unsupported ---------------------------------
+  //
+  // This client is a module-level singleton shared by every request, so an
+  // in-memory store would show one visitor's records to the next. A public demo
+  // leaking its visitors' entries to each other would be a worse failure than
+  // not supporting writes at all. Real households run the Supabase client.
+
+  async createRecord(): Promise<never> {
+    throw new Error(DEMO_READ_ONLY);
+  }
+
+  async updateRecord(): Promise<never> {
+    throw new Error(DEMO_READ_ONLY);
+  }
+
+  async deleteRecord(): Promise<never> {
+    throw new Error(DEMO_READ_ONLY);
+  }
 }
+
+const DEMO_READ_ONLY =
+  "The public demo is read-only. Connect a Supabase project to create your own records.";

@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DataClient, HouseholdMember, Recipient } from "./types";
+import type { DataClient, HouseholdMember, Recipient, SealedRecordInput } from "./types";
 import type { CategoryKey, SensitivityTier } from "../domain/categories";
 import type { RecordKind, RecordMeta } from "../domain/records";
 import type { HandoverPlan, HandoverState, HandoverTrigger, TriggerCombine } from "../domain/handover";
+import type { SealedBytes } from "../crypto/envelope";
 
 /**
  * The `DataClient` backed by the dedicated HomeVault Supabase project
@@ -98,7 +99,26 @@ function toPlan(row: PlanRow): HandoverPlan {
 
 /** Surface Postgres errors with the table name so failures aren't silent. */
 function fail(table: string, message: string): never {
-  throw new Error(`HomeVault: failed to read "${table}" — ${message}`);
+  throw new Error(`HomeVault: "${table}" — ${message}`);
+}
+
+/** The non-secret columns, shared by every read that returns metadata. */
+const META_COLUMNS =
+  "id, household_id, category, tier, label, kind, has_physical_location, expires_on, created_at, updated_at";
+
+/** Map a sealed record to its row form. Ciphertext in, nothing readable. */
+function toRow(input: SealedRecordInput) {
+  return {
+    category: input.meta.category,
+    tier: input.meta.tier,
+    label: input.meta.label,
+    kind: input.meta.kind,
+    has_physical_location: input.meta.hasPhysicalLocation,
+    expires_on: input.meta.expiresOn,
+    ciphertext: input.sealed.ciphertext,
+    iv: input.sealed.iv,
+    wrapped_data_key: input.sealed.wrappedDataKey,
+  };
 }
 
 export class SupabaseDataClient implements DataClient {
@@ -111,7 +131,7 @@ export class SupabaseDataClient implements DataClient {
     const { data, error } = await this.supabase
       .from("records")
       // Non-secret columns only — never ciphertext/iv/wrapped_data_key.
-      .select("id, household_id, category, tier, label, kind, has_physical_location, expires_on, created_at, updated_at")
+      .select(META_COLUMNS)
       .eq("household_id", this.householdId)
       .order("created_at", { ascending: true });
 
@@ -152,6 +172,60 @@ export class SupabaseDataClient implements DataClient {
       isMember: row.user_id !== null,
       scopeTiers: (row.scope_tiers ?? []) as SensitivityTier[],
     }));
+  }
+
+  async getSealedRecord(id: string): Promise<SealedBytes | null> {
+    const { data, error } = await this.supabase
+      .from("records")
+      .select("ciphertext, iv, wrapped_data_key")
+      .eq("id", id)
+      .eq("household_id", this.householdId)
+      .maybeSingle();
+
+    if (error) fail("records", error.message);
+    if (!data) return null;
+
+    const row = data as { ciphertext: string; iv: string; wrapped_data_key: string };
+    return { ciphertext: row.ciphertext, iv: row.iv, wrappedDataKey: row.wrapped_data_key };
+  }
+
+  async createRecord(input: SealedRecordInput): Promise<RecordMeta> {
+    const { data, error } = await this.supabase
+      .from("records")
+      .insert({
+        // The household comes from the caller's membership, never from input —
+        // otherwise a crafted request could write into someone else's vault.
+        household_id: this.householdId,
+        ...toRow(input),
+      })
+      .select(META_COLUMNS)
+      .single();
+
+    if (error) fail("records", error.message);
+    return toRecordMeta(data as RecordRow);
+  }
+
+  async updateRecord(id: string, input: SealedRecordInput): Promise<RecordMeta> {
+    const { data, error } = await this.supabase
+      .from("records")
+      .update(toRow(input))
+      .eq("id", id)
+      .eq("household_id", this.householdId)
+      .select(META_COLUMNS)
+      .single();
+
+    if (error) fail("records", error.message);
+    return toRecordMeta(data as RecordRow);
+  }
+
+  async deleteRecord(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("records")
+      .delete()
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+
+    if (error) fail("records", error.message);
   }
 
   async listPlans(): Promise<HandoverPlan[]> {
