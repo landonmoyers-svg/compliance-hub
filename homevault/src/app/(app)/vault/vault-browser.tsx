@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FolderLock, Lock, MapPin, Search, FileText, Fingerprint } from "lucide-react";
 import { Card, PageHeader, Badge, TierBadge } from "@/components/ui";
+import { SideNav } from "@/components/side-nav";
 import { CATEGORIES, CATEGORY_BY_KEY, requiresStepUp, type CategoryKey } from "@/lib/domain/categories";
 import { expiryStatus, type RecordMeta, type RecordPayload } from "@/lib/domain/records";
 import { useVault } from "@/lib/vault/provider";
@@ -100,6 +101,10 @@ export function VaultBrowser({
     }
   }
 
+  // Counts sit in the rail, as they do on Jane's Billing nav — the number is
+  // what tells you whether a category is worth opening.
+  const countFor = (key: CategoryKey) => allRecords.filter((r) => r.category === key).length;
+
   return (
     <div>
       <PageHeader
@@ -108,27 +113,36 @@ export function VaultBrowser({
         subtitle="Digital backups and physical-location references — encrypted on your device before they're stored."
       />
 
-      <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <Search size={16} className="text-muted" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search labels (metadata only — search never decrypts)…"
-          className="w-full bg-transparent text-sm outline-none placeholder:text-muted"
+      {/* Jane's two-column shape: categories in the rail, content on the right.
+          The old chip row worked at eleven categories and would not have at
+          thirty. */}
+      <div className="flex gap-6">
+        <SideNav
+          activeKey={active}
+          groups={[
+            { items: [{ key: "all", label: "All records", badge: allRecords.length, onSelect: () => setActive("all") }] },
+            {
+              heading: "Categories",
+              items: CATEGORIES.map((c) => ({
+                key: c.key,
+                label: c.label,
+                badge: countFor(c.key),
+                onSelect: () => setActive(c.key),
+              })),
+            },
+          ]}
         />
-      </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <CategoryChip label="All" activeChip={active === "all"} onClick={() => setActive("all")} />
-        {CATEGORIES.map((c) => (
-          <CategoryChip
-            key={c.key}
-            label={c.label}
-            activeChip={active === c.key}
-            onClick={() => setActive(c.key)}
-          />
-        ))}
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2.5">
+            <Search size={16} className="text-muted" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search labels (metadata only — search never decrypts)…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted"
+            />
+          </div>
 
       {!unlocked ? (
         <div className="mb-5">
@@ -150,25 +164,13 @@ export function VaultBrowser({
             onToggle={() => toggleReveal(r)}
           />
         ))}
-        {records.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-muted">No records match. Try a different category.</Card>
-        ) : null}
+          {records.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-muted">No records match. Try a different category.</Card>
+          ) : null}
+          </div>
+        </div>
       </div>
     </div>
-  );
-}
-
-function CategoryChip({ label, activeChip, onClick }: { label: string; activeChip: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        activeChip ? "border-accent/40 bg-accent/15 text-accent" : "border-border bg-surface text-muted hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
   );
 }
 
