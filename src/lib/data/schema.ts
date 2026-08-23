@@ -65,6 +65,9 @@ export const ComplianceUserProfile = z.object({
   // Grant to view SENSITIVE employee documents (medical, background checks).
   // Owner/HR always can; owner/HR toggle this for other privileged users.
   sensitiveDocsAccess: z.boolean().optional(),
+  // Platform operator — may create new COMPANIES (tenants). Above any single
+  // org's owner/admin; set manually, never self-serve.
+  platformAdmin: z.boolean().optional(),
 });
 export type ComplianceUserProfile = z.infer<typeof ComplianceUserProfile>;
 

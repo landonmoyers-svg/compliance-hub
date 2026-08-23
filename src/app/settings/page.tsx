@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { Building2, MapPin, Plus, X, Trash2, HardDrive, Factory } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +62,71 @@ function toForm(s: OrganizationSettings | undefined): OrgForm {
   };
 }
 
+/* ─── platform-only: create another COMPANY (tenant) ──────────── */
+
+function CreateCompanyCard() {
+  const [orgName, setOrgName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function create() {
+    if (!orgName.trim() || !ownerName.trim() || !ownerEmail.trim()) {
+      toast.error("Company name, owner name, and owner email are all required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/create-organization", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgName, ownerName, ownerEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't create the company.");
+      toast.success(`${data.orgName} created — an invite was sent to ${ownerEmail}.`);
+      setOrgName(""); setOwnerName(""); setOwnerEmail("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't create the company.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="size-4 text-primary" /> Companies (platform)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Create a separate company with its own owner, staff, and data. Companies are fully
+          isolated from one another — nobody in one can see another&apos;s records. The owner you
+          name here gets an email invite to set their password.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Company name</label>
+            <input className="input w-full" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="e.g. Cedar Valley Health" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Owner name</label>
+            <input className="input w-full" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Owner email</label>
+            <input className="input w-full" type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} placeholder="owner@practice.com" />
+          </div>
+        </div>
+        <Button onClick={() => void create()} disabled={busy}>
+          <Plus className="size-4" /> {busy ? "Creating…" : "Create company & invite owner"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
+  const { profile } = useAuth();
   const [tab, setTab] = useState<Tab>("organization");
 
   const settingsQ = useCollection("organizationSettings");
@@ -177,6 +242,7 @@ export default function SettingsPage() {
 
       {tab === "organization" && (
         <div className="space-y-6">
+        {profile?.platformAdmin && <CreateCompanyCard />}
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="size-4 text-muted-foreground" /> Organization</CardTitle></CardHeader>
           <CardContent>
