@@ -86,9 +86,17 @@ export async function POST(request: NextRequest) {
   const newUserId = invited.user.id;
   await admin.from("credentials").update({ employee_user_id: newUserId }).is("employee_user_id", null).ilike("employee_name", fullName);
   await admin.from("insurance_policies").update({ holder_user_id: newUserId }).is("holder_user_id", null).ilike("holder_name", fullName);
-  // Employees match on first+last, so find the unlinked record by full name.
-  const { data: emps } = await admin.from("employees").select("id, first_name, last_name, user_id");
-  const emp = (emps ?? []).find((e) => !e.user_id && `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim().toLowerCase() === fullName.toLowerCase());
+  // Link the roster row to this login. Match on EMAIL first — it's definitive and
+  // survives the common case where the invite name is informal ("jolene") while
+  // the roster has the legal name ("Jolene Lemmon"); name-only matching silently
+  // left every employee unlinked, which breaks the person panel (policy acks
+  // match on userId with no name fallback) and former-holder detection.
+  const { data: emps } = await admin.from("employees").select("id, first_name, last_name, email, user_id");
+  const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+  const unlinked = (emps ?? []).filter((e) => !e.user_id);
+  const emp =
+    unlinked.find((e) => norm(e.email) && norm(e.email) === norm(email)) ??
+    unlinked.find((e) => `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim().toLowerCase() === fullName.toLowerCase());
   if (emp) await admin.from("employees").update({ user_id: newUserId }).eq("id", emp.id);
 
   return NextResponse.json({ ok: true, userId: newUserId });
