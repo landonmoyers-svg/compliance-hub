@@ -729,6 +729,23 @@ export const FEATURES: FeatureGuide[] = [
     doneWhen: "Your backlog of certificates is uploaded and attached to the right records.",
   },
 
+
+  {
+    slug: "companies-and-access", title: "Companies, roles & sites", route: "/settings", category: "Privacy & Security",
+    what: "How the app separates one company from another, how a person's role is scoped to a single company, and how a member can be limited to specific sites within it.",
+    why: "Each company's compliance records are its own. Someone who owns or administers one practice must never see another's staff, credentials, or documents — and inside a practice, a site manager often should only see their own location. Getting this wrong is a data breach, not a UI annoyance.",
+    how: [
+      "Two boundaries stack. First the COMPANY: you only ever see records belonging to a company you are a member of. Then the SITE: if your membership is limited to particular locations, records tied to another location stay hidden.",
+      "Your role lives on your MEMBERSHIP, not on you. The same person can be an owner at one company and staff at another — being an admin somewhere grants nothing anywhere else.",
+      "Invite people from inside the company they belong to (User Management). They join that company with the role you choose.",
+      "Platform only: Settings → Organization → Companies creates a whole new company and invites its first owner. That owner then runs their own practice and cannot see yours. This card is hidden unless you are the platform administrator.",
+      "Records with no location (policies, SOPs, training modules, vendors) are company-wide; records that carry a location (credentials, incidents, inventory, tasks, business records) also respect site scoping.",
+    ],
+    doneWhen: "Every person holds the least role they need, in only the companies they belong to — and site-limited staff see only their own location.",
+    roles: ["owner", "admin"],
+    playbooks: ["add-a-company", "first-week-owner"],
+  },
+
 ];
 
 const BY_SLUG: Record<string, FeatureGuide> = Object.fromEntries(FEATURES.map((f) => [f.slug, f]));
