@@ -63,14 +63,14 @@ export function JaneTopBar({ onToggleMobileNav }: { onToggleMobileNav?: () => vo
             const isActive = activeGroup?.label === g.label;
             return (
               <Link
-                key={g.shortLabel ?? g.label}
+                key={g.label}
                 href={first}
                 className={cn(
                   "flex shrink-0 items-center whitespace-nowrap px-4 text-[15px] transition-colors",
                   isActive ? "bg-topbar-active font-semibold" : "hover:bg-topbar-hover",
                 )}
               >
-                {g.label}
+                {g.shortLabel ?? g.label}
               </Link>
             );
           })}
