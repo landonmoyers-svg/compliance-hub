@@ -427,10 +427,12 @@ function FormFiller({
   }
 
   // Forms that could tempt someone to type patient data get the prominent notice
-  // and the pre-save PHI checkpoint.
+  // and the pre-save PHI checkpoint. Patient-CONTEXT signals only: an employee's
+  // DOB/SSN on an HR or OSHA form is legitimate employment data (not PHI), and a
+  // yes/no checkbox that merely mentions patients isn't identifying either.
   const phiRisk = template.sensitive
     || ["hipaa", "insurance_risk"].includes(template.category)
-    || template.fields.some((f) => /patient|dob|date of birth|mrn|medical record|ssn|social security|diagnos/i.test(f.label));
+    || template.fields.some((f) => f.type !== "checkbox" && /patient|mrn|medical record|diagnos/i.test(f.label));
 
   function handleSubmit() {
     const missing = template.fields.find(
