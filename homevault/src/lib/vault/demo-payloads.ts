@@ -56,10 +56,22 @@ export function demoPayloadFor(record: RecordMeta): RecordPayload {
 }
 
 /**
- * Bind the record's non-secret metadata into the GCM additional-authenticated-
- * data, so the server cannot move a ciphertext under a different label or
- * category without the decrypt failing (docs/SECURITY.md § 2).
+ * The additional-authenticated-data for a **stored** record.
+ *
+ * Binding the non-secret metadata into the GCM tag means the server cannot move
+ * a ciphertext under a different label or category without the decrypt failing
+ * (docs/SECURITY.md § 2).
+ *
+ * Deliberately excludes the record id: the id does not exist yet at the moment
+ * the browser seals a new record, so including it would make a freshly created
+ * record impossible to reopen. Must stay in step with the seal side in
+ * `add-record.tsx`.
  */
+export function aadForStored(meta: Pick<RecordMeta, "category" | "tier" | "label">): Uint8Array {
+  return utf8ToBytes(JSON.stringify({ category: meta.category, tier: meta.tier, label: meta.label }));
+}
+
+/** AAD for the in-memory demo records, which do have ids up front. */
 export function aadFor(record: RecordMeta): Uint8Array {
   return utf8ToBytes(
     JSON.stringify({

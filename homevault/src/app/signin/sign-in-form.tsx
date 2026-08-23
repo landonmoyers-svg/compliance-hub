@@ -18,18 +18,36 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
  */
 export function SignInForm() {
   const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      const { error } = await getSupabaseBrowserClient().auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const supabase = getSupabaseBrowserClient();
+
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        // With email confirmation on, there is no session yet — say so rather
+        // than bouncing to a page that will redirect straight back here.
+        if (!data.session) {
+          setNotice("Check your email to confirm your account, then sign in.");
+          setMode("signin");
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+
       // Refresh so Server Components re-run with the new session cookies.
       router.replace("/dashboard");
       router.refresh();
@@ -44,7 +62,9 @@ export function SignInForm() {
     <Card className="mx-auto max-w-md p-6">
       <div className="flex items-center gap-2">
         <ShieldCheck className="text-accent" size={20} />
-        <h1 className="text-lg font-semibold">Sign in to HomeVault</h1>
+        <h1 className="text-lg font-semibold">
+          {mode === "signup" ? "Create your HomeVault account" : "Sign in to HomeVault"}
+        </h1>
       </div>
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
@@ -78,10 +98,25 @@ export function SignInForm() {
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-60"
         >
           {busy ? <Loader2 size={15} className="animate-spin" /> : <LogIn size={15} />}
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
         </button>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {notice ? <p className="text-sm text-success">{notice}</p> : null}
+
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === "signup" ? "signin" : "signup");
+            setError(null);
+            setNotice(null);
+          }}
+          className="text-xs text-accent hover:underline"
+        >
+          {mode === "signup"
+            ? "Already have an account? Sign in"
+            : "First time here? Create an account"}
+        </button>
       </form>
 
       <div className="mt-5 flex gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">

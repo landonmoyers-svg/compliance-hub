@@ -7,7 +7,11 @@ import { CATEGORIES, CATEGORY_BY_KEY, requiresStepUp, type CategoryKey } from "@
 import { expiryStatus, type RecordMeta, type RecordPayload } from "@/lib/domain/records";
 import { useVault } from "@/lib/vault/provider";
 import { VaultUnlockPanel } from "@/components/vault-lock";
-import { sealDemoRecord, openDemoRecord } from "@/lib/vault/demo-payloads";
+import { sealDemoRecord, openDemoRecord, aadForStored } from "@/lib/vault/demo-payloads";
+import { open as openSealed } from "@/lib/crypto/envelope";
+import { getSealedRecordAction } from "./actions";
+import { AddRecord } from "./add-record";
+import type { RecordPayload as Payload } from "@/lib/domain/records";
 import type { SealedBytes } from "@/lib/crypto/envelope";
 import { cn } from "@/lib/cn";
 
@@ -27,7 +31,14 @@ interface RevealResult {
  * Revealing a record runs the real envelope round-trip against the live vault
  * key: seal the payload, then reopen it. Nothing decrypts while locked.
  */
-export function VaultBrowser({ allRecords }: { allRecords: RecordMeta[] }) {
+export function VaultBrowser({
+  allRecords,
+  live,
+}: {
+  allRecords: RecordMeta[];
+  /** True when records come from a real household rather than the demo fixture. */
+  live: boolean;
+}) {
   const [active, setActive] = useState<CategoryKey | "all">("all");
   const [query, setQuery] = useState("");
   const [revealed, setRevealed] = useState<string | null>(null);
@@ -71,9 +82,19 @@ export function VaultBrowser({ allRecords }: { allRecords: RecordMeta[] }) {
     setRevealed(record.id);
     try {
       const vaultKey = requireVaultKey();
-      const sealed = await sealDemoRecord(record, vaultKey);
-      const payload = await openDemoRecord(sealed, record, vaultKey);
-      setResult({ sealed, payload });
+
+      if (live) {
+        // A real record: fetch the stored ciphertext and open it here.
+        const sealed = await getSealedRecordAction(record.id);
+        if (!sealed) throw new Error("This record has no stored payload.");
+        const payload = await openSealed<Payload>(sealed, vaultKey, aadForStored(record));
+        setResult({ sealed, payload });
+      } else {
+        // Demo: seal a sample payload and reopen it, to show the real round-trip.
+        const sealed = await sealDemoRecord(record, vaultKey);
+        const payload = await openDemoRecord(sealed, record, vaultKey);
+        setResult({ sealed, payload });
+      }
     } catch (err) {
       setRevealError(err instanceof Error ? err.message : "Could not open this record.");
     }
@@ -113,6 +134,8 @@ export function VaultBrowser({ allRecords }: { allRecords: RecordMeta[] }) {
         <div className="mb-5">
           <VaultUnlockPanel />
         </div>
+      ) : live ? (
+        <AddRecord />
       ) : null}
 
       <div className="grid gap-3">

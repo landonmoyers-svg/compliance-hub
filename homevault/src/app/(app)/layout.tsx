@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (supabaseBacked && !user) redirect("/signin");
 
   return (
-    <VaultProvider>
+    <VaultProvider backend={supabaseBacked ? "supabase" : "demo"}>
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1">
