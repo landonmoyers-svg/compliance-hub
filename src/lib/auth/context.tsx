@@ -87,6 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           department: data.department ?? undefined,
           primaryLocationId: data.primary_location_id ?? undefined,
           active: data.active,
+          // NOTE: this mapping is hand-written (not the shared profileFrom
+          // mapper), so any NEW profile column must be added here too or it
+          // silently never reaches the app.
+          sensitiveDocsAccess: data.sensitive_docs_access ?? false,
+          platformAdmin: data.platform_admin ?? false,
         };
 
         setUser({ id: authUser.id, fullName: p.fullName, email: p.email });
