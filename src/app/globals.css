@@ -7,45 +7,55 @@
   on <html>. @theme inline maps the vars to Tailwind color utilities.
 */
 :root {
-  /* Light appearance — Apple-style grouped light surfaces (base is a soft gray,
-     cards/popovers are white and rise above it with a subtle shadow). */
-  --background: 240 20% 97%;
-  --foreground: 240 10% 12%;
+  /* ── Jane-style light appearance ──────────────────────────────────────
+     Mirrors Jane.app: a white page, white cards separated by hairline gray
+     borders (not shadows), a saturated teal used for the top bar, primary
+     actions and links, and a soft mint for the "you are here" state. */
+  --background: 0 0% 100%;
+  --foreground: 197 16% 20%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 12%;
+  --card-foreground: 197 16% 20%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 12%;
-  --primary: 211 100% 44%;
+  --popover-foreground: 197 16% 20%;
+  --primary: 177 74% 38%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 20% 93%;
-  --secondary-foreground: 240 10% 15%;
-  --muted: 240 20% 93%;
-  --muted-foreground: 240 6% 42%;
-  --accent: 240 20% 93%;
-  --accent-foreground: 240 10% 15%;
-  --destructive: 4 78% 50%;
+  --secondary: 185 16% 96%;
+  --secondary-foreground: 197 16% 26%;
+  --muted: 185 16% 96%;
+  --muted-foreground: 200 8% 44%;
+  --accent: 177 44% 91%;
+  --accent-foreground: 177 62% 25%;
+  --destructive: 4 72% 52%;
   --destructive-foreground: 0 0% 100%;
-  --success: 142 55% 38%;
+  --success: 145 52% 38%;
   --success-foreground: 0 0% 100%;
   --warning: 38 92% 48%;
   --warning-foreground: 0 0% 0%;
-  --border: 240 12% 87%;
-  --input: 240 12% 84%;
-  --ring: 211 100% 44%;
-  --chart-1: 211 100% 44%;
-  --chart-2: 142 55% 38%;
-  --chart-3: 38 92% 48%;
-  --chart-4: 4 78% 50%;
-  --chart-5: 270 50% 55%;
-  --radius: 0.75rem;
-  --sidebar: 240 20% 98%;
-  --sidebar-foreground: 240 8% 30%;
-  --sidebar-primary: 211 100% 44%;
+  --border: 195 14% 89%;
+  --input: 195 14% 84%;
+  --ring: 177 74% 38%;
+  --chart-1: 177 74% 42%;
+  --chart-2: 145 52% 45%;
+  --chart-3: 38 92% 55%;
+  --chart-4: 4 72% 58%;
+  --chart-5: 262 45% 58%;
+  --radius: 0.5rem;
+
+  /* Jane top bar — the saturated teal band across the top of every page. */
+  --topbar: 177 70% 43%;
+  --topbar-foreground: 0 0% 100%;
+  --topbar-active: 177 72% 35%;
+  --topbar-hover: 177 72% 38%;
+
+  /* Section sidebar: white, hairline-bordered items; active = mint. */
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 197 16% 26%;
+  --sidebar-primary: 177 74% 38%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 211 100% 44%;
-  --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-border: 240 12% 87%;
-  --sidebar-ring: 211 100% 44%;
+  --sidebar-accent: 177 44% 91%;
+  --sidebar-accent-foreground: 177 62% 25%;
+  --sidebar-border: 195 14% 89%;
+  --sidebar-ring: 177 74% 38%;
 }
 
 :root[data-theme="dark"] {
@@ -57,7 +67,7 @@
   --card-foreground: 0 0% 100%;
   --popover: 0 0% 10.2%;
   --popover-foreground: 0 0% 100%;
-  --primary: 210 100% 44%;
+  --primary: 177 62% 46%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 14.1%;
   --secondary-foreground: 0 0% 100%;
@@ -74,8 +84,8 @@
   --warning-foreground: 0 0% 0%;
   --border: 0 0% 26%;
   --input: 0 0% 26%;
-  --ring: 210 100% 44%;
-  --chart-1: 210 100% 44%;
+  --ring: 177 62% 46%;
+  --chart-1: 177 62% 48%;
   --chart-2: 122 39% 49%;
   --chart-3: 45 100% 51%;
   --chart-4: 4 90% 58%;
@@ -97,6 +107,10 @@
   --color-card-foreground: hsl(var(--card-foreground));
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-topbar: hsl(var(--topbar));
+  --color-topbar-foreground: hsl(var(--topbar-foreground));
+  --color-topbar-active: hsl(var(--topbar-active));
+  --color-topbar-hover: hsl(var(--topbar-hover));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-secondary: hsl(var(--secondary));
@@ -144,7 +158,7 @@
     color: hsl(var(--foreground));
     /* SF / system typeface, smoothed, with the subtle negative tracking Apple
        uses at UI sizes. */
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, var(--font-inter), sans-serif;
+    font-family: var(--font-inter), "Nunito Sans", -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -187,7 +201,7 @@
    single stroke weight everywhere, tuned to match the weight of adjacent UI
    text so icons and labels read as one. */
 svg.lucide {
-  stroke-width: 1.75px;
+  stroke-width: 1.6px;
 }
 
 /* Accessibility (HIG): honor the reduce-motion preference app-wide. */
@@ -206,10 +220,10 @@ svg.lucide {
   min-height: 2.5rem; /* comfortable hit target */
   border-radius: calc(var(--radius) - 2px);
   border: 1px solid hsl(var(--border));
-  background: hsl(var(--secondary));
+  background: hsl(var(--card));
   color: hsl(var(--foreground));
   padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   line-height: 1.5;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -279,4 +293,37 @@ svg.lucide {
   }
   table.rtable td[data-label=""]::before { content: none; }
   table.rtable td[data-label=""] { justify-content: flex-end; }
+}
+
+
+/* ── Jane-style data tables ──────────────────────────────────────────────
+   Column headers in small caps-ish gray, hairline row rules, generous row
+   height, and teal for the clickable primary cell. Applied via .rtable which
+   every list page already uses. */
+table.rtable thead th {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+table.rtable tbody td {
+  padding-top: 0.875rem;
+  padding-bottom: 0.875rem;
+  font-size: 0.9375rem;
+}
+table.rtable tbody tr {
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+}
+
+/* Jane's filter strip that sits above a report/list. */
+.jane-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  padding: 0.75rem 1rem;
 }

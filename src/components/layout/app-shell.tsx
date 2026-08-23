@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, ShieldCheck, X, Lock } from "lucide-react";
-import { Sidebar } from "./sidebar";
-import { NotificationBell } from "./notification-bell";
+import { X, Lock } from "lucide-react";
+import { JaneTopBar } from "./jane-topbar";
+import { JaneSidebar } from "./jane-sidebar";
 import { AssistantWidget } from "@/components/ai/assistant-widget";
 import { GuideProvider } from "@/lib/guide/context";
 import { GuideDock } from "@/components/guide/guide-dock";
@@ -15,7 +15,11 @@ import { industryHiddenModules } from "@/lib/industries";
 import { logAccess } from "@/lib/audit-client";
 import { cn } from "@/lib/cn";
 
-/** Authenticated app frame: fixed sidebar on desktop, slide-over drawer on mobile. */
+/**
+ * Authenticated app frame, Jane-style: a teal section bar across the top, the
+ * chosen section's pages in a left rail, and content in a white column. Mobile
+ * collapses the rail into a slide-over drawer.
+ */
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -80,77 +84,53 @@ export function AppShell({ children }: { children: ReactNode }) {
         Skip to main content
       </a>
 
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-sidebar-border lg:block">
-        <Sidebar />
-      </aside>
+      <JaneTopBar onToggleMobileNav={() => setMobileOpen(true)} />
 
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/70 px-4 py-3 backdrop-blur-xl backdrop-saturate-150 lg:hidden">
-        <button
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation"
-          className="rounded-md p-1.5 hover:bg-secondary"
-        >
-          <Menu className="size-5" />
-        </button>
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="size-5 text-primary" />
-          <span className="text-sm font-semibold">Compliance Hub</span>
-        </div>
-        <div className="ml-auto">
-          <NotificationBell />
-        </div>
-      </header>
+      <div className="flex">
+        {/* Section rail (desktop) */}
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
+          <JaneSidebar />
+        </aside>
 
-      {/* Mobile drawer */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 lg:hidden",
-          mobileOpen ? "pointer-events-auto" : "pointer-events-none",
-        )}
-        inert={!mobileOpen}
-      >
+        {/* Section rail (mobile drawer) */}
         <div
-          className={cn(
-            "absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity",
-            mobileOpen ? "opacity-100" : "opacity-0",
-          )}
-          onClick={() => setMobileOpen(false)}
-        />
-        <div
-          className={cn(
-            "absolute inset-y-0 left-0 w-72 border-r border-sidebar-border shadow-xl transition-transform",
-            mobileOpen ? "translate-x-0" : "-translate-x-full",
-          )}
+          className={cn("fixed inset-0 z-40 lg:hidden", mobileOpen ? "pointer-events-auto" : "pointer-events-none")}
+          inert={!mobileOpen}
         >
-          <button
+          <div
+            className={cn("absolute inset-0 bg-black/50 transition-opacity", mobileOpen ? "opacity-100" : "opacity-0")}
             onClick={() => setMobileOpen(false)}
-            aria-label="Close navigation"
-            className="absolute right-3 top-3 z-10 rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
+          />
+          <div
+            className={cn(
+              "absolute inset-y-0 left-0 w-72 border-r border-sidebar-border bg-sidebar shadow-xl transition-transform",
+              mobileOpen ? "translate-x-0" : "-translate-x-full",
+            )}
           >
-            <X className="size-5" />
-          </button>
-          <Sidebar onNavigate={() => setMobileOpen(false)} />
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close navigation"
+              className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
+            >
+              <X className="size-5" />
+            </button>
+            <JaneSidebar onNavigate={() => setMobileOpen(false)} />
+          </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <main id="main-content" tabIndex={-1} className="lg:pl-72 focus:outline-none">
-        {/* Desktop top bar with notifications — Liquid Glass functional layer */}
-        <div className="sticky top-0 z-20 hidden items-center justify-end border-b border-border bg-card/70 px-8 py-2 backdrop-blur-xl backdrop-saturate-150 lg:flex">
-          <NotificationBell />
-        </div>
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          {blocked ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-              <Lock className="size-10 text-muted-foreground" />
-              <p className="text-lg font-medium">You don’t have access to this page</p>
-              <p className="text-sm text-muted-foreground">Your role doesn’t include this page, or your organization has turned it off. Redirecting…</p>
-            </div>
-          ) : children}
-        </div>
-      </main>
+        {/* Content */}
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
+          <div className="mx-auto max-w-[1400px] px-5 py-6 sm:px-7 lg:px-9">
+            {blocked ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <Lock className="size-10 text-muted-foreground" />
+                <p className="text-lg font-medium">You don’t have access to this page</p>
+                <p className="text-sm text-muted-foreground">Your role doesn’t include this page, or your organization has turned it off. Redirecting…</p>
+              </div>
+            ) : children}
+          </div>
+        </main>
+      </div>
 
       {/* Site-wide, page-aware AI assistant */}
       <AssistantWidget />
