@@ -28,12 +28,28 @@ export interface RecordField {
   secret: boolean;
 }
 
-/** Pointer to a ciphertext attachment blob in Storage, decryptable with the record's DK. */
+/**
+ * Pointer to an encrypted attachment blob.
+ *
+ * This lives inside `RecordPayload`, which is itself encrypted — deliberately,
+ * because the filename and media type are sensitive on their own. "2019 divorce
+ * decree.pdf" reveals plenty without anyone decrypting a byte, so none of it
+ * sits beside the blob in storage.
+ *
+ * `iv` and `wrappedDataKey` are the attachment's own key material. Each file
+ * gets its own data key, so a single document can be handed to a recipient
+ * during a handover without surrendering the rest of the record.
+ */
 export interface AttachmentRef {
   id: string;
   filename: string;
   mediaType: string;
+  /** Size of the original file, before encryption. */
   sizeBytes: number;
+  /** base64 — GCM nonce for this attachment. */
+  iv: string;
+  /** base64 — AES-KW(VK, this attachment's data key). */
+  wrappedDataKey: string;
 }
 
 /**

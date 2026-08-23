@@ -45,6 +45,64 @@ export async function exportVaultKey(vk: CryptoKey): Promise<Uint8Array> {
 }
 
 /**
+ * Seal raw bytes — a scanned document, a photo, a PDF.
+ *
+ * Returns the ciphertext separately from the key material, because an
+ * attachment's bytes are far too large to sit inside a record row: the blob goes
+ * to storage, and only `iv` + `wrappedDataKey` travel with the record. The blob
+ * store therefore holds something it cannot read and cannot identify.
+ *
+ * Each attachment gets its own data key, so one document can later be handed to
+ * a recipient without surrendering the rest of the record.
+ */
+export async function sealBytes(
+  bytes: Uint8Array,
+  vk: CryptoKey,
+  aad: Uint8Array,
+): Promise<{ ciphertext: Uint8Array; iv: string; wrappedDataKey: string }> {
+  const s = subtle();
+  const dk = await s.generateKey({ name: CRYPTO_PARAMS.content.name, length: CRYPTO_PARAMS.content.length }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(CRYPTO_PARAMS.content.ivBytes));
+  const ct = new Uint8Array(
+    await s.encrypt({ name: CRYPTO_PARAMS.content.name, iv, additionalData: aad as BufferSource }, dk, bytes as BufferSource),
+  );
+  const wrapped = new Uint8Array(await s.wrapKey("raw", dk, vk, { name: CRYPTO_PARAMS.wrap.name }));
+  return { ciphertext: ct, iv: bytesToBase64(iv), wrappedDataKey: bytesToBase64(wrapped) };
+}
+
+/**
+ * Open sealed bytes. Throws if the ciphertext was altered, if the wrong vault
+ * key is supplied, or if the AAD doesn't match — which is what stops a blob
+ * being swapped between records.
+ */
+export async function openBytes(
+  ciphertext: Uint8Array,
+  keys: { iv: string; wrappedDataKey: string },
+  vk: CryptoKey,
+  aad: Uint8Array,
+): Promise<Uint8Array> {
+  const s = subtle();
+  const dk = await s.unwrapKey(
+    "raw",
+    base64ToBytes(keys.wrappedDataKey) as BufferSource,
+    vk,
+    { name: CRYPTO_PARAMS.wrap.name },
+    { name: CRYPTO_PARAMS.content.name },
+    false,
+    ["decrypt"],
+  );
+  const pt = await s.decrypt(
+    { name: CRYPTO_PARAMS.content.name, iv: base64ToBytes(keys.iv) as BufferSource, additionalData: aad as BufferSource },
+    dk,
+    ciphertext as BufferSource,
+  );
+  return new Uint8Array(pt);
+}
+
+/**
  * Seal a payload object. `aad` (additional-authenticated-data) binds non-secret
  * metadata into the GCM tag so the server can't move a ciphertext under a
  * different label/category without the decrypt failing. Pass the serialized meta.
