@@ -140,6 +140,37 @@ every layer:
 - **Metadata is partially exposed** by necessity (for reminders). We minimize,
   we don't eliminate.
 
+## 6a. Document analysis is on-device only
+
+Sorting a scanned document requires reading it. There is no way around that:
+homomorphic encryption is not viable for this, and "the AI never sees your
+documents" would simply be false if a model classified them.
+
+A cloud model's "zero retention" is a **contract** — a promise a household cannot
+verify, cannot enforce, and cannot revoke after the fact. It is a materially
+weaker class of guarantee than the cryptography elsewhere in this document, and
+presenting the two as equivalent would be dishonest.
+
+**So HomeVault does not send documents anywhere.** `src/lib/ingest/` contains no
+HTTP client, no endpoint, and no API key — not a disabled path, not one behind a
+flag. A test enforces this by scanning the directory for `fetch`, `XMLHttpRequest`,
+`WebSocket`, `sendBeacon` and dynamic `import`, and fails the build if any appear.
+Verifying the claim is therefore a ten-second grep rather than an act of trust.
+
+**Consequences, stated plainly:**
+
+- Analysis quality is bounded by what runs on the machine. In a browser that is
+  OCR plus structural rules — workable, because documents largely announce
+  themselves, and no help at all on an unlabelled scan.
+- **The real product is therefore a desktop build**, where the platform's own
+  on-device OCR (Apple Vision, Windows OCR) is strong and a bundled small model
+  can plug in behind the `LocalModel` interface. An Electron shell that loads a
+  hosted URL provides none of this: the code must be bundled and signed, or it is
+  still unverifiable remote code.
+- `redact.ts` no longer protects this path, because nothing on it transmits. It
+  still guards every path where text could reach a model — the coach and the AI
+  search in ROADMAP.md — and keeps secrets out of logs and crash reports.
+
 ## 6. The AI boundary
 
 AI search and coaching are core features, and the naive implementation ("send
