@@ -482,7 +482,7 @@ export default function CommandCenterPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <ComplianceProgressCard score={score} loading={loading} configured={configured} />
-        <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-cols-3">
+        <div className="grid auto-rows-min grid-cols-2 content-start gap-4 lg:col-span-2 lg:grid-cols-3">
           <StatCard label="Critical items" value={score.criticalCount} icon={AlertTriangle} tone="destructive" loading={loading} href="/credentials" />
           <StatCard label="High priority" value={score.highCount} icon={ShieldAlert} tone="warning" loading={loading} href="/chief-of-staff" />
           <StatCard label="Open tasks" value={openTasks} icon={ClipboardList} loading={loading} href="/chief-of-staff" />
