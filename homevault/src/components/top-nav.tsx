@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 const SECTIONS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/vault", label: "Vault" },
+  { href: "/intake", label: "Add files" },
   { href: "/handover", label: "Handover" },
   { href: "/people", label: "People" },
 ];
@@ -52,8 +53,14 @@ export function TopNav({ right }: { right?: React.ReactNode }) {
         </nav>
 
         {/* Brand, centred and absolutely positioned so it stays put regardless
-            of how wide the nav or the account area become. */}
-        <div className="pointer-events-none relative flex-1">
+            of how wide the nav or the account area become.
+
+            Hidden below `lg` because absolute centring can't know what's beside
+            it: once the sections and the account area grow enough to meet in the
+            middle, the brand overlaps both rather than being pushed aside. Jane
+            drops it at narrow widths for the same reason, and it's the one piece
+            here that carries no information. */}
+        <div className="pointer-events-none relative hidden flex-1 lg:block">
           <Link
             href="/"
             className="pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap"
@@ -63,7 +70,7 @@ export function TopNav({ right }: { right?: React.ReactNode }) {
           </Link>
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-2.5 text-sm">{right}</div>
+        <div className="ml-auto flex items-center gap-3 px-4 py-2.5 text-sm lg:ml-0">{right}</div>
       </div>
     </header>
   );

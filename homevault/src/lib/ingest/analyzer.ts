@@ -60,6 +60,16 @@ export interface Analysis {
   /** Institution or issuer, when identifiable ("GEICO", "Chase"). */
   issuer?: string;
   /**
+   * The account/policy number this document belongs to, when one was found.
+   *
+   * Surfaced separately from `groupKey` because the UI needs it: two accounts at
+   * one bank correctly become two records, and without something to tell them
+   * apart on screen they read as a duplicate that a helpful household would then
+   * merge — undoing the distinction the grouping worked to preserve. Never shown
+   * in full; see `maskedIdentifier`.
+   */
+  identifier?: string;
+  /**
    * Grouping hint. Documents sharing a key are proposed as ONE record — pages of
    * a packet, or successive years of the same policy. Undefined means "don't
    * group this with anything", which is the safe answer when unsure.
@@ -128,6 +138,7 @@ export class LocalAnalyzer implements DocumentAnalyzer {
         category: rule.category,
         label: buildLabel(rule.label, issuer),
         issuer,
+        identifier: detectIdentifier(doc.text),
         groupKey: groupKeyFor(rule.type, issuer, doc.text),
         confidence: rule.confidence,
         via: "rules",
@@ -141,6 +152,7 @@ export class LocalAnalyzer implements DocumentAnalyzer {
           documentId: doc.id,
           ...guess,
           issuer: guess.issuer ?? issuer,
+          identifier: detectIdentifier(doc.text),
           documentId2: undefined,
           groupKey: groupKeyFor(guess.documentType, guess.issuer ?? issuer, doc.text),
           via: "local-model",
@@ -279,4 +291,17 @@ function detectIssuer(text: string): string | undefined {
 
 function buildLabel(base: string, issuer?: string): string {
   return issuer ? `${issuer} ${base.toLowerCase()}` : base;
+}
+
+/**
+ * How an account number is allowed to appear on screen: the last four digits.
+ *
+ * Enough to tell two accounts at one bank apart, which is the entire reason the
+ * UI needs it, without printing a full account number into a list that sits open
+ * on a laptop screen. The banking convention, for the same reason.
+ */
+export function maskedIdentifier(identifier: string | undefined): string | undefined {
+  if (!identifier) return undefined;
+  const tail = identifier.replace(/[^A-Za-z0-9]/g, "").slice(-4);
+  return tail.length >= 2 ? `\u00b7\u00b7\u00b7${tail}` : undefined;
 }
