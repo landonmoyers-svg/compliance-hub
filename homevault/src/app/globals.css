@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/**
+ * Jane-language palette.
+ *
+ * Read off the Jane screenshots rather than invented: a saturated teal chrome
+ * bar over a near-white page, white content cards with hairline borders, and a
+ * soft mint wash marking the selected item in a secondary nav.
+ *
+ * Everything stays token-driven — no component hard-codes a colour — so the
+ * whole language can be retuned from this block if the teal is off by a shade.
+ */
+:root {
+  /* Page and surfaces */
+  --background: #f4f6f7;
+  --surface: #ffffff;
+  --surface-2: #f7f9fa;
+  --border: #e1e6e9;
+
+  /* Text */
+  --foreground: #2f3941;
+  --muted: #6d7a83;
+
+  /* Teal. `accent` is for fills; `accent-strong` is the darker step used for
+     text and links, where the fill tone would fail contrast on white. */
+  --accent: #16b1b5;
+  --accent-strong: #0d8f93;
+  --accent-soft: #d3efee;
+
+  /* The chrome bar. Held apart from --accent so the bar can be tuned without
+     dragging every button and link with it. */
+  --nav: #14bec3;
+  --nav-active: #0fa3a8;
+  --nav-foreground: #ffffff;
+
+  /* Status. Muted rather than neon, to sit calmly on white. */
+  --success: #3f9d6d;
+  --warning: #c8801a;
+  --danger: #d15252;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-nav: var(--nav);
+  --color-nav-active: var(--nav-active);
+  --color-nav-foreground: var(--nav-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * Jane's headings are large but light — the size carries the hierarchy, not the
+ * weight. Overriding here keeps every page consistent without each one
+ * remembering to ask for it.
+ */
+h1 {
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Replaces the dark theme's glow. A whisper of teal, not a gradient. */
+.card-gradient {
+  background: linear-gradient(180deg, #f2fbfb 0%, var(--surface) 60%);
+}
+
+/* Jane's inputs: quiet until focused, then a teal ring. */
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
