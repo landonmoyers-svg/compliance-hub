@@ -44,13 +44,13 @@ export default function Landing() {
       <div className="mt-8 flex flex-wrap gap-3">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-background hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-background hover:opacity-90"
         >
           Explore the demo <ArrowRight size={16} />
         </Link>
         <a
           href="https://github.com"
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-medium hover:bg-surface-2"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-medium hover:bg-surface-2"
         >
           <FileText size={16} /> Read the security model
         </a>

@@ -76,7 +76,7 @@ export function SignInForm() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             required
-            className="rounded-lg border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent/50"
+            className="rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent/50"
           />
         </label>
 
@@ -88,14 +88,14 @@ export function SignInForm() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
-            className="rounded-lg border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent/50"
+            className="rounded-md border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent/50"
           />
         </label>
 
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-60"
         >
           {busy ? <Loader2 size={15} className="animate-spin" /> : <LogIn size={15} />}
           {busy ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
@@ -119,7 +119,7 @@ export function SignInForm() {
         </button>
       </form>
 
-      <div className="mt-5 flex gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">
+      <div className="mt-5 flex gap-2 rounded-md border border-border bg-surface-2 p-3 text-xs text-muted">
         <KeyRound size={14} className="mt-0.5 shrink-0 text-accent" />
         <p>
           Signing in is not the same as unlocking. This proves who you are to the server; your records stay

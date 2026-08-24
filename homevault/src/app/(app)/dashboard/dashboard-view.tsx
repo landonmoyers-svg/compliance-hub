@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   CheckCircle2, Circle, Clock, ArrowRight, Sparkles, MoreHorizontal, Info,
 } from "lucide-react";
-import { Card, PageHeader, Badge } from "@/components/ui";
+import { Card, SectionCard, PageHeader, Badge } from "@/components/ui";
 import { useJourney } from "@/lib/vault/journey-store";
 import { JOURNEYS, JOURNEY_BY_KEY } from "@/lib/domain/journeys";
 import { assessReadiness, maintenanceState, valueStatement } from "@/lib/domain/readiness";
@@ -80,19 +80,21 @@ export function DashboardView({ records }: { records: RecordMeta[] }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Milestones — what you've gained, and what's next. */}
-        <Card className="p-5 lg:col-span-2">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <h2 className="font-semibold">{journey.label}</h2>
+        <SectionCard
+          className="lg:col-span-2"
+          title={journey.label}
+          action={
             <div className="flex items-center gap-2">
-              <button onClick={() => setChanging(true)} className="text-xs text-muted hover:text-foreground">
+              <button onClick={() => setChanging(true)} className="text-sm text-accent-strong hover:underline">
                 Change
               </button>
               <Badge tone="neutral">
                 {readiness.achieved} of {readiness.total}
               </Badge>
             </div>
-          </div>
-          <p className="mb-4 text-sm text-muted">{journey.goal}</p>
+          }
+        >
+          <p className="-mt-1 mb-4 text-sm text-muted">{journey.goal}</p>
 
           <ul className="flex flex-col divide-y divide-border">
             {readiness.milestones.map(({ milestone, complete, missing, stale }) => (
@@ -121,15 +123,13 @@ export function DashboardView({ records }: { records: RecordMeta[] }) {
               </li>
             ))}
           </ul>
-        </Card>
+        </SectionCard>
 
         {/* Next steps — invitations, each dismissible. */}
-        <Card className="p-5">
-          <h2 className="font-semibold">If you have a few minutes</h2>
-
-          <ul className="mt-3 flex flex-col gap-3">
+        <SectionCard title="If you have a few minutes">
+          <ul className="-mt-1 flex flex-col gap-3">
             {steps.map((step) => (
-              <li key={step.id} className="rounded-lg border border-border bg-surface-2 p-3">
+              <li key={step.id} className="rounded-md border border-border bg-surface-2 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-medium">{step.title}</div>
@@ -171,7 +171,7 @@ export function DashboardView({ records }: { records: RecordMeta[] }) {
               request.
             </p>
           ) : null}
-        </Card>
+        </SectionCard>
       </div>
 
       <div className="mt-6">
@@ -236,7 +236,7 @@ function JourneyPicker({
       <div className="grid gap-4 sm:grid-cols-2">
         {JOURNEYS.map((journey) => (
           <button key={journey.key} onClick={() => onChoose(journey.key)}
-            className={`rounded-xl border p-5 text-left transition-colors hover:border-accent/40 hover:bg-surface-2 ${
+            className={`rounded-md border p-5 text-left transition-colors hover:border-accent/40 hover:bg-surface-2 ${
               journey.key === current ? "border-accent/40 bg-surface-2" : "border-border bg-surface"
             }`}>
             <div className="flex items-center justify-between gap-2">

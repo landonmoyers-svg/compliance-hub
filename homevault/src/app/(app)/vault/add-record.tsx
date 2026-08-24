@@ -20,7 +20,7 @@ import { createRecordAction } from "./actions";
  */
 
 const inputClass =
-  "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent/50";
+  "w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent/50";
 
 /** Blank row for the field editor. */
 const emptyField = (): RecordField => ({ key: "", value: "", secret: true });
@@ -97,7 +97,7 @@ export function AddRecord() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="mb-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+        className="mb-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white"
       >
         <Plus size={15} /> Add a record
       </button>
@@ -143,7 +143,7 @@ export function AddRecord() {
           </label>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface-2 p-3">
+        <div className="rounded-md border border-border bg-surface-2 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-medium">Details (encrypted)</span>
             <span className="text-xs text-muted">tier: {tier}</span>
@@ -157,7 +157,7 @@ export function AddRecord() {
                   onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
                 <button type="button" title="Remove this field"
                   onClick={() => setFields(fields.length > 1 ? fields.filter((_, j) => j !== i) : [emptyField()])}
-                  className="rounded-lg border border-border px-2 text-muted hover:text-danger">
+                  className="rounded-md border border-border px-2 text-muted hover:text-danger">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -184,12 +184,12 @@ export function AddRecord() {
 
         <div className="flex items-center gap-2">
           <button type="submit" disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+            className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
             {busy ? "Encrypting and saving…" : "Save record"}
           </button>
           <button type="button" onClick={() => { setOpen(false); reset(); }}
-            className="rounded-lg border border-border px-4 py-2 text-sm text-muted hover:text-foreground">
+            className="rounded-md border border-border px-4 py-2 text-sm text-muted hover:text-foreground">
             Cancel
           </button>
         </div>

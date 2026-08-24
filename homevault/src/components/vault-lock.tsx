@@ -37,7 +37,7 @@ export function VaultLockBadge() {
 }
 
 const inputClass =
-  "rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent/50";
+  "rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent/50";
 
 export function VaultUnlockPanel() {
   const { ready, hasVault } = useVault();
@@ -124,7 +124,7 @@ function SetUpPanel() {
         </label>
 
         <button type="submit" disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {busy ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
           {busy ? "Creating your vault…" : "Create vault"}
         </button>
@@ -156,11 +156,11 @@ function RecoveryCodeCard({ code }: { code: string }) {
         browser. Put it somewhere physical: the fire safe, a sealed envelope, with your other important papers.
       </p>
 
-      <div className="mt-4 rounded-lg border border-accent/30 bg-surface-2 p-4 text-center">
+      <div className="mt-4 rounded-md border border-accent/30 bg-surface-2 p-4 text-center">
         <code className="select-all font-mono text-lg tracking-wider">{code}</code>
       </div>
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">
+      <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs">
         <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
         <p className="text-muted">
           We can&apos;t show this again and we can&apos;t recover it — HomeVault never stores the code itself,
@@ -171,7 +171,7 @@ function RecoveryCodeCard({ code }: { code: string }) {
 
       <div className="mt-4 flex items-center gap-2">
         <button onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm hover:bg-surface">
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm hover:bg-surface">
           <Printer size={14} /> Print
         </button>
         <label className="ml-auto flex items-center gap-2 text-xs text-muted">
@@ -179,7 +179,7 @@ function RecoveryCodeCard({ code }: { code: string }) {
           I&apos;ve saved it
         </label>
         <button disabled={!acknowledged} onClick={() => window.location.reload()}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40">
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40">
           Continue
         </button>
       </div>
@@ -219,7 +219,7 @@ function UnlockPanel({ onForgot }: { onForgot: () => void }) {
         <input type="password" autoComplete="current-password" value={passphrase} required
           onChange={(e) => setPassphrase(e.target.value)} placeholder="Your vault passphrase" className={inputClass} />
         <button type="submit" disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {busy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
           {busy ? "Deriving key…" : "Unlock"}
         </button>
@@ -291,7 +291,7 @@ function RecoverPanel({ onCancel }: { onCancel: () => void }) {
         </label>
 
         <button type="submit" disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
           {busy ? "Recovering…" : "Recover and set new passphrase"}
         </button>

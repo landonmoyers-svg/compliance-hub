@@ -224,7 +224,7 @@ function RecordRow({
             onClick={onToggle}
             disabled={!unlocked}
             title={unlocked ? undefined : "Unlock the vault to decrypt this record"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
           >
             {stepUp ? <Fingerprint size={13} /> : <Lock size={13} />}
             {revealed ? "Hide" : stepUp ? "Reveal (step-up)" : "Reveal"}
@@ -233,7 +233,7 @@ function RecordRow({
       </div>
 
       {revealed ? (
-        <div className="mt-3 rounded-lg border border-dashed border-accent/30 bg-surface-2 p-3 text-xs">
+        <div className="mt-3 rounded-md border border-dashed border-accent/30 bg-surface-2 p-3 text-xs">
           {error ? (
             <p className="text-danger">{error}</p>
           ) : !result ? (

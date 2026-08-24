@@ -72,7 +72,7 @@ export function SecurityModePicker() {
             <button
               key={option.key}
               onClick={() => choose(option.key)}
-              className={`rounded-xl border p-4 text-left transition-colors hover:border-accent/40 ${
+              className={`rounded-md border p-4 text-left transition-colors hover:border-accent/40 ${
                 active ? "border-accent/50 bg-surface-2" : "border-border bg-surface"
               }`}
             >

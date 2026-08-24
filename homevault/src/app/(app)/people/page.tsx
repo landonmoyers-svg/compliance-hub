@@ -1,14 +1,18 @@
-import { Users, UserCircle, KeyRound } from "lucide-react";
-import { Card, PageHeader, Badge, TierBadge } from "@/components/ui";
+import { Users } from "lucide-react";
+import { PageHeader, SectionCard, Badge, TierBadge, DataTable, Row, Cell } from "@/components/ui";
 import { getDataClient } from "@/lib/data/client";
 import type { SensitivityTier } from "@/lib/domain/categories";
+import { ROLE_LABEL, ROLE_DESCRIPTION, type MemberRole } from "@/lib/domain/members";
 
-const ROLE_LABEL: Record<string, string> = {
-  owner: "Owner",
-  co_owner: "Co-owner",
-  viewer: "Viewer",
-};
-
+/**
+ * People, in Jane's shape: a titled card per group, each holding a table.
+ *
+ * The members table has a "What they can do" column rather than a bare role
+ * chip, because the roles previously granted access their names did not
+ * describe. A permission label the reader can't check is exactly how that
+ * happened, so the capability is spelled out next to it on the page where
+ * someone would go looking.
+ */
 export default async function PeoplePage() {
   const data = await getDataClient();
   const [members, recipients] = await Promise.all([data.listMembers(), data.listRecipients()]);
@@ -18,59 +22,64 @@ export default async function PeoplePage() {
       <PageHeader
         icon={<Users size={22} />}
         title="People & recipients"
-        subtitle="Household members who use the app, and the designated recipients who inherit access through a handover."
+        subtitle="Household members who use the app, and the recipients who inherit access through a handover."
+        description={
+          <>
+            Members hold the vault under their own keys and can open it whenever they like. Recipients hold
+            nothing until a handover completes — being listed here grants no access on its own.
+          </>
+        }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <UserCircle size={18} className="text-accent" />
-            <h2 className="font-semibold">Household members</h2>
-          </div>
-          <ul className="flex flex-col divide-y divide-border">
-            {members.map((m) => (
-              <li key={m.id} className="flex items-center justify-between py-3">
-                <span className="text-sm font-medium">{m.name}</span>
-                <Badge tone={m.role === "owner" ? "accent" : "neutral"}>{ROLE_LABEL[m.role]}</Badge>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs text-muted">
-            Members authenticate with a passkey and their own passphrase. Each holds the vault under their own
-            zero-knowledge keys — the app has no master key that can open the vault for them.
+      <div className="grid gap-6">
+        <SectionCard title="Household members">
+          <DataTable headers={["Name", "Role", "What they can do"]}>
+            {members.map((m) => {
+              const role = m.role as MemberRole;
+              return (
+                <Row key={m.id}>
+                  <Cell className="font-medium">{m.name}</Cell>
+                  <Cell>
+                    <Badge tone={role === "viewer" ? "neutral" : "accent"}>
+                      {ROLE_LABEL[role] ?? m.role}
+                    </Badge>
+                  </Cell>
+                  <Cell className="text-muted">{ROLE_DESCRIPTION[role] ?? "—"}</Cell>
+                </Row>
+              );
+            })}
+          </DataTable>
+          <p className="mt-4 text-sm text-muted">
+            Members authenticate with a passkey and their own passphrase, and each holds the vault under their
+            own zero-knowledge keys. There is no master key that can open the vault on their behalf — which is
+            also why a second member is the simplest safeguard there is against losing access.
           </p>
-        </Card>
+        </SectionCard>
 
-        <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <KeyRound size={18} className="text-accent" />
-            <h2 className="font-semibold">Designated recipients</h2>
-          </div>
-          <ul className="flex flex-col divide-y divide-border">
+        <SectionCard title="Designated recipients">
+          <DataTable headers={["Name", "Relationship", "Receives", "Type"]}>
             {recipients.map((r) => (
-              <li key={r.id} className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{r.name}</span>
-                  <Badge tone={r.isMember ? "neutral" : "accent"}>{r.isMember ? "member" : "external"}</Badge>
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                  <span>{r.relationship}</span>
-                  <span>·</span>
-                  <span className="flex items-center gap-1">
-                    scope:
+              <Row key={r.id}>
+                <Cell className="font-medium">{r.name}</Cell>
+                <Cell className="text-muted">{r.relationship}</Cell>
+                <Cell>
+                  <span className="flex flex-wrap items-center gap-1">
                     {(r.scopeTiers as SensitivityTier[]).map((t) => (
                       <TierBadge key={t} tier={t} />
                     ))}
                   </span>
-                </div>
-              </li>
+                </Cell>
+                <Cell>
+                  <Badge tone={r.isMember ? "neutral" : "accent"}>{r.isMember ? "Member" : "External"}</Badge>
+                </Cell>
+              </Row>
             ))}
-          </ul>
-          <p className="mt-3 text-xs text-muted">
-            A recipient can be a non-member (e.g. your attorney), holds an escrow share encrypted to their own
-            public key, and only ever receives the records within their entitlement scope.
+          </DataTable>
+          <p className="mt-4 text-sm text-muted">
+            A recipient can be someone outside the household — your attorney, for instance. They hold an escrow
+            share encrypted to their own public key, and only ever receive the records inside their scope.
           </p>
-        </Card>
+        </SectionCard>
       </div>
     </div>
   );
