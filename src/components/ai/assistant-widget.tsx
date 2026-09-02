@@ -185,7 +185,7 @@ export function AssistantWidget() {
           created = await createDocument.mutateAsync({ title: str(d.title, "New document"), documentType: str(d.documentType, "policy"), complianceArea: str(d.complianceArea) || undefined, summary: str(d.summary) || undefined, status: "draft", accessLevel: "all_staff", version: "1.0", requiresAcknowledgment: false }); entityType = "documents";
           break;
         case "create_training_module":
-          created = await createTrainingModule.mutateAsync({ title: str(d.title, "New training module"), description: str(d.description) || undefined, trainingType: str(d.trainingType, "compliance"), passingScore: num(d.passingScore, 80), active: true }); entityType = "trainingModules";
+          created = await createTrainingModule.mutateAsync({ title: str(d.title, "New training module"), description: str(d.description) || undefined, delivery: "in_app", evidenceRequired: false, trainingType: str(d.trainingType, "compliance"), passingScore: num(d.passingScore, 80), active: true }); entityType = "trainingModules";
           break;
         case "create_regulatory_source":
           created = await createRegulatorySource.mutateAsync({ title: str(d.title, "New source"), citationLabel: str(d.citationLabel) || undefined, issuingBody: str(d.issuingBody) || undefined, sourceType: pick(d.sourceType, ["regulation", "guidance", "internal", "statute"] as const, "regulation"), reviewStatus: "needs_review" }); entityType = "regulatorySources";

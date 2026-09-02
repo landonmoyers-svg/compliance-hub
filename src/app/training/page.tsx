@@ -6,6 +6,7 @@ import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { PersonLink } from "@/components/shared/person-link";
+import { FileLink } from "@/components/shared/file-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
@@ -460,7 +461,7 @@ export default function TrainingPage() {
 
       {attesting && (
         <AttestModuleDialog
-          module={modules.find((m) => m.id === attesting.trainingModuleId) ?? { id: attesting.trainingModuleId, createdDate: "", title: attesting.moduleTitle, trainingType: "compliance", passingScore: 80, active: true }}
+          module={modules.find((m) => m.id === attesting.trainingModuleId) ?? { id: attesting.trainingModuleId, createdDate: "", title: attesting.moduleTitle, trainingType: "compliance", passingScore: 80, active: true, delivery: "in_app", evidenceRequired: false }}
           busy={attestBusy}
           onAttest={handleAttest}
           onClose={() => setAttesting(null)}
@@ -605,6 +606,16 @@ export default function TrainingPage() {
                               )}
                               {a.verificationStatus === "discrepancy" && (
                                 <Badge variant="destructive" title={a.reconciliationNote ?? undefined}>Discrepancy</Badge>
+                              )}
+                              {/* The certificate is the evidence an inspector asks for, so it has
+                                  to be openable from where the completion is reviewed. */}
+                              {a.certificateUrl && (
+                                <FileLink
+                                  path={a.certificateUrl}
+                                  label="Certificate"
+                                  className="text-xs"
+                                  audit={{ entityType: "training_assignment", entityId: a.id, entityLabel: a.moduleTitle, details: `Opened completion certificate for ${a.assignedToName}` }}
+                                />
                               )}
                             </div>
                           ) : (

@@ -402,6 +402,10 @@ export default function StaffPortalPage() {
                           <>
                             <Badge variant="success">Completed</Badge>
                             {completed?.verificationStatus === "verified" && <Badge variant="outline">Verified</Badge>}
+                            {/* Let people re-open the certificate they filed. */}
+                            {completed?.certificateUrl && (
+                              <FileLink path={completed.certificateUrl} label="Certificate" className="text-xs" />
+                            )}
                             <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>
                               {isExternal(module) ? "Retake" : questions > 0 ? "Retake" : "Re-attest"}
                             </Button>

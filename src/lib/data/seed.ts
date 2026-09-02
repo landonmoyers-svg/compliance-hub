@@ -80,10 +80,10 @@ export function buildSeed(): SeedData {
       { id: "doc-6", createdDate: days(-100), title: "Workplace Violence Prevention Policy", documentType: "policy", complianceArea: "safety", status: "active", accessLevel: "all_staff", version: "1.0", reviewDate: days(-2), requiresAcknowledgment: true },
     ],
     trainingModules: [
-      { id: "tm-1", createdDate: days(-365), title: "HIPAA Privacy & Security", trainingType: "compliance", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-2", createdDate: days(-365), title: "OSHA Bloodborne Pathogens", trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-3", createdDate: days(-200), title: "Workplace Violence Prevention", trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-4", createdDate: days(-120), title: "Controlled Substance Diversion Prevention", trainingType: "compliance", frequencyMonths: 12, passingScore: 85, active: true },
+      { id: "tm-1", createdDate: days(-365), title: "HIPAA Privacy & Security", delivery: "in_app", evidenceRequired: false, trainingType: "compliance", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-2", createdDate: days(-365), title: "OSHA Bloodborne Pathogens", delivery: "in_app", evidenceRequired: false, trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-3", createdDate: days(-200), title: "Workplace Violence Prevention", delivery: "in_app", evidenceRequired: false, trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-4", createdDate: days(-120), title: "Controlled Substance Diversion Prevention", delivery: "in_app", evidenceRequired: false, trainingType: "compliance", frequencyMonths: 12, passingScore: 85, active: true },
     ],
     trainingAssignments: [
       { id: "ta-1", createdDate: days(-60), trainingModuleId: "tm-1", moduleTitle: "HIPAA Privacy & Security", assignedToUserId: "user-2", assignedToName: "Jordan Reyes", status: "completed", dueDate: days(-30), completedAt: days(-35), score: 92 },

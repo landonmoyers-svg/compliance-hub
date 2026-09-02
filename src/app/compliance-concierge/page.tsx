@@ -202,6 +202,7 @@ export default function ComplianceConcierge() {
             trainingType: str(d.trainingType, "compliance"),
             passingScore: num(d.passingScore, 80),
             active: true,
+            delivery: "in_app", evidenceRequired: false,
           });
           break;
         case "create_regulatory_source":
