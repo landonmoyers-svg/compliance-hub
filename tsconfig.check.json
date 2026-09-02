@@ -1,0 +1,11 @@
+{
+  // Typecheck config that skips .next/types.
+  //
+  // The repo has cloud-sync conflict copies in .next/types ("routes.d 2.ts" and
+  // friends). tsc treats those missing-file entries as a config error and stops
+  // before typechecking src, so `tsc -p tsconfig.json` can report "clean" while
+  // real type errors sit in the source. Use `npm run typecheck` instead.
+  "extends": "./tsconfig.json",
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.mts"],
+  "exclude": ["node_modules", ".next"]
+}
