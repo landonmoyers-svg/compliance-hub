@@ -20,6 +20,7 @@ import {
   Heart,
   Inbox,
   Landmark,
+  Scale,
   Layers,
   LayoutDashboard,
   MessageSquare,
@@ -106,6 +107,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Risk & Compliance", shortLabel: "Risk",
     items: [
       { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
+      { label: "Employment Law", href: "/employment-law", icon: Scale, adminOnly: true },
       { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
       { label: "Audits & Mock Surveys", href: "/audits", icon: ClipboardCheck, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },

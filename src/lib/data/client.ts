@@ -25,6 +25,7 @@ import type {
   CeRecord,
   EmergencyPlan,
   InventoryItem,
+  LawObligation,
   Notification,
   OrganizationSettings,
   OSHARecord,
@@ -136,6 +137,7 @@ export interface DataClient {
   trainingQuestions: Collection<TrainingQuestion>;
   trainingAttempts: Collection<TrainingAttempt>;
   trainingImports: Collection<TrainingImport>;
+  lawObligations: Collection<LawObligation>;
   formTemplates: Collection<FillableFormTemplate>;
   formAssignments: Collection<FormAssignment>;
   completedForms: Collection<CompletedForm>;

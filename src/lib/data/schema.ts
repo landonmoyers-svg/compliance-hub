@@ -244,6 +244,63 @@ export const TrainingAssignment = z.object({
 });
 export type TrainingAssignment = z.infer<typeof TrainingAssignment>;
 
+/* ---------------------- employment-law obligations ------------------- */
+
+export const lawTopics = [
+  "discrimination", "leave", "wage_hour", "hiring", "termination",
+  "benefits", "safety", "recordkeeping", "posting", "privacy", "tax", "other",
+] as const;
+export type LawTopic = (typeof lawTopics)[number];
+
+export const lawReviewStatuses = ["verified", "needs_review", "superseded"] as const;
+
+/**
+ * One employment-law obligation, keyed to the facts that switch it on
+ * (headcount, state, plan status) and carrying the primary authority it was
+ * written from — so a claim can be traced to the statute, not to a summary.
+ */
+export const LawObligation = z.object({
+  ...base,
+  title: z.string(),
+  /** "federal" or a state code, e.g. "UT". */
+  jurisdiction: z.string().default("federal"),
+  topic: z.enum(lawTopics).default("other"),
+  authorityBody: z.string().nullable().optional(),
+  citationLabel: z.string().nullable().optional(),
+  officialUrl: z.string().nullable().optional(),
+
+  /** True when the duty applies regardless of headcount. */
+  appliesAll: z.boolean().default(false),
+  minEmployees: z.number().nullable().optional(),
+  maxEmployees: z.number().nullable().optional(),
+  /** How the law itself counts employees. */
+  countBasis: z.string().nullable().optional(),
+  /** Extra facts that gate the duty: group_health_plan, federal_contractor, … */
+  conditions: z.array(z.string()).default([]),
+
+  summary: z.string().nullable().optional(),
+  employerDuties: z.array(z.string()).default([]),
+  deadlineNote: z.string().nullable().optional(),
+  penaltyNote: z.string().nullable().optional(),
+
+  /** Verbatim text from the cited source this row was written from. */
+  sourceQuote: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
+  verifiedByName: z.string().nullable().optional(),
+  reviewStatus: z.enum(lawReviewStatuses).default("needs_review"),
+  nextReviewDate: z.string().nullable().optional(),
+
+  /** What in the Hub already discharges this duty. */
+  linkedDocumentId: z.string().nullable().optional(),
+  linkedTrainingModuleId: z.string().nullable().optional(),
+  linkedFormTemplateId: z.string().nullable().optional(),
+  regulatorySourceId: z.string().nullable().optional(),
+
+  notes: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+});
+export type LawObligation = z.infer<typeof LawObligation>;
+
 /* --------------------- vendor completion imports -------------------- */
 
 export const TrainingImportRow = z.object({
