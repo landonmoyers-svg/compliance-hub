@@ -97,6 +97,7 @@ export function buildSeed(): SeedData {
     ],
     trainingImports: [],
     lawObligations: [],
+    lawAlerts: [],
     oshaRecords: [
       { id: "osha-1", createdDate: days(-120), recordTitle: "Needlestick — exam room 2", recordType: "injury", eventDate: days(-118), status: "closed", recordabilityStatus: "recordable" },
       { id: "osha-2", createdDate: days(-60), recordTitle: "Annual HazCom training", recordType: "training", eventDate: days(-58), status: "closed", recordabilityStatus: "non_recordable" },

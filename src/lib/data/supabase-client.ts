@@ -73,6 +73,7 @@ import type {
   TimeOffRequest,
   TrainingAssignment,
   TrainingAttempt,
+  LawAlert,
   LawObligation,
   TrainingImport,
   TrainingModule,
@@ -381,6 +382,50 @@ function trainingAssignmentTo(d: Partial<TrainingAssignment>) {
     ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
     ...(d.importBatchId !== undefined && { import_batch_id: d.importBatchId }),
     ...(d.reconciliationNote !== undefined && { reconciliation_note: d.reconciliationNote }),
+  };
+}
+
+function lawAlertFrom(r: Record<string, unknown>): LawAlert {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    source: (r.source as string) ?? "federal_register",
+    documentNumber: (r.document_number as string | null) ?? undefined,
+    docType: (r.doc_type as string | null) ?? undefined,
+    title: r.title as string,
+    abstract: (r.abstract as string | null) ?? undefined,
+    agencies: (r.agencies as string[]) ?? [],
+    publicationDate: (r.publication_date as string | null) ?? undefined,
+    effectiveDate: (r.effective_date as string | null) ?? undefined,
+    commentsCloseDate: (r.comments_close_date as string | null) ?? undefined,
+    htmlUrl: (r.html_url as string | null) ?? undefined,
+    pdfUrl: (r.pdf_url as string | null) ?? undefined,
+    matchedTerms: (r.matched_terms as string[]) ?? [],
+    matchedObligationId: (r.matched_obligation_id as string | null) ?? undefined,
+    status: ((r.status as string) ?? "new") as LawAlert["status"],
+    reviewedByName: (r.reviewed_by_name as string | null) ?? undefined,
+    reviewedAt: toISO(r.reviewed_at as string),
+    reviewNote: (r.review_note as string | null) ?? undefined,
+  };
+}
+function lawAlertTo(d: Partial<LawAlert>) {
+  return {
+    ...(d.source !== undefined && { source: d.source }),
+    ...(d.documentNumber !== undefined && { document_number: d.documentNumber }),
+    ...(d.docType !== undefined && { doc_type: d.docType }),
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.abstract !== undefined && { abstract: d.abstract }),
+    ...(d.agencies !== undefined && { agencies: d.agencies }),
+    ...(d.publicationDate !== undefined && { publication_date: d.publicationDate }),
+    ...(d.effectiveDate !== undefined && { effective_date: d.effectiveDate }),
+    ...(d.commentsCloseDate !== undefined && { comments_close_date: d.commentsCloseDate }),
+    ...(d.htmlUrl !== undefined && { html_url: d.htmlUrl }),
+    ...(d.pdfUrl !== undefined && { pdf_url: d.pdfUrl }),
+    ...(d.matchedTerms !== undefined && { matched_terms: d.matchedTerms }),
+    ...(d.matchedObligationId !== undefined && { matched_obligation_id: d.matchedObligationId }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.reviewedByName !== undefined && { reviewed_by_name: d.reviewedByName }),
+    ...(d.reviewedAt !== undefined && { reviewed_at: d.reviewedAt }),
+    ...(d.reviewNote !== undefined && { review_note: d.reviewNote }),
   };
 }
 
@@ -2304,6 +2349,7 @@ export function createSupabaseDataClient(): DataClient {
     trainingAssignments:makeCollection(supabase, "training_assignments",trainingAssignmentFrom, trainingAssignmentTo),
     trainingImports:    makeCollection(supabase, "training_imports",    trainingImportFrom,     trainingImportTo),
     lawObligations:     makeCollection(supabase, "law_obligations",     lawObligationFrom,      lawObligationTo),
+    lawAlerts:          makeCollection(supabase, "law_alerts",          lawAlertFrom,           lawAlertTo),
     oshaRecords:        makeCollection(supabase, "osha_records",        oshaFrom,               oshaTo),
     sdsRecords:         makeCollection(supabase, "sds_records",         sdsFrom,                sdsTo),
     supplyItems:        makeCollection(supabase, "supply_items",         supplyItemFrom,         supplyItemTo),

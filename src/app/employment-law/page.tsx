@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react";
 import {
-  Scale, ExternalLink, ShieldCheck, AlertTriangle, TrendingUp, Search, Info,
+  Scale, ExternalLink, ShieldCheck, AlertTriangle, TrendingUp, Search, Info, RefreshCw, Newspaper,
 } from "lucide-react";
-import { useCollection } from "@/lib/data/hooks";
+import { useCollection, useUpdate } from "@/lib/data/hooks";
+import { useAuth } from "@/lib/auth/context";
+import { formatDate } from "@/lib/dates";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -16,7 +19,7 @@ import {
   evaluateObligations, coverageOf, conditionLabel, TOPIC_LABELS,
   type EvaluatedObligation, type OrgFacts,
 } from "@/lib/law-engine";
-import type { LawObligation } from "@/lib/data/schema";
+import type { LawAlert, LawObligation } from "@/lib/data/schema";
 
 /**
  * Which employment laws apply to us, at this headcount, in these states — and
@@ -34,7 +37,9 @@ const CONDITION_TOGGLES = [
 type ToggleState = Record<string, "yes" | "no" | "unknown">;
 
 export default function EmploymentLawPage() {
+  const { profile, user, isAdmin } = useAuth();
   const obligationsQ = useCollection("lawObligations");
+  const alertsQ = useCollection("lawAlerts");
   const employeesQ = useCollection("employees");
   const locationsQ = useCollection("locations");
 
@@ -58,6 +63,7 @@ export default function EmploymentLawPage() {
   }, [locationsQ.data]);
 
   const [toggles, setToggles] = useState<ToggleState>({});
+  const [scanning, setScanning] = useState(false);
   const [search, setSearch] = useState("");
   const [showNA, setShowNA] = useState(false);
 
@@ -89,6 +95,40 @@ export default function EmploymentLawPage() {
     return [...map.entries()].sort((a, b) =>
       (TOPIC_LABELS[a[0]] ?? a[0]).localeCompare(TOPIC_LABELS[b[0]] ?? b[0]));
   }, [evaluation.applies, search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const alerts = useMemo(() => {
+    const rank = { new: 0, reviewed: 1, actioned: 2, dismissed: 3 } as Record<string, number>;
+    return [...(alertsQ.data ?? [])].sort((a, b) =>
+      (rank[a.status] ?? 9) - (rank[b.status] ?? 9) ||
+      (b.publicationDate ?? "").localeCompare(a.publicationDate ?? ""));
+  }, [alertsQ.data]);
+  const openAlerts = alerts.filter((a) => a.status === "new");
+
+  /**
+   * Ask the server to pull anything the Federal Register has published since our
+   * last alert. The route validates the response before storing, so a bad filter
+   * surfaces as a warning here rather than as noise in the register.
+   */
+  async function checkForUpdates() {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/regulatory/scan", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "Scan failed");
+      const warn = (body.warnings ?? []) as string[];
+      toast.success(
+        body.inserted > 0
+          ? `${body.inserted} new item${body.inserted === 1 ? "" : "s"} since ${body.since}`
+          : `Nothing new since ${body.since}`,
+      );
+      if (warn.length > 0) toast.warning(warn[0]);
+      void alertsQ.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't reach the Federal Register.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   if (obligationsQ.isError) {
     return (
@@ -176,6 +216,42 @@ export default function EmploymentLawPage() {
         <StatCard label="As you grow" value={evaluation.upcoming.length} icon={TrendingUp} loading={obligationsQ.isLoading} />
         <StatCard label="Needs source review" value={evaluation.needsReview.length} icon={Info} loading={obligationsQ.isLoading} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <Newspaper className="size-4 text-muted-foreground" /> Regulatory changes
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Rules and proposed rules the Federal Register has published against the laws above.
+                {openAlerts.length > 0 && ` ${openAlerts.length} awaiting review.`}
+              </p>
+            </div>
+            {isAdmin && (
+              <Button variant="outline" onClick={checkForUpdates} disabled={scanning}>
+                <RefreshCw className={`size-4 ${scanning ? "animate-spin" : ""}`} />
+                {scanning ? "Checking…" : "Check for updates"}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {alertsQ.isLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : alerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing filed yet. The weekly check runs on its own; use the button to run it now.
+            </p>
+          ) : (
+            alerts.slice(0, 12).map((a) => (
+              <AlertRow key={a.id} alert={a} obligations={obligations} canAct={isAdmin}
+                        actorName={profile?.fullName ?? user?.fullName ?? "Admin"} />
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -360,6 +436,75 @@ function ObligationCard({ item }: { item: EvaluatedObligation }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* --------------------------- alert row ------------------------------ */
+
+function AlertRow({
+  alert, obligations, canAct, actorName,
+}: {
+  alert: LawAlert;
+  obligations: LawObligation[];
+  canAct: boolean;
+  actorName: string;
+}) {
+  const update = useUpdate("lawAlerts");
+  const matched = obligations.find((o) => o.id === alert.matchedObligationId);
+  const [busy, setBusy] = useState(false);
+
+  async function setStatus(status: LawAlert["status"]) {
+    setBusy(true);
+    try {
+      await update.mutateAsync({
+        id: alert.id,
+        patch: { status, reviewedByName: actorName, reviewedAt: new Date().toISOString() },
+      });
+      toast.success(status === "dismissed" ? "Dismissed" : "Marked reviewed");
+    } catch {
+      toast.error("Couldn't update this item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const dimmed = alert.status === "dismissed";
+
+  return (
+    <div className={`rounded-lg border border-border p-4 ${dimmed ? "opacity-60" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {alert.docType && <Badge variant={alert.docType === "Rule" ? "warning" : "secondary"}>{alert.docType}</Badge>}
+            {alert.status === "new" ? <Badge variant="outline">Needs review</Badge>
+              : <Badge variant="secondary" className="capitalize">{alert.status}</Badge>}
+            {matched && <Badge variant="outline" className="font-normal">{matched.title}</Badge>}
+          </div>
+          <p className="mt-1 font-medium">{alert.title}</p>
+          {alert.abstract && <p className="mt-1 text-sm text-muted-foreground line-clamp-3">{alert.abstract}</p>}
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {alert.publicationDate && <span>Published {formatDate(alert.publicationDate)}</span>}
+            {alert.effectiveDate && <span className="text-foreground">Effective {formatDate(alert.effectiveDate)}</span>}
+            {alert.commentsCloseDate && <span>Comments close {formatDate(alert.commentsCloseDate)}</span>}
+            {alert.agencies.length > 0 && <span>{alert.agencies.join(", ")}</span>}
+            {alert.reviewedByName && alert.status !== "new" && <span>Handled by {alert.reviewedByName}</span>}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {alert.htmlUrl && (
+            <a href={alert.htmlUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+              <span className="inline-flex items-center gap-1">Read it <ExternalLink className="size-3" /></span>
+            </a>
+          )}
+          {canAct && alert.status === "new" && (
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => setStatus("reviewed")}>Reviewed</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setStatus("dismissed")}>Dismiss</Button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

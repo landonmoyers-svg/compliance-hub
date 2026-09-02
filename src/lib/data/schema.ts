@@ -301,6 +301,34 @@ export const LawObligation = z.object({
 });
 export type LawObligation = z.infer<typeof LawObligation>;
 
+export const lawAlertStatuses = ["new", "reviewed", "actioned", "dismissed"] as const;
+
+/**
+ * A published regulatory change matched against the obligation register — one
+ * row per government document, deduped on the publisher's document number.
+ */
+export const LawAlert = z.object({
+  ...base,
+  source: z.string().default("federal_register"),
+  documentNumber: z.string().nullable().optional(),
+  docType: z.string().nullable().optional(),
+  title: z.string(),
+  abstract: z.string().nullable().optional(),
+  agencies: z.array(z.string()).default([]),
+  publicationDate: z.string().nullable().optional(),
+  effectiveDate: z.string().nullable().optional(),
+  commentsCloseDate: z.string().nullable().optional(),
+  htmlUrl: z.string().nullable().optional(),
+  pdfUrl: z.string().nullable().optional(),
+  matchedTerms: z.array(z.string()).default([]),
+  matchedObligationId: z.string().nullable().optional(),
+  status: z.enum(lawAlertStatuses).default("new"),
+  reviewedByName: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
+  reviewNote: z.string().nullable().optional(),
+});
+export type LawAlert = z.infer<typeof LawAlert>;
+
 /* --------------------- vendor completion imports -------------------- */
 
 export const TrainingImportRow = z.object({
