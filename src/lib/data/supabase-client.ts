@@ -73,6 +73,7 @@ import type {
   TimeOffRequest,
   TrainingAssignment,
   TrainingAttempt,
+  TrainingImport,
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
@@ -317,6 +318,11 @@ function trainingModuleFrom(r: Record<string, unknown>): TrainingModule {
     frequencyMonths: r.frequency_months as number | undefined,
     passingScore: r.passing_score as number,
     active: r.active as boolean,
+    delivery: ((r.delivery as string) ?? "in_app") as TrainingModule["delivery"],
+    provider: (r.provider as string | null) ?? undefined,
+    externalUrl: (r.external_url as string | null) ?? undefined,
+    providerCourseCode: (r.provider_course_code as string | null) ?? undefined,
+    evidenceRequired: (r.evidence_required as boolean | null) ?? true,
   };
 }
 function trainingModuleTo(d: Partial<TrainingModule>) {
@@ -327,6 +333,11 @@ function trainingModuleTo(d: Partial<TrainingModule>) {
     ...(d.frequencyMonths !== undefined && { frequency_months: d.frequencyMonths }),
     ...(d.passingScore !== undefined && { passing_score: d.passingScore }),
     ...(d.active !== undefined && { active: d.active }),
+    ...(d.delivery !== undefined && { delivery: d.delivery }),
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.externalUrl !== undefined && { external_url: d.externalUrl }),
+    ...(d.providerCourseCode !== undefined && { provider_course_code: d.providerCourseCode }),
+    ...(d.evidenceRequired !== undefined && { evidence_required: d.evidenceRequired }),
   };
 }
 
@@ -341,6 +352,14 @@ function trainingAssignmentFrom(r: Record<string, unknown>): TrainingAssignment 
     dueDate: r.due_date as string | undefined,
     completedAt: toISO(r.completed_at as string),
     score: r.score as number | undefined,
+    completionSource: (r.completion_source as TrainingAssignment["completionSource"]) ?? undefined,
+    verificationStatus: (r.verification_status as TrainingAssignment["verificationStatus"]) ?? undefined,
+    certificateUrl: (r.certificate_url as string | null) ?? undefined,
+    externalCompletedAt: toISO(r.external_completed_at as string),
+    verifiedAt: toISO(r.verified_at as string),
+    verifiedByName: (r.verified_by_name as string | null) ?? undefined,
+    importBatchId: (r.import_batch_id as string | null) ?? undefined,
+    reconciliationNote: (r.reconciliation_note as string | null) ?? undefined,
   };
 }
 function trainingAssignmentTo(d: Partial<TrainingAssignment>) {
@@ -353,6 +372,44 @@ function trainingAssignmentTo(d: Partial<TrainingAssignment>) {
     ...(d.dueDate !== undefined && { due_date: d.dueDate }),
     ...(d.completedAt !== undefined && { completed_at: d.completedAt }),
     ...(d.score !== undefined && { score: d.score }),
+    ...(d.completionSource !== undefined && { completion_source: d.completionSource }),
+    ...(d.verificationStatus !== undefined && { verification_status: d.verificationStatus }),
+    ...(d.certificateUrl !== undefined && { certificate_url: d.certificateUrl }),
+    ...(d.externalCompletedAt !== undefined && { external_completed_at: d.externalCompletedAt }),
+    ...(d.verifiedAt !== undefined && { verified_at: d.verifiedAt }),
+    ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
+    ...(d.importBatchId !== undefined && { import_batch_id: d.importBatchId }),
+    ...(d.reconciliationNote !== undefined && { reconciliation_note: d.reconciliationNote }),
+  };
+}
+
+function trainingImportFrom(r: Record<string, unknown>): TrainingImport {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    provider: (r.provider as string) ?? "Mineral",
+    fileName: (r.file_name as string | null) ?? undefined,
+    importedByName: (r.imported_by_name as string | null) ?? undefined,
+    periodLabel: (r.period_label as string | null) ?? undefined,
+    rowCount: (r.row_count as number) ?? 0,
+    matchedCount: (r.matched_count as number) ?? 0,
+    verifiedCount: (r.verified_count as number) ?? 0,
+    discrepancyCount: (r.discrepancy_count as number) ?? 0,
+    unmatched: (r.unmatched as TrainingImport["unmatched"]) ?? [],
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function trainingImportTo(d: Partial<TrainingImport>) {
+  return {
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.fileName !== undefined && { file_name: d.fileName }),
+    ...(d.importedByName !== undefined && { imported_by_name: d.importedByName }),
+    ...(d.periodLabel !== undefined && { period_label: d.periodLabel }),
+    ...(d.rowCount !== undefined && { row_count: d.rowCount }),
+    ...(d.matchedCount !== undefined && { matched_count: d.matchedCount }),
+    ...(d.verifiedCount !== undefined && { verified_count: d.verifiedCount }),
+    ...(d.discrepancyCount !== undefined && { discrepancy_count: d.discrepancyCount }),
+    ...(d.unmatched !== undefined && { unmatched: d.unmatched }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 
@@ -2182,6 +2239,7 @@ export function createSupabaseDataClient(): DataClient {
     documents:          makeCollection(supabase, "documents",           documentFrom,           documentTo),
     trainingModules:    makeCollection(supabase, "training_modules",    trainingModuleFrom,     trainingModuleTo),
     trainingAssignments:makeCollection(supabase, "training_assignments",trainingAssignmentFrom, trainingAssignmentTo),
+    trainingImports:    makeCollection(supabase, "training_imports",    trainingImportFrom,     trainingImportTo),
     oshaRecords:        makeCollection(supabase, "osha_records",        oshaFrom,               oshaTo),
     sdsRecords:         makeCollection(supabase, "sds_records",         sdsFrom,                sdsTo),
     supplyItems:        makeCollection(supabase, "supply_items",         supplyItemFrom,         supplyItemTo),

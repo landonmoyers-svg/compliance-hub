@@ -182,8 +182,30 @@ export const TrainingModule = z.object({
   frequencyMonths: z.number().nullable().optional(),
   passingScore: z.number().default(80),
   active: z.boolean().default(true),
+  /**
+   * Where the course actually plays. "in_app" = quiz or attestation inside the
+   * Hub; "external" = delivered by a vendor platform (Mineral today) and only
+   * evidenced here.
+   */
+  delivery: z.enum(["in_app", "external"]).default("in_app"),
+  /** Vendor delivering an external module, e.g. "Mineral". */
+  provider: z.string().nullable().optional(),
+  /** Deep link staff are sent to; blank falls back to the provider default. */
+  externalUrl: z.string().nullable().optional(),
+  /** Course title/code as the vendor's report spells it (used to match imports). */
+  providerCourseCode: z.string().nullable().optional(),
+  /** Require a certificate upload when attesting to an external completion. */
+  evidenceRequired: z.boolean().default(true),
 });
 export type TrainingModule = z.infer<typeof TrainingModule>;
+
+export const completionSources = ["quiz", "attestation", "external_attested", "import"] as const;
+export const CompletionSource = z.enum(completionSources);
+export type CompletionSource = z.infer<typeof CompletionSource>;
+
+export const verificationStatuses = ["provisional", "verified", "discrepancy"] as const;
+export const VerificationStatus = z.enum(verificationStatuses);
+export type VerificationStatus = z.infer<typeof VerificationStatus>;
 
 export const assignmentStatuses = [
   "assigned",
@@ -202,8 +224,57 @@ export const TrainingAssignment = z.object({
   dueDate: z.string().nullable().optional(),
   completedAt: z.string().nullable().optional(),
   score: z.number().nullable().optional(),
+  /** How the completion was recorded. Null on assignments not yet completed. */
+  completionSource: CompletionSource.nullable().optional(),
+  /**
+   * Evidence strength for a vendor-delivered completion:
+   * provisional = the employee said so; verified = the vendor's own report says
+   * so; discrepancy = the report contradicts the attestation.
+   */
+  verificationStatus: VerificationStatus.nullable().optional(),
+  /** Storage path of the vendor completion certificate. */
+  certificateUrl: z.string().nullable().optional(),
+  /** Completion date as stated by the employee / vendor certificate. */
+  externalCompletedAt: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
+  verifiedByName: z.string().nullable().optional(),
+  /** The import batch that verified this row. */
+  importBatchId: z.string().nullable().optional(),
+  reconciliationNote: z.string().nullable().optional(),
 });
 export type TrainingAssignment = z.infer<typeof TrainingAssignment>;
+
+/* --------------------- vendor completion imports -------------------- */
+
+export const TrainingImportRow = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  course: z.string().optional(),
+  completedAt: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type TrainingImportRow = z.infer<typeof TrainingImportRow>;
+
+/**
+ * One vendor completion-report import. Kept so a verified completion can always
+ * answer "which report, imported by whom, on what day, said so?".
+ */
+export const TrainingImport = z.object({
+  ...base,
+  provider: z.string().default("Mineral"),
+  fileName: z.string().nullable().optional(),
+  importedByName: z.string().nullable().optional(),
+  /** Free-text period the report covers, e.g. "Aug 2026". */
+  periodLabel: z.string().nullable().optional(),
+  rowCount: z.number().default(0),
+  matchedCount: z.number().default(0),
+  verifiedCount: z.number().default(0),
+  discrepancyCount: z.number().default(0),
+  /** Report rows that matched no assignment — the follow-up list. */
+  unmatched: z.array(TrainingImportRow).default([]),
+  notes: z.string().nullable().optional(),
+});
+export type TrainingImport = z.infer<typeof TrainingImport>;
 
 /* ------------------------------ OSHA ------------------------------- */
 

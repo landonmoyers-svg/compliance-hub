@@ -95,6 +95,7 @@ export function buildSeed(): SeedData {
       { id: "ta-7", createdDate: days(-20), trainingModuleId: "tm-3", moduleTitle: "Workplace Violence Prevention", assignedToUserId: "user-4", assignedToName: "Riley Chen", status: "assigned", dueDate: days(21) },
       { id: "ta-8", createdDate: days(-20), trainingModuleId: "tm-2", moduleTitle: "OSHA Bloodborne Pathogens", assignedToUserId: "user-3", assignedToName: "Sam Patel", status: "completed", dueDate: days(-5), completedAt: days(-6), score: 95 },
     ],
+    trainingImports: [],
     oshaRecords: [
       { id: "osha-1", createdDate: days(-120), recordTitle: "Needlestick — exam room 2", recordType: "injury", eventDate: days(-118), status: "closed", recordabilityStatus: "recordable" },
       { id: "osha-2", createdDate: days(-60), recordTitle: "Annual HazCom training", recordType: "training", eventDate: days(-58), status: "closed", recordabilityStatus: "non_recordable" },

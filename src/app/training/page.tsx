@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GraduationCap, Plus, Search, ListChecks, Users, Download } from "lucide-react";
+import { GraduationCap, Plus, Search, ListChecks, Users, Download, ExternalLink, FileSpreadsheet, ShieldCheck } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { useSort, SortHeader } from "@/components/shared/sortable";
@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
 import { AttestModuleDialog } from "@/components/training/attest-module-dialog";
+import { ExternalCourseDialog } from "@/components/training/external-course-dialog";
+import { ImportCompletionsDialog } from "@/components/training/import-completions-dialog";
+import { isExternal } from "@/lib/training-external";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +24,7 @@ import {
   holderIsActive, assignmentIsOverdue } from "@/lib/compliance";
 import { formatDate, daysUntil, dateInputToISO } from "@/lib/dates";
 import { PersonSelect } from "@/components/shared/person-select";
-import type { TrainingAssignment } from "@/lib/data/schema";
+import type { TrainingAssignment, TrainingModule } from "@/lib/data/schema";
 import { toast } from "sonner";
 
 /* ----------------------------- dialog ------------------------------- */
@@ -170,7 +173,7 @@ function BulkAssignDialog({
 /* ----------------------------- page --------------------------------- */
 
 export default function TrainingPage() {
-  const { profile, user } = useAuth();
+  const { profile, user, isAdmin } = useAuth();
   const modulesQ = useCollection("trainingModules");
   const assignQ = useCollection("trainingAssignments");
   const employeesCtxQ = useCollection("employees");
@@ -183,6 +186,10 @@ export default function TrainingPage() {
   const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
   const [attesting, setAttesting] = useState<TrainingAssignment | null>(null);
   const [attestBusy, setAttestBusy] = useState(false);
+  // Vendor-delivered course: taken elsewhere, evidenced here.
+  const [externalFor, setExternalFor] = useState<TrainingAssignment | null>(null);
+  const [externalBusy, setExternalBusy] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pending" | "overdue" | "completed">("all");
@@ -202,6 +209,19 @@ export default function TrainingPage() {
 
   /** Questions for a given assignment's module. */
   const questionsFor = (a: TrainingAssignment) => questions.filter((q) => q.trainingModuleId === a.trainingModuleId);
+
+  const moduleFor = (a: TrainingAssignment): TrainingModule | undefined =>
+    modules.find((m) => m.id === a.trainingModuleId);
+
+  /** External modules never use the in-app quiz/attest path. */
+  const isExternalAssignment = (a: TrainingAssignment) => isExternal(moduleFor(a));
+
+  /** The completion path for an incomplete assignment. */
+  function openCompletion(a: TrainingAssignment) {
+    if (isExternalAssignment(a)) setExternalFor(a);
+    else if (questionsFor(a).length > 0) setTakingQuiz(a);
+    else setAttesting(a);
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -332,6 +352,43 @@ export default function TrainingPage() {
     }
   }
 
+  /**
+   * Record a completion for a course that played in a vendor platform. The
+   * result is deliberately marked provisional: we have the employee's word and
+   * their certificate, not the vendor's own report. Importing that report is
+   * what promotes it to verified.
+   */
+  async function handleExternalComplete(data: { completedAt: string; certificatePath: string | null }) {
+    if (!externalFor) return;
+    const a = externalFor;
+    setExternalBusy(true);
+    try {
+      await createAttempt.mutateAsync({
+        assignmentId: a.id, trainingModuleId: a.trainingModuleId, moduleTitle: a.moduleTitle,
+        userId: a.assignedToUserId || (profile?.userId ?? user?.id ?? ""),
+        userName: a.assignedToName, score: 100, passed: true, answers: [],
+        completedAt: data.completedAt,
+      });
+      await updateMut.mutateAsync({
+        id: a.id,
+        patch: {
+          status: "completed",
+          completedAt: data.completedAt,
+          externalCompletedAt: data.completedAt,
+          completionSource: "external_attested",
+          verificationStatus: "provisional",
+          certificateUrl: data.certificatePath ?? undefined,
+        },
+      });
+      toast.success(`Recorded — ${a.moduleTitle} marked complete (self-reported)`);
+      setExternalFor(null);
+    } catch {
+      toast.error("Failed to record the completion.");
+    } finally {
+      setExternalBusy(false);
+    }
+  }
+
   /** Called when a quiz is passed: record the attempt and complete the assignment. */
   async function handleQuizPassed(a: TrainingAssignment, score: number, answers: number[]) {
     try {
@@ -412,6 +469,21 @@ export default function TrainingPage() {
         />
       )}
 
+      {externalFor && (() => {
+        const m = moduleFor(externalFor);
+        return m ? (
+          <ExternalCourseDialog
+            module={m}
+            personLabel={externalFor.assignedToName}
+            busy={externalBusy}
+            onClose={() => setExternalFor(null)}
+            onComplete={handleExternalComplete}
+          />
+        ) : null;
+      })()}
+
+      {showImport && <ImportCompletionsDialog onClose={() => setShowImport(false)} />}
+
       <PageHeader
         title="Training"
         description="Assign and track completion of compliance training modules."
@@ -420,6 +492,11 @@ export default function TrainingPage() {
             <Button variant="outline" onClick={exportRosterCSV} disabled={assignments.length === 0}>
               <Download className="size-4" /> Export roster (CSV)
             </Button>
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setShowImport(true)}>
+                <FileSpreadsheet className="size-4" /> Import completions
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setShowBulkAssign(true)}
@@ -516,14 +593,24 @@ export default function TrainingPage() {
                         </td>
                         <td data-label="Status" className="py-3 pr-4">
                           {a.status === "completed" ? (
-                            <Badge variant="success">Completed</Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="success">Completed</Badge>
+                              {a.verificationStatus === "verified" && (
+                                <Badge variant="outline" className="gap-1" title={a.verifiedByName ? `Verified against the provider report by ${a.verifiedByName}` : undefined}>
+                                  <ShieldCheck className="size-3" /> Verified
+                                </Badge>
+                              )}
+                              {a.verificationStatus === "provisional" && (
+                                <Badge variant="secondary" title="Self-reported — not yet confirmed against the provider's own report">Self-reported</Badge>
+                              )}
+                              {a.verificationStatus === "discrepancy" && (
+                                <Badge variant="destructive" title={a.reconciliationNote ?? undefined}>Discrepancy</Badge>
+                              )}
+                            </div>
                           ) : (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (questionsFor(a).length > 0) setTakingQuiz(a);
-                                else setAttesting(a);
-                              }}
+                              onClick={() => openCompletion(a)}
                               title="Open to manage"
                               className="cursor-pointer"
                             >
@@ -540,7 +627,11 @@ export default function TrainingPage() {
                         <td data-label="" className="py-3">
                           {a.status !== "completed" && (
                             <div className="flex gap-1.5 md:justify-end">
-                              {questionsFor(a).length > 0 ? (
+                              {isExternalAssignment(a) ? (
+                                <Button size="sm" onClick={() => setExternalFor(a)}>
+                                  <ExternalLink className="size-4" /> Open &amp; record
+                                </Button>
+                              ) : questionsFor(a).length > 0 ? (
                                 <Button size="sm" onClick={() => setTakingQuiz(a)}>
                                   <ListChecks className="size-4" /> Take quiz
                                 </Button>

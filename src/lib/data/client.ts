@@ -58,6 +58,7 @@ import type {
   TimeOffRequest,
   TrainingAssignment,
   TrainingAttempt,
+  TrainingImport,
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
@@ -134,6 +135,7 @@ export interface DataClient {
   auditLogs: Collection<AuditLog>;
   trainingQuestions: Collection<TrainingQuestion>;
   trainingAttempts: Collection<TrainingAttempt>;
+  trainingImports: Collection<TrainingImport>;
   formTemplates: Collection<FillableFormTemplate>;
   formAssignments: Collection<FormAssignment>;
   completedForms: Collection<CompletedForm>;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GraduationCap, Plus, Search, ListChecks, Trash2, X, Check } from "lucide-react";
+import { GraduationCap, Plus, Search, ListChecks, Trash2, X, Check, ExternalLink } from "lucide-react";
 import { useCollection, useCreate, useUpdate, useRemove } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageTabs, TRAINING_TABS } from "@/components/shared/page-tabs";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, EmptyState } from "@/components/shared/states";
 import type { TrainingModule, TrainingQuestion } from "@/lib/data/schema";
+import { TRAINING_PROVIDERS, PROVIDER_HOME } from "@/lib/training-external";
 import { humanizeLabel } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -22,6 +23,12 @@ interface ModuleForm {
   frequencyMonths: string;
   passingScore: string;
   active: boolean;
+  /** "in_app" (quiz/attestation here) or "external" (played in a vendor platform). */
+  delivery: TrainingModule["delivery"];
+  provider: string;
+  externalUrl: string;
+  providerCourseCode: string;
+  evidenceRequired: boolean;
 }
 
 const EMPTY: ModuleForm = {
@@ -31,6 +38,11 @@ const EMPTY: ModuleForm = {
   frequencyMonths: "",
   passingScore: "80",
   active: true,
+  delivery: "in_app",
+  provider: "Mineral",
+  externalUrl: "",
+  providerCourseCode: "",
+  evidenceRequired: true,
 };
 
 function ModuleDialog({
@@ -53,6 +65,11 @@ function ModuleDialog({
           frequencyMonths: initial.frequencyMonths != null ? String(initial.frequencyMonths) : "",
           passingScore: String(initial.passingScore),
           active: initial.active,
+          delivery: initial.delivery ?? "in_app",
+          provider: initial.provider ?? "Mineral",
+          externalUrl: initial.externalUrl ?? "",
+          providerCourseCode: initial.providerCourseCode ?? "",
+          evidenceRequired: initial.evidenceRequired ?? true,
         }
       : EMPTY,
   );
@@ -107,6 +124,69 @@ function ModuleDialog({
             />
             <label htmlFor="active" className="text-sm">Active (assignable)</label>
           </div>
+
+          {/* Where the course actually plays. External = a vendor platform hosts
+              the course; the Hub still owns the completion record. */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-sm font-medium">Delivered by</label>
+            <select
+              className="input w-full"
+              value={form.delivery}
+              onChange={(e) => setForm((p) => ({ ...p, delivery: e.target.value as ModuleForm["delivery"] }))}
+            >
+              <option value="in_app">This Hub — quiz or attestation</option>
+              <option value="external">Outside platform — staff take it there, we keep the record</option>
+            </select>
+          </div>
+
+          {form.delivery === "external" && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Provider</label>
+                <select
+                  className="input w-full"
+                  value={form.provider}
+                  onChange={(e) => setForm((p) => ({ ...p, provider: e.target.value }))}
+                >
+                  {TRAINING_PROVIDERS.map((prov) => (
+                    <option key={prov} value={prov}>{prov}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Course name in their catalog</label>
+                <input
+                  className="input w-full"
+                  value={form.providerCourseCode}
+                  onChange={set("providerCourseCode")}
+                  placeholder="e.g. HIPAA Essentials (Foundation In-Depth)"
+                />
+                <p className="text-xs text-muted-foreground">Used to match rows when you import their completion report.</p>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Course link</label>
+                <input
+                  className="input w-full"
+                  value={form.externalUrl}
+                  onChange={set("externalUrl")}
+                  placeholder={PROVIDER_HOME[form.provider] ?? "https://…"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to send staff to the provider&apos;s catalog, where they search for the course name above.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <input
+                  id="evidence"
+                  type="checkbox"
+                  checked={form.evidenceRequired}
+                  onChange={(e) => setForm((p) => ({ ...p, evidenceRequired: e.target.checked }))}
+                  className="size-4"
+                />
+                <label htmlFor="evidence" className="text-sm">Require the completion certificate to be uploaded</label>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -302,6 +382,11 @@ export default function TrainingAcademyPage() {
         frequencyMonths: freq && !isNaN(freq) ? freq : undefined,
         passingScore: parseInt(form.passingScore, 10),
         active: form.active,
+        delivery: form.delivery,
+        provider: form.delivery === "external" ? form.provider.trim() || "Other" : null,
+        externalUrl: form.delivery === "external" ? form.externalUrl.trim() || null : null,
+        providerCourseCode: form.delivery === "external" ? form.providerCourseCode.trim() || null : null,
+        evidenceRequired: form.delivery === "external" ? form.evidenceRequired : true,
       };
       if (editing && editing !== "new") {
         await updateMut.mutateAsync({ id: editing.id, patch: payload });
@@ -395,6 +480,11 @@ export default function TrainingAcademyPage() {
                         {!m.active && <Badge variant="secondary">Inactive</Badge>}
                         <Badge variant="outline" className="capitalize">{humanizeLabel(m.trainingType)}</Badge>
                         {quizCount > 0 && <Badge variant="secondary">{quizCount} quiz Q{quizCount !== 1 ? "s" : ""}</Badge>}
+                        {m.delivery === "external" && (
+                          <Badge variant="outline" className="gap-1">
+                            <ExternalLink className="size-3" /> {m.provider ?? "External"}
+                          </Badge>
+                        )}
                       </div>
                       {m.description && (
                         <p className="mt-1 text-sm text-muted-foreground line-clamp-1">{m.description}</p>

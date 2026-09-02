@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { UserCircle, GraduationCap, FileText, BadgeCheck, CheckCircle2, AlertTriangle, Shield, ListChecks } from "lucide-react";
+import { UserCircle, GraduationCap, FileText, BadgeCheck, CheckCircle2, AlertTriangle, Shield, ListChecks, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { TakeQuizDialog } from "@/components/training/take-quiz-dialog";
 import { AttestModuleDialog } from "@/components/training/attest-module-dialog";
+import { ExternalCourseDialog } from "@/components/training/external-course-dialog";
+import { isExternal } from "@/lib/training-external";
 import { AttestDocumentDialog } from "@/components/attestation/attest-document-dialog";
 import { pendingAttestations } from "@/lib/attestation";
 import type { TrainingAssignment, TrainingModule, ComplianceDocument } from "@/lib/data/schema";
@@ -51,6 +53,9 @@ export default function StaffPortalPage() {
 
   const [takingQuiz, setTakingQuiz] = useState<TrainingAssignment | null>(null);
   const [attesting, setAttesting] = useState<{ module: TrainingModule; assignment: TrainingAssignment } | null>(null);
+  // Vendor-delivered course: taken in their platform, evidenced here.
+  const [externalFor, setExternalFor] = useState<{ module: TrainingModule; assignment: TrainingAssignment } | null>(null);
+  const [externalBusy, setExternalBusy] = useState(false);
   const [attestBusy, setAttestBusy] = useState(false);
   const [signingDoc, setSigningDoc] = useState<ComplianceDocument | null>(null);
   const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
@@ -114,7 +119,8 @@ export default function StaffPortalPage() {
         assignment = created as TrainingAssignment;
         void trainingQ.refetch();
       }
-      if (questions > 0) setTakingQuiz(assignment);
+      if (isExternal(m)) setExternalFor({ module: m, assignment });
+      else if (questions > 0) setTakingQuiz(assignment);
       else setAttesting({ module: m, assignment });
     } catch {
       toast.error("Couldn't start this training. Please try again.");
@@ -145,6 +151,42 @@ export default function StaffPortalPage() {
       setAttestBusy(false);
     }
   }
+  /**
+   * Record a course completed in the provider's platform. Self-reported and
+   * evidenced by their certificate; an admin's import of the provider report
+   * later promotes it to verified.
+   */
+  async function handleExternalComplete(data: { completedAt: string; certificatePath: string | null }) {
+    if (!externalFor) return;
+    const { module: m, assignment } = externalFor;
+    setExternalBusy(true);
+    try {
+      await createAttempt.mutateAsync({
+        assignmentId: assignment.id, trainingModuleId: m.id, moduleTitle: m.title,
+        userId: myUserId, userName: myName, score: 100, passed: true, answers: [],
+        completedAt: data.completedAt,
+      });
+      await updateAssign.mutateAsync({
+        id: assignment.id,
+        patch: {
+          status: "completed",
+          completedAt: data.completedAt,
+          externalCompletedAt: data.completedAt,
+          completionSource: "external_attested",
+          verificationStatus: "provisional",
+          certificateUrl: data.certificatePath ?? undefined,
+        },
+      });
+      toast.success("Recorded — your completion is saved here with the certificate");
+      setExternalFor(null);
+      void trainingQ.refetch();
+    } catch {
+      toast.error("Couldn't record your completion. Please try again.");
+    } finally {
+      setExternalBusy(false);
+    }
+  }
+
   const myCreds = useMemo(
     () => credentials.filter((c) => c.employeeUserId === myUserId || c.employeeName === myName),
     [credentials, myUserId, myName],
@@ -222,6 +264,14 @@ export default function StaffPortalPage() {
           busy={attestBusy}
           onAttest={handleAttest}
           onClose={() => setAttesting(null)}
+        />
+      )}
+      {externalFor && (
+        <ExternalCourseDialog
+          module={externalFor.module}
+          busy={externalBusy}
+          onClose={() => setExternalFor(null)}
+          onComplete={handleExternalComplete}
         />
       )}
 
@@ -326,25 +376,48 @@ export default function StaffPortalPage() {
                   return (
                     <li key={module.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">{module.title}</p>
+                        <p className="flex items-center gap-1.5 text-sm font-medium">
+                          {module.title}
+                          {isExternal(module) && (
+                            <Badge variant="outline" className="gap-1 font-normal">
+                              <ExternalLink className="size-3" /> {module.provider ?? "External"}
+                            </Badge>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {questions > 0 ? `${questions} question${questions !== 1 ? "s" : ""} · pass to complete` : "Read & attest to complete"}
+                          {isExternal(module)
+                            ? `Taken in ${module.provider ?? "the provider's platform"} · record it here when you finish`
+                            : questions > 0
+                              ? `${questions} question${questions !== 1 ? "s" : ""} · pass to complete`
+                              : "Read & attest to complete"}
                           {active?.dueDate ? ` · due ${formatDate(active.dueDate)}` : ""}
                           {overdue ? " · overdue" : ""}
                         </p>
+                        {done && completed?.verificationStatus === "provisional" && (
+                          <p className="text-xs text-muted-foreground">Self-reported — pending confirmation from the provider report</p>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {done ? (
                           <>
                             <Badge variant="success">Completed</Badge>
-                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>{questions > 0 ? "Retake" : "Re-attest"}</Button>
+                            {completed?.verificationStatus === "verified" && <Badge variant="outline">Verified</Badge>}
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => startModule(module, completed, questions)}>
+                              {isExternal(module) ? "Retake" : questions > 0 ? "Retake" : "Re-attest"}
+                            </Button>
                           </>
                         ) : (
                           <>
                             {overdue && <Badge variant="destructive">Overdue</Badge>}
                             <Button size="sm" variant={active ? "outline" : "default"} disabled={busy} onClick={() => startModule(module, active, questions)}>
-                              {questions > 0 ? <ListChecks className="size-4" /> : <CheckCircle2 className="size-4" />}
-                              {busy ? "…" : questions > 0 ? (active ? "Take quiz" : "Start") : (active ? "Attest" : "Start")}
+                              {isExternal(module) ? <ExternalLink className="size-4" /> : questions > 0 ? <ListChecks className="size-4" /> : <CheckCircle2 className="size-4" />}
+                              {busy
+                                ? "…"
+                                : isExternal(module)
+                                  ? "Open & record"
+                                  : questions > 0
+                                    ? (active ? "Take quiz" : "Start")
+                                    : (active ? "Attest" : "Start")}
                             </Button>
                           </>
                         )}
