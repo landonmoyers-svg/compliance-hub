@@ -26,7 +26,7 @@ import { humanizeLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
 import {
   runway, pace, paceLabel, suggestedRequest, restockMessage, expiry, unitCount,
-  RUNWAY_CRITICAL_DAYS, type Runway,
+  confidenceNote, trendNote, RUNWAY_CRITICAL_DAYS, type Runway,
 } from "@/lib/med-samples";
 import { toast } from "sonner";
 
@@ -330,11 +330,12 @@ function HistoryDialog({ sample, logs, onClose }: { sample: MedSample; logs: Med
         </div>
         <div className="p-5">
           <p className="mb-4 rounded-md bg-secondary px-3 py-2 text-sm">
-            {p.basis === "measured"
-              ? <>Dispensing {paceLabel(p, sample.unit)} — {unitCount(p.dispensed, sample.unit)} over {Math.round(p.windowDays)} days, from {p.events} entries.</>
-              : p.basis === "insufficient_history"
-                ? <>Not enough history to measure a pace yet — {p.events} dispensing {p.events === 1 ? "entry" : "entries"} on file. Two or more, spread over about a week, gives a usable rate.</>
-                : <>No dispensing recorded yet.</>}
+            {p.basis === "measured" ? (
+              <>
+                Dispensing {paceLabel(p, sample.unit)} — {unitCount(p.totalUsed, sample.unit)} across {p.events} entries.
+                <span className="block text-xs text-muted-foreground">{confidenceNote(p)}{trendNote(p) ? ` · ${trendNote(p)}.` : ""}</span>
+              </>
+            ) : <>{confidenceNote(p)}</>}
           </p>
           {rows.length === 0 ? <EmptyState title="Nothing recorded yet" description="Movements appear here once you record them." />
             : <table className="rtable w-full text-sm">
@@ -648,7 +649,15 @@ export default function MedSamplesPage() {
                           {s.room && <p className="text-xs text-muted-foreground">{s.room}</p>}
                         </td>
                         <td data-label="On hand" className="py-3 pr-3 whitespace-nowrap">{unitCount(s.quantityOnHand, s.unit)}</td>
-                        <td data-label="Pace" className="py-3 pr-3 text-sm text-muted-foreground">{paceLabel(r.pace, s.unit)}</td>
+                        <td data-label="Pace" className="py-3 pr-3 text-sm">
+                          <span className="text-muted-foreground">{paceLabel(r.pace, s.unit)}</span>
+                          {r.pace.basis === "measured" && (
+                            <span className="block text-xs text-muted-foreground/80">
+                              {r.pace.confidence === "strong" ? "settled" : r.pace.confidence === "good" ? "tightening" : "early estimate"}
+                              {trendNote(r.pace) ? ` · ${trendNote(r.pace)!.toLowerCase()}` : ""}
+                            </span>
+                          )}
+                        </td>
                         <td data-label="Runway" className="py-3 pr-3"><RunwayCell r={r} unit={s.unit} /></td>
                         <td data-label="Expires" className="py-3 pr-3">
                           {!s.expirationDate ? <span className="text-muted-foreground">—</span>

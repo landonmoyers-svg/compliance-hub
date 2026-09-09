@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { Syringe, Plus, Search, Sparkles, Upload, X, Camera, PackagePlus, PackageMinus, History, AlertTriangle, CalendarClock } from "lucide-react";
+import { Syringe, Plus, Search, Sparkles, Upload, X, Camera, PackagePlus, PackageMinus, History, AlertTriangle, CalendarClock, TrendingDown } from "lucide-react";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { uploadFile } from "@/lib/storage";
@@ -22,6 +22,7 @@ import type { MedicalSupply, MedicalSupplyLog, WorkLocation } from "@/lib/data/s
 import { consumableCategories } from "@/lib/data/schema";
 import { humanizeLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
+import { supplyPace, supplyRunway, paceLabel, confidenceNote, trendNote, RUNWAY_CRITICAL_DAYS } from "@/lib/medical-supplies";
 import { toast } from "sonner";
 
 const MAX_IMG_MB = 12;
@@ -286,6 +287,7 @@ function CountDialog({ item, byName, onClose, onSave, saving }: {
   const [amount, setAmount] = useState("1");
   const [lot, setLot] = useState(item.lotNumber ?? "");
   const [note, setNote] = useState("");
+  const [when, setWhen] = useState(new Date().toISOString().slice(0, 10));
 
   const amt = parseInt(amount, 10);
   const amtOk = !isNaN(amt) && amt >= 0;
@@ -298,6 +300,7 @@ function CountDialog({ item, byName, onClose, onSave, saving }: {
     if (action === "received" && lot.trim() && lot.trim() !== (item.lotNumber ?? "")) patch.lotNumber = lot.trim();
     onSave(patch, {
       supplyId: item.id, action, quantityDelta: delta, balanceAfter,
+      occurredAt: new Date(`${when}T12:00:00`).toISOString(),
       lotNumber: lot.trim() || null, byName: byName || null, note: note.trim() || null,
     });
   }
@@ -352,7 +355,9 @@ function CountDialog({ item, byName, onClose, onSave, saving }: {
 /* ------------------------------ history dialog --------------------------- */
 
 function HistoryDialog({ item, logs, onClose }: { item: MedicalSupply; logs: MedicalSupplyLog[]; onClose: () => void }) {
-  const rows = logs.filter((l) => l.supplyId === item.id).sort((a, b) => (a.createdDate < b.createdDate ? 1 : -1));
+  const rows = logs.filter((l) => l.supplyId === item.id)
+    .sort((a, b) => new Date(b.occurredAt ?? b.createdDate).getTime() - new Date(a.occurredAt ?? a.createdDate).getTime());
+  const p = supplyPace(rows);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
@@ -361,7 +366,12 @@ function HistoryDialog({ item, logs, onClose }: { item: MedicalSupply; logs: Med
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
         </div>
         <div className="p-5">
-          <p className="mb-3 text-sm font-medium">{item.name}</p>
+          <p className="mb-1 text-sm font-medium">{item.name}</p>
+          <p className="mb-3 rounded-md bg-secondary px-3 py-2 text-sm">
+            {p.basis === "measured"
+              ? <>Using {paceLabel(p, item.unit)}.<span className="block text-xs text-muted-foreground">{confidenceNote(p)}{trendNote(p) ? ` · ${trendNote(p)}.` : ""}</span></>
+              : <span className="text-muted-foreground">{confidenceNote(p)}</span>}
+          </p>
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No stock changes logged yet.</p>
           ) : (
@@ -437,12 +447,20 @@ export default function MedicalSuppliesPage() {
     expiration: (r) => r.expirationDate ?? "9999",
   });
 
+  /** Runway per item, measured from the movement ledger. */
+  const runwayById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof supplyRunway>>();
+    for (const i of items) m.set(i.id, supplyRunway(i, (logData ?? []).filter((l) => l.supplyId === i.id)));
+    return m;
+  }, [items, logData]);
+
   const stats = useMemo(() => ({
     total: items.length,
+    runningOut: items.filter((i) => runwayById.get(i.id)?.status === "critical").length,
     low: items.filter((i) => stockLevel(i) !== "ok").length,
     expiring: items.filter((i) => { const d = daysUntil(i.expirationDate); return d != null && d >= 0 && d <= EXPIRY_SOON_DAYS; }).length,
     expired: items.filter((i) => { const d = daysUntil(i.expirationDate); return d != null && d < 0; }).length,
-  }), [items]);
+  }), [items, runwayById]);
 
   async function handleSave(form: SupplyForm, image: { file: File; capturedAt?: string; lat?: number; lng?: number } | null, ai: { identified: boolean; confidence?: string }) {
     setSaving(true);
@@ -530,8 +548,9 @@ export default function MedicalSuppliesPage() {
         actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> Add supply</Button>}
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid auto-rows-min grid-cols-2 content-start gap-4 lg:grid-cols-5">
         <StatCard label="Products" value={stats.total} icon={Syringe} loading={isLoading} />
+        <StatCard label={`Out within ${RUNWAY_CRITICAL_DAYS} days`} value={stats.runningOut} icon={TrendingDown} tone={stats.runningOut ? "destructive" : "default"} loading={isLoading} />
         <StatCard label="At/below par" value={stats.low} icon={AlertTriangle} tone={stats.low ? "warning" : "success"} loading={isLoading} />
         <StatCard label={`Expiring ≤${EXPIRY_SOON_DAYS}d`} value={stats.expiring} icon={CalendarClock} tone={stats.expiring ? "warning" : "default"} loading={isLoading} />
         <StatCard label="Expired" value={stats.expired} icon={CalendarClock} tone={stats.expired ? "destructive" : "default"} loading={isLoading} />
@@ -582,6 +601,8 @@ export default function MedicalSuppliesPage() {
                     <th className="pb-2 font-medium">Supply</th>
                     <SortHeader label="Category" sortKey="category" sort={sort} onToggle={toggle} />
                     <SortHeader label="On hand" sortKey="onhand" sort={sort} onToggle={toggle} />
+                    <th className="pb-2 font-medium">Pace</th>
+                    <th className="pb-2 font-medium">Runway</th>
                     <th className="pb-2 font-medium">Location</th>
                     <SortHeader label="Expiration" sortKey="expiration" sort={sort} onToggle={toggle} />
                     <th className="pb-2 font-medium">Actions</th>
@@ -591,6 +612,8 @@ export default function MedicalSuppliesPage() {
                   {sorted.map((i) => {
                     const lvl = stockLevel(i);
                     const d = daysUntil(i.expirationDate);
+                    const rw = runwayById.get(i.id);
+                    const daysLeft = rw?.daysLeft != null ? Math.floor(rw.daysLeft) : null;
                     return (
                       <tr key={i.id} className="border-b border-border/50 hover:bg-secondary/20">
                         <td data-label="Supply" className="py-3 pr-4">
@@ -611,6 +634,26 @@ export default function MedicalSuppliesPage() {
                             <span className="text-xs text-muted-foreground">{i.unit}{i.parLevel > 0 ? ` · par ${i.parLevel}` : ""}</span>
                             {lvl === "out" ? <Badge variant="destructive">Out</Badge> : lvl === "low" ? <Badge variant="warning">Low</Badge> : null}
                           </div>
+                        </td>
+                        <td data-label="Pace" className="py-3 pr-4">
+                          <span className="text-muted-foreground">{rw ? paceLabel(rw.pace, i.unit) : "—"}</span>
+                          {rw?.pace.basis === "measured" && (
+                            <span className="block text-xs text-muted-foreground/80">
+                              {rw.pace.confidence === "strong" ? "settled" : rw.pace.confidence === "good" ? "tightening" : "early estimate"}
+                              {trendNote(rw.pace) ? ` · ${trendNote(rw.pace)!.toLowerCase()}` : ""}
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Runway" className="py-3 pr-4">
+                          {!rw || rw.status === "unknown" ? <span className="text-muted-foreground">—</span>
+                            : rw.status === "out" ? <Badge variant="destructive">Out of stock</Badge>
+                            : daysLeft == null ? <span className="text-muted-foreground">—</span>
+                            : <div className="flex flex-col gap-0.5">
+                                <Badge variant={rw.status === "critical" ? "destructive" : rw.status === "watch" ? "warning" : "success"}>
+                                  {daysLeft <= 0 ? "Out now" : daysLeft === 1 ? "1 day left" : `${daysLeft} days left`}
+                                </Badge>
+                                {rw.runsOutOn && <span className="text-xs text-muted-foreground">~{formatDate(rw.runsOutOn.toISOString())}</span>}
+                              </div>}
                         </td>
                         <td data-label="Location" className="py-3 pr-4 text-muted-foreground">{[locName(i.locationId), i.room].filter(Boolean).join(" · ") || "—"}</td>
                         <td data-label="Expiration" className="py-3 pr-4">

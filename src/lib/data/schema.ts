@@ -1042,6 +1042,9 @@ export const MedicalSupplyLog = z.object({
   action: z.enum(consumableActions).default("used"),
   quantityDelta: z.number().default(0),        // +received / -used
   balanceAfter: z.number().nullable().optional(),
+  /** When it actually happened — not when it was typed in. Usage pace measures
+   *  against this, so a Friday catch-up still lands in the right week. */
+  occurredAt: z.string().nullable().optional(),
   lotNumber: z.string().nullable().optional(),
   byName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
