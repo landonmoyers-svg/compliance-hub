@@ -56,6 +56,9 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  DrugRep,
+  MedSample,
+  MedSampleLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
@@ -97,6 +100,9 @@ export interface DataClient {
   supplyMovements: Collection<SupplyMovement>;
   medicalSupplies: Collection<MedicalSupply>;
   medicalSupplyLogs: Collection<MedicalSupplyLog>;
+  drugReps: Collection<DrugRep>;
+  medSamples: Collection<MedSample>;
+  medSampleLogs: Collection<MedSampleLog>;
   riskCases: Collection<RiskManagementCase>;
   incidents: Collection<Incident>;
   correctiveActions: Collection<CorrectiveAction>;

@@ -69,6 +69,9 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  DrugRep,
+  MedSample,
+  MedSampleLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
@@ -718,6 +721,110 @@ function medSupplyTo(d: Partial<MedicalSupply>) {
     ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
     ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
     ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function drugRepFrom(r: Record<string, unknown>): DrugRep {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    company: r.company as string | undefined,
+    phone: r.phone as string | undefined,
+    email: r.email as string | undefined,
+    territory: r.territory as string | undefined,
+    lastContactDate: r.last_contact_date as string | undefined,
+    active: (r.active as boolean | null) ?? true,
+    notes: r.notes as string | undefined,
+  };
+}
+function drugRepTo(d: Partial<DrugRep>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.company !== undefined && { company: d.company }),
+    ...(d.phone !== undefined && { phone: d.phone }),
+    ...(d.email !== undefined && { email: d.email }),
+    ...(d.territory !== undefined && { territory: d.territory }),
+    ...(d.lastContactDate !== undefined && { last_contact_date: d.lastContactDate }),
+    ...(d.active !== undefined && { active: d.active }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function medSampleFrom(r: Record<string, unknown>): MedSample {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    strength: r.strength as string | undefined,
+    form: r.form as MedSample["form"],
+    manufacturer: r.manufacturer as string | undefined,
+    ndc: r.ndc as string | undefined,
+    locationId: r.location_id as string | undefined,
+    room: r.room as string | undefined,
+    quantityOnHand: (r.quantity_on_hand as number | null) ?? 0,
+    unit: r.unit as string,
+    parLevel: (r.par_level as number | null) ?? 0,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    repId: r.rep_id as string | undefined,
+    imageUrl: r.image_url as string | undefined,
+    capturedAt: r.captured_at as string | undefined,
+    capturedLat: r.captured_lat as number | undefined,
+    capturedLng: r.captured_lng as number | undefined,
+    aiIdentified: (r.ai_identified as boolean | null) ?? false,
+    aiConfidence: r.ai_confidence as string | undefined,
+    active: (r.active as boolean | null) ?? true,
+    notes: r.notes as string | undefined,
+  };
+}
+function medSampleTo(d: Partial<MedSample>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.strength !== undefined && { strength: d.strength }),
+    ...(d.form !== undefined && { form: d.form }),
+    ...(d.manufacturer !== undefined && { manufacturer: d.manufacturer }),
+    ...(d.ndc !== undefined && { ndc: d.ndc }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.room !== undefined && { room: d.room }),
+    ...(d.quantityOnHand !== undefined && { quantity_on_hand: d.quantityOnHand }),
+    ...(d.unit !== undefined && { unit: d.unit }),
+    ...(d.parLevel !== undefined && { par_level: d.parLevel }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.repId !== undefined && { rep_id: d.repId }),
+    ...(d.imageUrl !== undefined && { image_url: d.imageUrl }),
+    ...(d.capturedAt !== undefined && { captured_at: d.capturedAt }),
+    ...(d.capturedLat !== undefined && { captured_lat: d.capturedLat }),
+    ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
+    ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
+    ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
+    ...(d.active !== undefined && { active: d.active }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function medSampleLogFrom(r: Record<string, unknown>): MedSampleLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    sampleId: r.sample_id as string,
+    action: r.action as MedSampleLog["action"],
+    quantityDelta: (r.quantity_delta as number | null) ?? 0,
+    balanceAfter: r.balance_after as number | undefined,
+    occurredAt: r.occurred_at as string | undefined,
+    lotNumber: r.lot_number as string | undefined,
+    byName: r.by_name as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function medSampleLogTo(d: Partial<MedSampleLog>) {
+  return {
+    ...(d.sampleId !== undefined && { sample_id: d.sampleId }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.quantityDelta !== undefined && { quantity_delta: d.quantityDelta }),
+    ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.occurredAt !== undefined && { occurred_at: d.occurredAt }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.byName !== undefined && { by_name: d.byName }),
+    ...(d.note !== undefined && { note: d.note }),
   };
 }
 
@@ -2356,6 +2463,9 @@ export function createSupabaseDataClient(): DataClient {
     supplyMovements:    makeCollection(supabase, "supply_movements",     supplyMovementFrom,     supplyMovementTo),
     medicalSupplies:    makeCollection(supabase, "medical_supplies",     medSupplyFrom,          medSupplyTo),
     medicalSupplyLogs:  makeCollection(supabase, "medical_supply_logs",  medSupplyLogFrom,       medSupplyLogTo),
+    drugReps:           makeCollection(supabase, "drug_reps",            drugRepFrom,            drugRepTo),
+    medSamples:         makeCollection(supabase, "med_samples",          medSampleFrom,          medSampleTo),
+    medSampleLogs:      makeCollection(supabase, "med_sample_logs",      medSampleLogFrom,       medSampleLogTo),
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
     incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
     correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),

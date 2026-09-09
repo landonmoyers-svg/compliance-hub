@@ -1046,6 +1046,83 @@ export const MedicalSupplyLog = z.object({
   byName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
 });
+
+/* --------------------- medication samples --------------------------- */
+
+/**
+ * Drug-rep samples held at a site. Deliberately separate from MedicalSupply:
+ * samples aren't purchased, they can't be reordered from a vendor, they expire
+ * hard, and the way you restock is to call the rep — so the rep is part of the
+ * record, not an afterthought.
+ */
+export const sampleForms = [
+  "box", "carton", "blister_pack", "bottle", "pen", "vial",
+  "inhaler", "tube", "sample_card", "other",
+] as const;
+export const SampleForm = z.enum(sampleForms);
+export type SampleForm = z.infer<typeof SampleForm>;
+
+/** The rep to call for more. One rep usually covers several products. */
+export const DrugRep = z.object({
+  ...base,
+  name: z.string(),
+  company: z.string().nullable().optional(),      // manufacturer they represent
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  territory: z.string().nullable().optional(),
+  lastContactDate: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+});
+export type DrugRep = z.infer<typeof DrugRep>;
+
+export const MedSample = z.object({
+  ...base,
+  name: z.string(),
+  strength: z.string().nullable().optional(),     // "50 mg", "100 mcg/actuation"
+  form: SampleForm.default("box"),
+  manufacturer: z.string().nullable().optional(),
+  ndc: z.string().nullable().optional(),
+  /** Which site holds this stock. Murray and Lehi are tracked separately. */
+  locationId: z.string().nullable().optional(),
+  room: z.string().nullable().optional(),         // closet / cabinet
+  quantityOnHand: z.number().default(0),
+  unit: z.string().default("box"),
+  /** Optional floor. Runway is computed from pace; par is a simple backstop. */
+  parLevel: z.number().default(0),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  repId: z.string().nullable().optional(),
+  // Photo classification, mirroring inventory and medical supplies.
+  imageUrl: z.string().nullable().optional(),
+  capturedAt: z.string().nullable().optional(),
+  capturedLat: z.number().nullable().optional(),
+  capturedLng: z.number().nullable().optional(),
+  aiIdentified: z.boolean().default(false),
+  aiConfidence: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+});
+export type MedSample = z.infer<typeof MedSample>;
+
+export const sampleActions = ["dispensed", "received", "adjusted", "discarded", "expired"] as const;
+export const SampleAction = z.enum(sampleActions);
+export type SampleAction = z.infer<typeof SampleAction>;
+
+export const MedSampleLog = z.object({
+  ...base,
+  sampleId: z.string(),
+  action: SampleAction.default("dispensed"),
+  quantityDelta: z.number().default(0),           // +received / -dispensed
+  balanceAfter: z.number().nullable().optional(),
+  /** When it actually happened — not when it was typed in. Burn rate uses this
+   *  so a back-dated entry still lands in the right week. */
+  occurredAt: z.string().nullable().optional(),
+  lotNumber: z.string().nullable().optional(),
+  byName: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type MedSampleLog = z.infer<typeof MedSampleLog>;
 export type MedicalSupplyLog = z.infer<typeof MedicalSupplyLog>;
 
 /* ------------------------- HR: time clock -------------------------- */

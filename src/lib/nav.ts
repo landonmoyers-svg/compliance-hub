@@ -28,6 +28,7 @@ import {
   Package,
   Boxes,
   Syringe,
+  Pill,
   Shield,
   Sparkles,
   Star,
@@ -127,6 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Inventory", href: "/inventory", icon: Package },
       { label: "Staff Supplies", href: "/staff-supplies", icon: Boxes },
       { label: "Medical Supplies", href: "/medical-supplies", icon: Syringe },
+      { label: "Med Samples", href: "/med-samples", icon: Pill, adminOnly: true },
     ],
   },
   {
