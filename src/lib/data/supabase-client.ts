@@ -69,6 +69,7 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  MedicalSupplyLot,
   DrugRep,
   MedSample,
   MedSampleLog,
@@ -698,6 +699,12 @@ function medSupplyFrom(r: Record<string, unknown>): MedicalSupply {
     aiIdentified: (r.ai_identified as boolean | null) ?? false,
     aiConfidence: r.ai_confidence as string | undefined,
     notes: r.notes as string | undefined,
+    orderUrl: r.order_url as string | undefined,
+    leadTimeDays: r.lead_time_days as number | undefined,
+    targetCoverDays: r.target_cover_days as number | undefined,
+    packSize: r.pack_size as number | undefined,
+    lastOrderedAt: r.last_ordered_at as string | undefined,
+    pendingOrderQty: r.pending_order_qty as number | undefined,
   };
 }
 function medSupplyTo(d: Partial<MedicalSupply>) {
@@ -721,6 +728,12 @@ function medSupplyTo(d: Partial<MedicalSupply>) {
     ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
     ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
     ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.orderUrl !== undefined && { order_url: d.orderUrl }),
+    ...(d.leadTimeDays !== undefined && { lead_time_days: d.leadTimeDays }),
+    ...(d.targetCoverDays !== undefined && { target_cover_days: d.targetCoverDays }),
+    ...(d.packSize !== undefined && { pack_size: d.packSize }),
+    ...(d.lastOrderedAt !== undefined && { last_ordered_at: d.lastOrderedAt }),
+    ...(d.pendingOrderQty !== undefined && { pending_order_qty: d.pendingOrderQty }),
   };
 }
 
@@ -828,6 +841,30 @@ function medSampleLogTo(d: Partial<MedSampleLog>) {
   };
 }
 
+function medSupplyLotFrom(r: Record<string, unknown>): MedicalSupplyLot {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    supplyId: r.supply_id as string,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    quantityReceived: (r.quantity_received as number | null) ?? 0,
+    quantityRemaining: (r.quantity_remaining as number | null) ?? 0,
+    receivedAt: r.received_at as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function medSupplyLotTo(d: Partial<MedicalSupplyLot>) {
+  return {
+    ...(d.supplyId !== undefined && { supply_id: d.supplyId }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.quantityReceived !== undefined && { quantity_received: d.quantityReceived }),
+    ...(d.quantityRemaining !== undefined && { quantity_remaining: d.quantityRemaining }),
+    ...(d.receivedAt !== undefined && { received_at: d.receivedAt }),
+    ...(d.note !== undefined && { note: d.note }),
+  };
+}
+
 function medSupplyLogFrom(r: Record<string, unknown>): MedicalSupplyLog {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -836,6 +873,7 @@ function medSupplyLogFrom(r: Record<string, unknown>): MedicalSupplyLog {
     quantityDelta: (r.quantity_delta as number | null) ?? 0,
     balanceAfter: r.balance_after as number | undefined,
     occurredAt: r.occurred_at as string | undefined,
+    lotId: r.lot_id as string | undefined,
     lotNumber: r.lot_number as string | undefined,
     byName: r.by_name as string | undefined,
     note: r.note as string | undefined,
@@ -848,6 +886,7 @@ function medSupplyLogTo(d: Partial<MedicalSupplyLog>) {
     ...(d.quantityDelta !== undefined && { quantity_delta: d.quantityDelta }),
     ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
     ...(d.occurredAt !== undefined && { occurred_at: d.occurredAt }),
+    ...(d.lotId !== undefined && { lot_id: d.lotId }),
     ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
     ...(d.byName !== undefined && { by_name: d.byName }),
     ...(d.note !== undefined && { note: d.note }),
@@ -2465,6 +2504,7 @@ export function createSupabaseDataClient(): DataClient {
     supplyMovements:    makeCollection(supabase, "supply_movements",     supplyMovementFrom,     supplyMovementTo),
     medicalSupplies:    makeCollection(supabase, "medical_supplies",     medSupplyFrom,          medSupplyTo),
     medicalSupplyLogs:  makeCollection(supabase, "medical_supply_logs",  medSupplyLogFrom,       medSupplyLogTo),
+    medicalSupplyLots:  makeCollection(supabase, "medical_supply_lots",  medSupplyLotFrom,       medSupplyLotTo),
     drugReps:           makeCollection(supabase, "drug_reps",            drugRepFrom,            drugRepTo),
     medSamples:         makeCollection(supabase, "med_samples",          medSampleFrom,          medSampleTo),
     medSampleLogs:      makeCollection(supabase, "med_sample_logs",      medSampleLogFrom,       medSampleLogTo),

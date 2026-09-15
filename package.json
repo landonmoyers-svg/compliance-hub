@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium",
-    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts"
+    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts && tsx src/lib/__tests__/stock-lots.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
@@ -57,6 +57,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

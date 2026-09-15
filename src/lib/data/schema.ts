@@ -1031,10 +1031,40 @@ export const MedicalSupply = z.object({
   aiIdentified: z.boolean().default(false),
   aiConfidence: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Ordering. All optional (no .default) — a default here would make every
+  // existing construction site of MedicalSupply fail to typecheck.
+  /** The vendor's product page for this exact item. http(s) only. */
+  orderUrl: z.string().nullable().optional(),
+  /** Days from placing an order to having it on the shelf. Defaults to 7 in code. */
+  leadTimeDays: z.number().nullable().optional(),
+  /** Days of use an order should cover once it arrives. Defaults to 30 in code. */
+  targetCoverDays: z.number().nullable().optional(),
+  /** Units per orderable pack — recommendations round up to whole packs. */
+  packSize: z.number().nullable().optional(),
+  lastOrderedAt: z.string().nullable().optional(),
+  pendingOrderQty: z.number().nullable().optional(),
 });
 export type MedicalSupply = z.infer<typeof MedicalSupply>;
 
-export const consumableActions = ["received", "used", "adjusted", "discarded"] as const;
+/**
+ * One delivered batch of a supply. Stock lives here: the supply's on-hand, lot
+ * number and expiry are kept in sync from its lots by a database trigger, so a
+ * closet holding three lots with three expiry dates is represented truthfully.
+ */
+export const MedicalSupplyLot = z.object({
+  ...base,
+  supplyId: z.string(),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  quantityReceived: z.number().default(0),
+  quantityRemaining: z.number().default(0),
+  receivedAt: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type MedicalSupplyLot = z.infer<typeof MedicalSupplyLot>;
+
+// "expired" is split out from "discarded" so waste-to-expiry can be reported on its own.
+export const consumableActions = ["received", "used", "adjusted", "discarded", "expired"] as const;
 
 export const MedicalSupplyLog = z.object({
   ...base,
@@ -1045,6 +1075,8 @@ export const MedicalSupplyLog = z.object({
   /** When it actually happened — not when it was typed in. Usage pace measures
    *  against this, so a Friday catch-up still lands in the right week. */
   occurredAt: z.string().nullable().optional(),
+  /** The lot this movement touched. */
+  lotId: z.string().nullable().optional(),
   lotNumber: z.string().nullable().optional(),
   byName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),

@@ -83,6 +83,7 @@ export function createMockDataClient(): DataClient {
     supplyMovements: new MemoryCollection(seed.supplyMovements),
     medicalSupplies: new MemoryCollection(seed.medicalSupplies),
     medicalSupplyLogs: new MemoryCollection(seed.medicalSupplyLogs),
+    medicalSupplyLots: new MemoryCollection(seed.medicalSupplyLots),
     drugReps: new MemoryCollection(seed.drugReps),
     medSamples: new MemoryCollection(seed.medSamples),
     medSampleLogs: new MemoryCollection(seed.medSampleLogs),

@@ -120,6 +120,7 @@ export function buildSeed(): SeedData {
       { id: "medsupply-1", createdDate: days(-30), name: "Example — Nitrile Exam Gloves (M)", category: "ppe", unit: "box", quantityOnHand: 8, parLevel: 6, reorderQuantity: 20, room: "Supply Closet A", aiIdentified: false },
     ],
     medicalSupplyLogs: [],
+    medicalSupplyLots: [],
     drugReps: [],
     medSamples: [],
     medSampleLogs: [],

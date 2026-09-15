@@ -56,6 +56,7 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  MedicalSupplyLot,
   DrugRep,
   MedSample,
   MedSampleLog,
@@ -100,6 +101,7 @@ export interface DataClient {
   supplyMovements: Collection<SupplyMovement>;
   medicalSupplies: Collection<MedicalSupply>;
   medicalSupplyLogs: Collection<MedicalSupplyLog>;
+  medicalSupplyLots: Collection<MedicalSupplyLot>;
   drugReps: Collection<DrugRep>;
   medSamples: Collection<MedSample>;
   medSampleLogs: Collection<MedSampleLog>;
