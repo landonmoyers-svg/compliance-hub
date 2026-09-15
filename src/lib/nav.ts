@@ -123,12 +123,25 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
       { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
-      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
       { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
-      { label: "Inventory", href: "/inventory", icon: Package },
-      { label: "Staff Supplies", href: "/staff-supplies", icon: Boxes },
+    ],
+  },
+  // Inventory got its own two top-bar tabs (Landon, 2026-09-15): day-to-day
+  // counting and ordering is its own job, not a corner of Safety. Medication
+  // stock — including controlled substances — sits apart from general goods.
+  {
+    label: "Medical Inventory", shortLabel: "Medical Inventory",
+    items: [
       { label: "Medical Supplies", href: "/medical-supplies", icon: Syringe },
       { label: "Med Samples", href: "/med-samples", icon: Pill, adminOnly: true },
+      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
+    ],
+  },
+  {
+    label: "General Inventory", shortLabel: "General Inventory",
+    items: [
+      { label: "Inventory", href: "/inventory", icon: Package },
+      { label: "Staff Supplies", href: "/staff-supplies", icon: Boxes },
     ],
   },
   {

@@ -671,16 +671,18 @@ export const FEATURES: FeatureGuide[] = [
     roles: ["owner", "admin", "hr"],
   },
   {
-    slug: "medical-supplies", title: "Medical Supplies", route: "/medical-supplies", category: "Safety",
-    what: "Consumable clinical supplies — gloves, syringes, gauze — tracked against par levels with lot and expiration tracking.",
-    why: "Running out mid-clinic is an operational failure; using expired supplies is a patient-safety and survey issue. Par levels prevent both.",
+    slug: "medical-supplies", title: "Medical Supplies", route: "/medical-supplies", category: "Operations",
+    what: "Consumable clinical supplies — gloves, syringes, gauze — tracked lot by lot: how fast each goes, what to use before it expires, and what to order and how much.",
+    why: "Running out mid-clinic is an operational failure and using expired supplies is a patient-safety and survey issue. Ordering by feel causes both — plus boxes quietly expiring on the shelf. Each delivery keeps its own expiry, so the app can tell you which box to use first.",
     how: [
-      "FASTEST PATH to add stock: Upload a photo — the AI identifies the product and fills in the details.",
-      "Set a realistic par level per item; At/below par then becomes your reorder list.",
-      "Work the Expired tile first — expired clinical supplies must come off the shelf.",
-      "Record lot numbers where they matter; that is what makes a recall actionable.",
+      "FASTEST PATH to add a supply: Add supply → take a photo. The AI reads the name, lot and expiry. Enter what's on the shelf now; if boxes have different expiry dates, enter the soonest and add the rest as deliveries.",
+      "Record everything with Record: Use / dispense pulls from the soonest-expiring lot automatically and tells you which box to take; Receive delivery takes the lot and expiry; Pull or discard and Correct a count target a specific lot. Back-date entries if you're catching up.",
+      "Work the Use first panel: pull expired lots, then use the lots it says will expire before they're used up. If another site goes through the same item faster, it suggests moving stock there.",
+      "When Needs ordering lights up, press Order. It recommends a quantity — enough to cover the days until it arrives plus the days to cover, minus usable stock and anything already on order, and never more than you'll use before it expires. Open the vendor page, place the order, then Mark as ordered so the warning stops; recording the delivery clears it.",
+      "Set each item up once in Edit → Ordering: order page link, vendor, item #, pack size and days to arrive. After that every order is one click.",
+      "The more you record, the sharper it gets. Pace starts as an early estimate and settles as weeks of use accumulate; shelf life is learned from your own deliveries.",
     ],
-    doneWhen: "Nothing expired on the shelf and nothing sitting below par.",
+    doneWhen: "Nothing expired on the shelf, nothing left un-actioned in Use first, and every item that needs ordering is either ordered or already on its way.",
   },
   {
     slug: "staff-supplies", title: "Staff Supplies", route: "/staff-supplies", category: "Operations",
@@ -746,6 +748,35 @@ export const FEATURES: FeatureGuide[] = [
     playbooks: ["add-a-company", "first-week-owner"],
   },
 
+  {
+    slug: "med-samples", title: "Med Samples", route: "/med-samples", category: "Operations",
+    what: "Drug-rep samples held at each site — how fast they go out, when each will run out, and the rep to call for more.",
+    why: "Samples can't be reordered from a vendor — you have to ask the rep, and that takes time. Knowing a week ahead that a sample will run out is the difference between a smooth restock and telling a patient there's none left.",
+    how: [
+      "FASTEST PATH to add a sample: Add sample → photograph the carton. The AI reads the drug, strength, manufacturer, NDC, lot and expiry — and leaves a field blank rather than guess anything it can't read. Pick the site it's stored at.",
+      "Use the site buttons to see one clinic's closet at a time; Murray and Lehi stock are tracked separately.",
+      "Record every movement with Record: given to a patient, received from the rep, pulled for expiry, discarded, or a count correction. Back-date when catching up — pace uses the date it happened.",
+      "Watch the Runway column: red means it will run out within 7 days. Pace shows as an early estimate at first and settles as more is recorded.",
+      "Press Request to contact the rep: tap to call or email, with a message already written and a quantity sized to about 60 days of use. Mark as contacted so you know it's in hand.",
+      "Add reps once under Reps and link each sample to its rep; one rep usually covers several products.",
+    ],
+    doneWhen: "Nothing red in Runway that hasn't been requested, nothing expired in the closet, and every sample has a rep on file.",
+  },
+  {
+    slug: "employment-law", title: "Employment Law", route: "/employment-law", category: "People & Roles",
+    what: "The employment laws that apply to the practice at its current headcount and in the states it operates in — each with the government source behind it — plus the rule changes published against them.",
+    why: "Many employment duties switch on at a headcount (for example 15, 20 or 50 employees) or depend on facts about the practice. Crossing a threshold is a compliance event, not just a payroll one, and missing it is how penalties happen.",
+    how: [
+      "Check the Employees number. It defaults to your active employee records; type a different number to see what would change if you grew, then press reset.",
+      "States come from your active locations, so keep Settings → Locations accurate.",
+      "Work Confirm a fact first — these are duties that depend on something only you know. Click each fact to set it: unknown → yes → no.",
+      "Read As you grow to see which headcounts would add obligations, and how many hires away each one is.",
+      "Open an obligation's official source to read the actual rule. Anything marked Needs source review hasn't had its source checked yet.",
+      "Under Regulatory changes, press Check for updates to pull new rules and proposed rules from the Federal Register, then mark each Reviewed or Dismiss it.",
+    ],
+    doneWhen: "No facts left unconfirmed, no source reviews outstanding, and no unreviewed regulatory changes.",
+    roles: ["owner", "admin", "hr"],
+  },
 ];
 
 const BY_SLUG: Record<string, FeatureGuide> = Object.fromEntries(FEATURES.map((f) => [f.slug, f]));
