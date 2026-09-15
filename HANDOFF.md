@@ -18,13 +18,13 @@ If you read only one section, read **§0**. Everything else is reference.
 | `main` on GitHub | `0d8d1ca` (2026-08-23) | **This is what is live in production.** |
 | `feature/external-training-mineral` | 7+ commits ahead of `main` | **All work since 2026-09-01 lives here. Not merged. Not deployed.** |
 
-Commits on the feature branch, oldest first: `f0f36bc` external training (Mineral) · `63b9dab` fixes to it · `4d13cc9` employment-law register · `57dda39` `npm run typecheck` script · `06298ee` regulatory change feed · `db0963f` med samples · `8689ad7` usage-pace engine for medical supplies.
+Commits on the feature branch, oldest first: `f0f36bc` external training (Mineral) · `63b9dab` fixes to it · `4d13cc9` employment-law register · `57dda39` `npm run typecheck` script · `06298ee` regulatory change feed · `db0963f` med samples · `8689ad7` usage-pace engine for medical supplies · `030828d` this handoff · `52d69dd` multi-tenancy migrations captured into the repo · `754a7da` supplies lot-level expiry, use-first and ordering. The branch is pushed to GitHub (it existed only on one Mac until 2026-09-15).
 
-**The production database is ahead of production code.** These migrations are applied to prod, but the code that uses them is only on the feature branch: `external_training_and_verification`, `training_certificate_can_view_object`, `law_obligations`, `seed_law_obligations`, `law_alerts`, `med_samples_module`, `med_samples_can_view_object`, `medical_supply_logs_occurred_at`. All are additive, so production is not broken — but do not assume `main` reflects the schema.
+**The production database is ahead of production code.** These migrations are applied to prod, but the code that uses them is only on the feature branch: `external_training_and_verification`, `training_certificate_can_view_object`, `law_obligations`, `seed_law_obligations`, `law_alerts`, `med_samples_module`, `med_samples_can_view_object`, `medical_supply_logs_occurred_at`, `medical_supply_lots_and_ordering`. All are additive, so production is not broken — but do not assume `main` reflects the schema.
 
-**Pending decision (Landon's):** merge the whole feature branch into `main` (ships all 7 commits), or cherry-pick only some. Do not merge it without asking.
+**Pending decision (Landon's):** merge the whole feature branch into `main`, or cherry-pick only some. Do not merge it without asking.
 
-**In progress right now:** expiry tracking + use-before-expiry prioritisation + order recommendations + order links for Medical Supplies. Full design is in **§8** so any chat can finish it.
+**Nothing is half-built right now.** The most recent feature (supplies expiry + ordering) is finished and committed — see **§8**, including the one thing not yet verified (the page rendered in a browser).
 
 **Verify what's live** at any time: `https://compliance-hub-lone-peak.vercel.app/api/version` returns the deployed git SHA.
 
@@ -67,7 +67,7 @@ The app stores the practice's **own** employee, HR and business records only. Th
 **Commands**
 - `npm run typecheck` — use this, not raw `tsc`. It skips the stray `.next/types/* 2.ts` duplicate files macOS keeps creating.
 - `npm run build`
-- `npm run test:unit` — pace/runway maths (tsx).
+- `npm run test:unit` — 78 tests over usage pace, lot expiry, FEFO and ordering maths. (`tsx` is a devDependency as of 2026-09-15; before that this script silently did nothing.)
 - `npm run test:e2e` — Playwright.
 
 **Env var names** (values live in Vercel, never in git): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `SAM_API_KEY`, `AI_DAILY_CAP` (optional), `NEXT_PUBLIC_APP_URL`.
@@ -110,6 +110,9 @@ Most features use Haiku (`claude-haiku-4-5-20251001`); per-user daily cap via `e
 ### 3.7 Usage pace engine (`src/lib/usage-pace.ts`)
 Shared by Medical Supplies and Med Samples so "days left" means the same everywhere. Weekly buckets with a 4-week half-life (recency weighting); runway planned against `weighted mean + k × standard error`, where k shrinks as evidence grows (1.5 → 0.8 → 0.35). Returns "learning" rather than a number when there's too little history. Adapters: `src/lib/medical-supplies.ts` (counts `used`), `src/lib/med-samples.ts` (counts `dispensed`).
 
+### 3.8 Lot-level stock (`src/lib/stock-lots.ts`)
+Medical supplies keep stock in `medical_supply_lots`; a DB trigger syncs the product row's on-hand, lot and soonest expiry. The library does first-expired-first-out allocation (never draws expired lots), projects waste lot by lot at the measured pace, learns shelf life from past deliveries, and sizes orders (`recommendOrder`). `supplyStock()` in `medical-supplies.ts` bundles lots + pace + expiry plan + runway + order advice per item — the page reads only that.
+
 ---
 
 ## 4. Rules and gotchas — each one cost real time
@@ -147,6 +150,12 @@ Shared by Medical Supplies and Med Samples so "days left" means the same everywh
 24. Don't bypass a safety-classifier denial with another tool — ask.
 25. HomeVault is a separate product with its own repo (`landonmoyers-svg/homevault`) since 2026-09-06. Don't touch it from here.
 
+**Added 2026-09-15**
+26. **Every migration applied through the MCP must also be saved in `supabase/migrations/`.** Thirteen lived only in production until 2026-09-15 — including all of multi-tenancy. Name files so they sort in apply order (e.g. `0017a…` before `0018`), and verify the body by hash against `supabase_migrations.schema_migrations`.
+27. **Expiry is a calendar-day concept.** Compare dates, not timestamps — comparing expiry-at-midnight with "now" marked items expired on their last good day.
+28. **Confirm a new npm script actually executes.** `test:unit` failed silently for a week because its runner wasn't installed.
+29. **Push work branches to GitHub** as a backup. Seven commits once existed on a single Mac.
+
 ---
 
 ## 5. Module inventory
@@ -176,7 +185,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 - **2026-09-02** — **Ketamine chain-of-custody audit (Dec 2023–Feb 2024) imported** into prod as de-identified records: 1 audit, 12 findings, 1 risk case (no code change). Headline: no bottle is missing; 785 mg across three vials and the Murray vial trail remain open. A due-diligence workpaper reconstructing the missing Jan 2024 Clinic 2 stock-log period was written as a local file (§9).
 - **2026-09-06** — HomeVault moved out to its own repository.
 - **2026-09-09** — **Med Samples** module (`db0963f`): per-site sample stock, measured dispensing pace, 7-day runway warning, drug-rep contacts and a pre-filled restock request. **Usage-pace engine** generalised and applied to Medical Supplies (`8689ad7`); tests caught a mapper-parity bug and a bucketing off-by-one.
-- **2026-09-15** — Supplies expiry + ordering: in progress (§8). This handoff written.
+- **2026-09-15** — This handoff written (replacing a six-week-stale one) and pushed to `main`. The 7 local-only commits backed up to GitHub. **13 migrations that existed only in production captured into the repo**, hash-verified (`52d69dd`, `754a7da`). **Medical Supplies: lot-level expiry, use-first and order recommendations** (`754a7da`) — see §8.
 
 ---
 
@@ -187,6 +196,9 @@ Earlier history (June–August) is summarised; recent work is detailed.
 - Whether the 785 mg unaccounted across three ketamine vials needs assessing against DEA significant-loss reporting before its risk case closes.
 - Keep, gate or remove the ~10 auto-generated form templates that define patient-identifier fields (0 submissions so far).
 - Whether staff should keep read access to Business Records.
+
+**Needs a look from Landon**
+- The new Medical Supplies page has not been seen rendered in a browser (see §8). Once the branch is deployed somewhere he's signed in, walk through it.
 
 **Offered, not started**
 - Import the two provider credential spreadsheets in `~/Downloads/untitled folder 4/` (`LPP_Provider_License_Certification_Tracker_2026-09-02.xlsx`, `LPP RESOURCES 2026(PROVIDER INFO).xlsx`) into Credentials — reconcile, flag conflicts, don't overwrite.
@@ -203,25 +215,23 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 ---
 
-## 8. In progress: supplies expiry + ordering
+## 8. Most recent feature: supplies expiry + ordering (built 2026-09-15, `754a7da`)
 
-**Landon's request (2026-09-15):** track expiration dates alongside the rate supplies are used, help prioritise using things before they expire, recommend how much to order when running low, and a button that opens the vendor page where that product is ordered.
+**Landon's request:** track expiration dates alongside the rate supplies are used, help prioritise using things before they expire, recommend how much to order when running low, and a button that opens the vendor page where that product is ordered.
 
-**Status:** designed, not yet coded. Production has 0 medical supply rows, so the schema can change freely.
+**What was built**
+- **Lots.** Stock lives in `medical_supply_lots` (lot number, expiry, received, remaining). A trigger keeps `medical_supplies.quantity_on_hand` = sum of lots, and its `expiration_date`/`lot_number` = the soonest-expiring lot in stock. Pre-lot stock is shown as a stand-in lot and converted to a real lot *before* any other lot write (writing a new lot first would silently drop it — proven on the DB).
+- **Record dialog** (use / receive delivery / pull or discard / correct a count): use draws first-expired-first-out and shows which lot to pull; expired lots are refused and flagged to pull; every entry can be back-dated.
+- **Waste projection** at the measured pace; "usable" stock excludes units that will expire, and runway + orders use usable stock.
+- **Use first** panel: expired lots to pull, then lots projected to expire unused, then (with no pace yet) lots expiring within 45 days — each naming the lot, with a suggestion to move stock to a site that uses it faster.
+- **Order recommendation:** planning rate × (days to arrive [default 7] + days to cover [default 30]) − usable − already on order, rounded to pack size, capped so the new lot won't expire before use (shelf life learned from past deliveries). No measured pace → falls back to the item's usual order qty, labelled as such.
+- **Order button / dialog:** opens the saved product page (http(s) only — enforced in UI *and* a DB check constraint); without one, "Find it online" plus paste-to-save. "Mark as ordered" stores `last_ordered_at` + `pending_order_qty`; a delivery counts against it; unreceived after 21 days is flagged.
+- New columns on `medical_supplies`: `order_url`, `lead_time_days`, `target_cover_days`, `pack_size`, `last_ordered_at`, `pending_order_qty`. `medical_supply_logs.lot_id`. Action `expired` added. SKU is now actually editable (it was stored but had no input).
 
-**Why lots are needed.** A supply currently has ONE lot number and ONE expiry. A real closet holds several lots at once, and receiving a new box silently loses the old box's expiry. Expiry prioritisation is wrong without per-lot tracking.
+**Verified:** 78 unit tests, typecheck, build; the lots trigger, check constraints and RLS as a real staff user (rolled back); the pre-lot conversion ordering.
+**Not verified:** the page rendered in a browser. The branch isn't deployed, and local dev points at a paused staging project that lacks the newer schema and needs a login. First thing to do after deploying: add a supply, record a delivery with an expiry, record use across two lots, open Order.
 
-**Design**
-- **New table `medical_supply_lots`** — `supply_id`, `lot_number`, `expiration_date`, `quantity_received`, `quantity_remaining`, `received_at`. Standard org/RLS/trigger/grants. A lot may have no number or expiry.
-- **Stock lives in lots.** A trigger keeps `medical_supplies.quantity_on_hand = sum(remaining)`, and `expiration_date` / `lot_number` = the soonest-expiring lot still in stock, so any other reader stays correct. The UI also derives on-hand from lots.
-- **`medical_supply_logs.lot_id`** records which lot a movement touched. Add `expired` to the actions.
-- **Using stock draws first-expiry-first-out** across lots automatically; the dialog shows which lot to pull. Discard/expired/adjust target a chosen lot. Receiving creates a new lot and reduces any pending order.
-- **Waste projection:** walk lots in expiry order at the measured pace; units that can't be used before their lot expires are projected waste. "Usable stock" excludes them, and the runway uses usable stock — half-expired stock is not real cover.
-- **Use first:** a panel listing products with projected waste or near expiry, soonest first, naming the lot. If the same product (matched by SKU, else name) is used faster at another site, suggest moving some there.
-- **Order recommendation** when running low: `planning rate × (lead time + target cover) − usable stock − pending order`, rounded up to pack size, and **capped so a new lot won't expire before it's used** — shelf life is *learned* from past lots (median of expiry − received). No measured pace → no number; fall back to the product's usual order quantity, labelled as such.
-- **Order button:** new `order_url` per product (validated `http(s)` only, opened with `rel="noopener noreferrer"`). The order dialog shows vendor, copyable SKU, the recommendation and its reasoning, "Open vendor page", and **"Mark as ordered"**, which sets `last_ordered_at` + `pending_order_qty` so the warning stops nagging (and flags an order that hasn't arrived after ~3 weeks). No link yet → offer a web search for vendor + SKU + name and prompt to save the link.
-- **New `medical_supplies` columns:** `order_url`, `lead_time_days` (default 7), `target_cover_days` (default 30), `pack_size`, `last_ordered_at`, `pending_order_qty`.
-- **Tests** to add: FEFO allocation, waste projection (expires before reached / partially), expiry-aware runway, order maths (pending, pack rounding, shelf-life cap, no-pace fallback), learned shelf life, URL validation.
+**Natural next steps (not requested yet):** the same lot/expiry model for Med Samples (samples expire hard); usage pace for Staff Supplies.
 
 ---
 
