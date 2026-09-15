@@ -99,13 +99,13 @@ Pages use `useCollection` / `useCreate` / `useUpdate` / `useRemove` from `src/li
 Broadly readable by staff (SOPs, regulatory sources, training modules, directory) · own-or-privileged (credentials, insurance, training assignments) · privileged-only (payroll, disciplinary, incidents, audits, controlled substances, audit logs). Special-category employee documents (medical, background check, I-9, W-4) are restricted to owner/admin/HR. **AI routes run as the requesting user** (never service-role), so AI cannot see more than the user can.
 
 ### 3.4 Navigation and shell
-`src/lib/nav.ts` — 8 groups, each with a `shortLabel` for the top bar: Overview · My Work · Training · Documents · Risk · Safety · HR · Admin. The Jane-style shell is `src/components/layout/jane-topbar.tsx` + `jane-sidebar.tsx`, both driven by `src/lib/use-resolved-nav.ts`. Visibility = role access ∩ org-enabled modules ∩ industry, then personal ordering. The owner can never be locked out.
+`src/lib/nav.ts` — 10 groups, each with a `shortLabel` for the top bar: Overview · My Work · Training · Documents · Risk · Safety · Medical Inventory · General Inventory · HR · Admin. (Inventory was split out of Safety into its own two tabs on 2026-09-15, on the feature branch; `main` still has 8.) The Jane-style shell is `src/components/layout/jane-topbar.tsx` + `jane-sidebar.tsx`, both driven by `src/lib/use-resolved-nav.ts`. Visibility = role access ∩ org-enabled modules ∩ industry, then personal ordering. The owner can never be locked out.
 
 ### 3.5 AI
 Most features use Haiku (`claude-haiku-4-5-20251001`); per-user daily cap via `enforceAiCap` (`src/lib/ai/usage.ts`). AI identify prompts are written to **refuse to invent** lot numbers, NDCs, expiry dates or licence numbers that aren't legible — a plausible invented identifier is worse than a blank.
 
 ### 3.6 The Guide (`/guide`)
-`src/lib/guide/features.ts` (56 per-page lessons, written from the actual UI) and `src/lib/guide/playbooks.ts` (17 step-by-step walkthroughs, incl. "Your first week as a new practice" for tenant #2). Update the relevant lesson when you change a page.
+`src/lib/guide/features.ts` (58 per-page lessons on the feature branch — every nav page has one; written from the actual UI) and `src/lib/guide/playbooks.ts` (17 step-by-step walkthroughs, incl. "Your first week as a new practice" for tenant #2). **Update the relevant lesson when you change a page** — a lesson describing controls that no longer exist is worse than none. Check coverage with: every `href` in `nav.ts` should appear as a `route` in `features.ts`.
 
 ### 3.7 Usage pace engine (`src/lib/usage-pace.ts`)
 Shared by Medical Supplies and Med Samples so "days left" means the same everywhere. Weekly buckets with a 4-week half-life (recency weighting); runway planned against `weighted mean + k × standard error`, where k shrinks as evidence grows (1.5 → 0.8 → 0.35). Returns "learning" rather than a number when there's too little history. Adapters: `src/lib/medical-supplies.ts` (counts `used`), `src/lib/med-samples.ts` (counts `dispensed`).
@@ -167,7 +167,9 @@ Medical supplies keep stock in `medical_supply_lots`; a DB trigger syncs the pro
 - **Training:** Training (assign, quiz, attest; **external/Mineral courses** on the feature branch) · Credentials (with role-based requirements engine) · Continuing Education · Payer Enrollment (contracts + paneling) · Competency Tracker
 - **Documents:** SOP Library · Regulatory Sources (45 federal + Utah) · Forms (177 templates, completion guidance, AI prefill, AI "Review answers" coach) · Missing Forms · Policy Attestation · Document Intake · Bulk Upload · **Employment Law** (feature branch)
 - **Risk:** Incidents & Corrective Actions · Security Risk Assessment · Audits & Mock Surveys · Exclusion Screening · Vendor Management · Insurance Vault · Business Records · Risk Cases · Breach Assessments
-- **Safety:** OSHA Tracker (generates 300/300A/301) · SDS Library · Controlled Substances (bottle custody) · Emergency Prep · Inventory (Utah PPT worksheet) · Staff Supplies · Medical Supplies · **Med Samples** (feature branch)
+- **Safety:** OSHA Tracker (generates 300/300A/301) · SDS Library · Emergency Prep
+- **Medical Inventory** (own tab, feature branch): Medical Supplies (lots, expiry, use-first, ordering) · **Med Samples** · Controlled Substances (bottle custody)
+- **General Inventory** (own tab, feature branch): Inventory (assets; Utah PPT worksheet) · Staff Supplies
 - **HR:** Employees · Onboarding & Offboarding · Employee Vault · Org Chart · Payroll · Performance · Benefits · Disciplinary
 - **Admin:** User Management · Role Permissions · Settings (incl. Companies for the platform admin) · Audit Trail (7-year retention) · Daily Activity Log (AI undo) · Data Backup
 
@@ -185,7 +187,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 - **2026-09-02** — **Ketamine chain-of-custody audit (Dec 2023–Feb 2024) imported** into prod as de-identified records: 1 audit, 12 findings, 1 risk case (no code change). Headline: no bottle is missing; 785 mg across three vials and the Murray vial trail remain open. A due-diligence workpaper reconstructing the missing Jan 2024 Clinic 2 stock-log period was written as a local file (§9).
 - **2026-09-06** — HomeVault moved out to its own repository.
 - **2026-09-09** — **Med Samples** module (`db0963f`): per-site sample stock, measured dispensing pace, 7-day runway warning, drug-rep contacts and a pre-filled restock request. **Usage-pace engine** generalised and applied to Medical Supplies (`8689ad7`); tests caught a mapper-parity bug and a bucketing off-by-one.
-- **2026-09-15** — This handoff written (replacing a six-week-stale one) and pushed to `main`. The 7 local-only commits backed up to GitHub. **13 migrations that existed only in production captured into the repo**, hash-verified (`52d69dd`, `754a7da`). **Medical Supplies: lot-level expiry, use-first and order recommendations** (`754a7da`) — see §8.
+- **2026-09-15** — This handoff written (replacing a six-week-stale one) and pushed to `main`. The 7 local-only commits backed up to GitHub. **13 migrations that existed only in production captured into the repo**, hash-verified (`52d69dd`, `754a7da`). **Medical Supplies: lot-level expiry, use-first and order recommendations** (`754a7da`) — see §8. Inventory split out of Safety into **Medical Inventory** and **General Inventory** top tabs.
 
 ---
 
