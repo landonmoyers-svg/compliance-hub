@@ -237,6 +237,21 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 ---
 
+## 8b. Clinic Desk integration — dose logging (branch `feature/clinic-desk-integration`, 2026-09-21, NOT deployed)
+
+**Landon's request:** Clinic Desk (his desktop charting app, `~/Documents/Claude Code/clinic-desk`) links to the Hub and, *"when a dose of ketamine or spravato is logged it can log it in the tracker on compliance hub"* — **not** adding patient data to the Hub.
+
+**What was built** (branch off `main`, independent of the Mineral branch):
+- `GET /api/integrations/clinic-desk/bottles` — ketamine/Spravato bottles a dose can come from (`assigned_to_staff` or `in_use`, balance > 0), with `mine`, site, and `mgPerUnit` (mg → bottle units: mg, mL from "50 mg/mL", Spravato devices at 28 mg). Plus active staff names for the witness picker.
+- `POST /api/integrations/clinic-desk/dose` — writes an `administer` event per bottle (and a witnessed `waste` event for discarded remainder), moves the bottle's balance and state exactly as the Controlled Substances page does, `patient_ref` always null. Checks every line before writing any; refuses a dose whose mg doesn't match the bottles' amounts (unit mix-ups); claims the balance with an optimistic `current_quantity` match; reverts the balance if the event insert fails; idempotent via a `[ref cd-….n]` tag in the event notes.
+- **The PHI boundary is enforced server-side** (`src/lib/clinic-desk.ts` `parseDose`): the body is whitelisted, and any unexpected key — above all a patient-shaped one — refuses the whole request.
+- **Auth = the user's own Hub session.** Clinic Desk calls these from inside its Compliance Hub pane (same-origin, cookies), so RLS applies as that user (controlled substances = privileged roles). No API key or service role. `guard.ts` rejects cross-site requests (Sec-Fetch-Site, Origin, JSON-only).
+
+**Verified:** typecheck; the dose rules (patient-field refusal, witness-for-waste, time window, unit conversion, states) in Node. **Not verified:** against the live DB — the tracker has **no bottles yet** (checked 2026-09-21), so the first real use needs bottles received and checked out on `/controlled-substances`.
+**To ship:** merge to `main` + deploy (Landon's decision), then cherry-pick onto `feature/external-training-mineral` so the branches don't diverge further.
+
+---
+
 ## 9. Things that live outside git
 
 - **Claude memory (local sessions only):** `~/.claude/projects/-Users-landonmoyers-Documents-Claude-Code/memory/` — one file per fact, indexed by `MEMORY.md`, loaded automatically into local chats. Much deeper detail on every topic above. Cloud chats cannot see it; this file is the portable version.
