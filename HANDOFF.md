@@ -205,7 +205,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 - The new Medical Supplies page has not been seen rendered in a browser (see §8). Once the branch is deployed somewhere he's signed in, walk through it.
 
 - **Emergency Alert go-live** (§8a): logins for staff, env vars, a live drill, then retire LP Alert on Base44.
-- `npm audit` shows a critical advisory on `next` 16.0.0–16.3.2 (pre-existing) — upgrade.
+- Fixed on `feature/emergency-alert` (`f1a70ac`), reaches prod on merge: `src/proxy.ts` redirected `/sw.js` to login, so the PWA service worker never registered on production (no install, no push); next 16.3.0→16.3.5 + `npm audit fix` → 0 vulnerabilities.
 
 **Offered, not started**
 - Import the two provider credential spreadsheets in `~/Downloads/untitled folder 4/` (`LPP_Provider_License_Certification_Tracker_2026-09-02.xlsx`, `LPP RESOURCES 2026(PROVIDER INFO).xlsx`) into Credentials — reconcile, flag conflicts, don't overwrite.
@@ -230,7 +230,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 **Rules** (`src/lib/emergency-alert/rules.ts`, 33 tests): LP Alert hard-coded site names; now mutual aid / shared exposure / AED source / refuge come from `emergency_site_settings` (Lone Peak's imported from LP Alert).
 
-**Audio — Landon's decision: keep recording, but save ONLY on admin devices, never the Hub's servers (no BAA; audio captures patients).** Transport decided = direct stream: the triggering phone records 30 s clips to an IndexedDB outbox and streams live over WebRTC to admin devices; signalling on private Realtime channel `org:<org>:audio` (policies on `realtime.messages`, 0026). Receivers present a ticket from `/api/emergency/audio-ticket` (HMAC with `AUDIO_TICKET_SECRET`, falls back to the service-role key); the phone verifies it server-side before connecting. A clip leaves the phone only after an admin device acks it's saved. DB holds clip metadata + audit log only. Known limits: phones stop recording when locked/backgrounded (same as LP Alert); STUN only, no TURN, so some cellular networks may fail to connect — clips then wait on the phone.
+**Audio — Landon's decision: keep recording, but save ONLY on admin devices, never the Hub's servers (no BAA; audio captures patients).** Transport decided = direct stream: the triggering phone records 30 s clips to an IndexedDB outbox and streams live over WebRTC to admin devices; signalling on private Realtime channel `org:<org>:audio` (policies on `realtime.messages`, 0026). Receivers present a ticket from `/api/emergency/audio-ticket` (HMAC with `AUDIO_TICKET_SECRET`, falls back to the service-role key); the phone verifies it server-side before connecting. A clip leaves the phone only after an admin device acks it's saved. DB holds clip metadata + audit log only. Known limits: phones stop recording when locked/backgrounded (same as LP Alert). ICE servers come from `/api/emergency/ice`: STUN only until `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` are set — without a relay some cellular networks can't connect, and clips then wait on the phone.
 
 **Notifications.** In-app alarm + tab flash + OS notification work now. `/api/emergency/notify` posts Teams cards (needs `TEAMS_WEBHOOK_URL`, `TEAMS_ASSISTANCE_WEBHOOK_URL`) and web push (needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`; generate with `npx web-push generate-vapid-keys`). SMS/email from LP Alert not ported (no provider yet). Teams channel links per org are in `teams.ts`.
 
