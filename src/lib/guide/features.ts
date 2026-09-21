@@ -777,6 +777,49 @@ export const FEATURES: FeatureGuide[] = [
     doneWhen: "No facts left unconfirmed, no source reviews outstanding, and no unreviewed regulatory changes.",
     roles: ["owner", "admin", "hr"],
   },
+  {
+    slug: "emergency", title: "Emergency", route: "/emergency", category: "Safety",
+    what: "Call a code (Blue, Red, Silver, Gray…) and everyone signed in to the Hub gets a full-screen alarm; see who's responding, what's still needed, and what to do. Also the place to ask for a non-emergency hand.",
+    why: "In an emergency the first minutes decide the outcome. One tap has to reach every colleague at every site, name the exact room, and make sure 911, medical and safety roles are covered — without anyone having to phone around.",
+    how: [
+      "Turn on alerts for this device once (right-hand panel) so a code reaches you even when the Hub isn't the tab you're looking at. The test tone confirms sound works.",
+      "Check 'Today you're at' is right. It comes from your schedule; change it when you're working somewhere else today so the right people are expected to respond.",
+      "To call a code, press its coloured button, confirm the site, type the exact spot (Room 3, front lobby) and press Trigger. Teams opens so you can start the meeting. Describe the situation, never the patient.",
+      "When an alarm sounds, press Acknowledge & respond, then I'm responding — how you'll help, what you're bringing, and how long. If you're far away you'll be offered Support remotely instead.",
+      "Watch Needed now: red rows (911, medical, safety) are roles nobody has claimed yet. Update your status (On scene, Standing by, Done) as things change.",
+      "For fire and armed threats an admin sets the directive — Evacuate or Shelter in place — and everyone's screen and phone updates.",
+      "Whoever called the code, or an admin, presses Resolve when it's over. Tick 'This is a drill' when practising: every notice then says TEST.",
+      "Not an emergency? Request assistance pings staff for an extra pair of hands, a supply, or an IT problem.",
+    ],
+    doneWhen: "Alerts are on for your device, today's site is right, and there's nothing active that you haven't acknowledged.",
+  },
+  {
+    slug: "emergency-history", title: "Incident History", route: "/emergency/history", category: "Safety",
+    what: "Every emergency called — who called it, who responded and how fast, the directive given, and when it ended — plus the incident audio saved on this computer.",
+    why: "Reviewing each incident (and each drill) is how response times improve, and it's the record you'll need for an incident report, an OSHA entry, or law enforcement.",
+    how: [
+      "Open an incident to see its timeline, minute by minute, from the trigger to the all-clear.",
+      "The stats show real incidents separately from drills, and the median time until the first responder.",
+      "Audio: recordings go straight from the phone that called the code to admin devices and are kept only there — never on the Hub's servers. This page lists the clips saved on THIS computer; play, save to a file, or delete them. Another admin's computer shows its own.",
+      "Every listen, save and delete is recorded in the Audio access log at the bottom.",
+      "For anything that needs follow-up, log it in Incidents & Corrective Actions.",
+    ],
+    doneWhen: "Every real incident has been reviewed, follow-ups are logged as incidents or corrective actions, and old audio is kept or deleted on purpose.",
+    roles: ["owner", "admin", "hr", "clinical_leadership"],
+  },
+  {
+    slug: "emergency-setup", title: "Emergency Setup", route: "/emergency/setup", category: "Safety",
+    what: "The codes staff can call, how your sites back each other up, and who responds where.",
+    why: "The guidance on every incident — who cross-responds, which buildings share exposure, where the AED is, where people can shelter — comes from here. Get it right once and every alarm is specific to your buildings.",
+    how: [
+      "Codes: name, colour, alarm sound (press the speaker to hear it), the roles each code needs, and whether it records audio. Hide a code rather than delete it so history keeps its name.",
+      "Sites: for each site choose who responds with it (none = standalone zone), which sites share a wall, which it shelters during an evacuation, and where the AED and crash cart are kept.",
+      "People: set each person's usual role, the site they work at each day, their phone, and the prefill for each code. Anyone without a Hub login yet won't get alarms — invite them from User Management and their setup carries over.",
+      "Site roles: pin specific jobs to people at a site for a code — for example Code Blue at Murray Clinic 1: Primary Responder, starts ACLS. They see it on their Emergency page.",
+    ],
+    doneWhen: "Every site has its relationships and equipment set, everyone who works on site has a profile and a login, and each code's key roles are assigned at each site.",
+    roles: ["owner", "admin", "hr", "clinical_leadership"],
+  },
 ];
 
 const BY_SLUG: Record<string, FeatureGuide> = Object.fromEntries(FEATURES.map((f) => [f.slug, f]));

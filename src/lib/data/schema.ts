@@ -1844,3 +1844,178 @@ export const DeaRecord = z.object({
   notes: z.string().optional(),
 });
 export type DeaRecord = z.infer<typeof DeaRecord>;
+
+/* ------------------------- emergency alert ------------------------- */
+// LP Alert (the Base44 emergency-code app), rebuilt inside the Hub. Incident
+// AUDIO never lives here — it streams to admin devices and is saved only there;
+// incidents carry clip metadata alone (see supabase/migrations/0026).
+
+export const alarmSounds = ["default", "fire_alarm", "beep_fast", "beep_slow", "siren_high", "siren_low", "triple_beep", "silent"] as const;
+export const AlarmSound = z.enum(alarmSounds);
+export type AlarmSound = z.infer<typeof AlarmSound>;
+
+export const EmergencyCode = z.object({
+  ...base,
+  name: z.string(),                                 // "Code Blue"
+  description: z.string().nullable().optional(),
+  priority: z.string(),                             // "CRITICAL PRIORITY"
+  colorHex: z.string(),
+  alarmSound: AlarmSound,
+  requiredRoles: z.array(z.string()),
+  audioRecordingEnabled: z.boolean(),
+  sortOrder: z.number(),
+  active: z.boolean(),
+});
+export type EmergencyCode = z.infer<typeof EmergencyCode>;
+
+/** How one site relates to the others in an emergency (mutual aid, shared walls, where the AED lives). */
+export const EmergencySiteSettings = z.object({
+  ...base,
+  locationId: z.string(),
+  responseZone: z.string().nullable().optional(),
+  mutualAidLocationIds: z.array(z.string()),
+  connectedLocationIds: z.array(z.string()),
+  refugeForLocationIds: z.array(z.string()),
+  aedSourceLocationId: z.string().nullable().optional(),
+  crashCartSourceLocationId: z.string().nullable().optional(),
+});
+export type EmergencySiteSettings = z.infer<typeof EmergencySiteSettings>;
+
+export const AudioClipMeta = z.object({
+  clipIndex: z.number(),
+  recordedAt: z.string(),
+  durationSec: z.number().optional(),
+  /** Device label of the admin app that saved it; absent while still on the phone. */
+  heldBy: z.string().optional(),
+});
+export type AudioClipMeta = z.infer<typeof AudioClipMeta>;
+
+export const evacuationStatuses = ["pending", "evacuate", "shelter"] as const;
+export const EmergencyIncident = z.object({
+  ...base,
+  codeId: z.string().nullable().optional(),
+  codeName: z.string(),
+  locationId: z.string().nullable().optional(),
+  locationName: z.string().nullable().optional(),
+  internalLocation: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  triggeredBy: z.string().nullable().optional(),    // auth user id
+  triggeredByName: z.string().nullable().optional(),
+  triggeredAt: z.string(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
+  isRemote: z.boolean(),
+  remoteAddress: z.string().nullable().optional(),
+  remoteCity: z.string().nullable().optional(),
+  remoteState: z.string().nullable().optional(),
+  isTest: z.boolean(),
+  evacuationStatus: z.enum(evacuationStatuses),
+  threatLocationDetails: z.string().nullable().optional(),
+  resolved: z.boolean(),
+  resolvedAt: z.string().nullable().optional(),
+  resolvedByName: z.string().nullable().optional(),
+  audioClips: z.array(AudioClipMeta),
+  legacyId: z.string().nullable().optional(),
+});
+export type EmergencyIncident = z.infer<typeof EmergencyIncident>;
+
+export const responseStatuses = ["responding", "on_site", "standby", "completed"] as const;
+export const ResponseStatus = z.enum(responseStatuses);
+export type ResponseStatus = z.infer<typeof ResponseStatus>;
+
+export const EmergencyResponse = z.object({
+  ...base,
+  incidentId: z.string(),
+  userId: z.string().nullable().optional(),         // auth user id
+  responderName: z.string().nullable().optional(),
+  respondedAt: z.string(),
+  responseRole: z.string().nullable().optional(),
+  assistanceType: z.string().nullable().optional(),
+  itemsBringing: z.array(z.string()),
+  estimatedArrival: z.string().nullable().optional(),
+  status: ResponseStatus,
+  statusUpdates: z.array(z.object({ status: z.string(), message: z.string().optional(), timestamp: z.string() })),
+  message: z.string().nullable().optional(),
+  isRemote: z.boolean(),
+  distanceMeters: z.number().nullable().optional(),
+  legacyId: z.string().nullable().optional(),
+});
+export type EmergencyResponse = z.infer<typeof EmergencyResponse>;
+
+export const AssistanceRequest = z.object({
+  ...base,
+  requestedBy: z.string().nullable().optional(),
+  requestedByName: z.string(),
+  locationId: z.string().nullable().optional(),
+  locationName: z.string().nullable().optional(),
+  assistanceType: z.string(),
+  urgency: z.enum(["now", "within_5_mins"]),
+  notes: z.string().nullable().optional(),
+  responders: z.array(z.object({ userId: z.string(), name: z.string(), eta: z.string().optional(), respondedAt: z.string() })),
+  resolved: z.boolean(),
+  resolvedAt: z.string().nullable().optional(),
+  resolvedByName: z.string().nullable().optional(),
+  legacyId: z.string().nullable().optional(),
+});
+export type AssistanceRequest = z.infer<typeof AssistanceRequest>;
+
+export const ResponseDefaults = z.object({
+  assistanceType: z.string().optional(),
+  itemsBringing: z.array(z.string()).optional(),
+  estimatedArrival: z.string().optional(),
+});
+export type ResponseDefaults = z.infer<typeof ResponseDefaults>;
+
+export const weekDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+export type WeekDay = (typeof weekDays)[number];
+
+/** A person's emergency setup: where they are on a given day, their usual role, per-code defaults. */
+export const EmergencyResponderProfile = z.object({
+  ...base,
+  /** Anchored on the employee so admins can set people up before they have a login. */
+  employeeId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),         // auth user id, when known
+  fullName: z.string().nullable().optional(),
+  emergencyRole: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  /** A location id, or "remote". */
+  defaultLocationId: z.string().nullable().optional(),
+  clockedInLocationId: z.string().nullable().optional(),
+  clockedInDate: z.string().nullable().optional(), // YYYY-MM-DD the override is valid for
+  /** Day → location id | "remote" | "off". */
+  weeklySchedule: z.record(z.string(), z.string()),
+  seniority: z.number().nullable().optional(),
+  codeDefaults: z.record(z.string(), ResponseDefaults),
+  canListenAudio: z.boolean(),
+  showInContacts: z.boolean(),
+  appQuizPassedAt: z.string().nullable().optional(),
+  sopQuizPassedAt: z.string().nullable().optional(),
+});
+export type EmergencyResponderProfile = z.infer<typeof EmergencyResponderProfile>;
+
+export const EmergencyLocationRole = z.object({
+  ...base,
+  employeeId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  locationId: z.string(),
+  codeName: z.string(),
+  responseRole: z.string(),
+  expectedAssistance: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type EmergencyLocationRole = z.infer<typeof EmergencyLocationRole>;
+
+export const EmergencyAudioLog = z.object({
+  ...base,
+  incidentId: z.string().nullable().optional(),
+  incidentLabel: z.string().nullable().optional(),
+  action: z.enum(["listened_live", "saved_clip", "played_clip", "exported_clip", "deleted_clip", "accessed", "downloaded_clip", "downloaded_all", "deleted_audio"]),
+  performedBy: z.string().nullable().optional(),
+  performedByName: z.string(),
+  performedByEmail: z.string().nullable().optional(),
+  clipIndex: z.number().nullable().optional(),
+  clipCount: z.number().nullable().optional(),
+  deviceLabel: z.string().nullable().optional(),
+  details: z.string().nullable().optional(),
+});
+export type EmergencyAudioLog = z.infer<typeof EmergencyAudioLog>;

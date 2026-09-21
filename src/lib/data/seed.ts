@@ -203,5 +203,13 @@ export function buildSeed(): SeedData {
     organizationSettings: [],
     chatMessages: [],
     sopRegulationLinks: [],
+    emergencyCodes: [],
+    emergencySiteSettings: [],
+    emergencyIncidents: [],
+    emergencyResponses: [],
+    assistanceRequests: [],
+    emergencyResponderProfiles: [],
+    emergencyLocationRoles: [],
+    emergencyAudioLog: [],
   };
 }

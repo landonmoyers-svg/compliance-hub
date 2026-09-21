@@ -327,3 +327,16 @@ table.rtable tbody tr {
   background: hsl(var(--card));
   padding: 0.75rem 1rem;
 }
+
+/* Emergency Alert — full-screen alarm backdrop (see components/emergency-alert). */
+@keyframes emergency-flash {
+  0%, 100% { background-color: hsl(var(--destructive) / 0.85); }
+  50% { background-color: hsl(var(--destructive) / 0.97); }
+}
+.emergency-flash {
+  animation: emergency-flash 1s infinite;
+  backdrop-filter: blur(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .emergency-flash { animation: none; background-color: hsl(var(--destructive) / 0.92); }
+}

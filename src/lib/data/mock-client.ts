@@ -139,5 +139,13 @@ export function createMockDataClient(): DataClient {
     organizationSettings: new MemoryCollection(seed.organizationSettings),
     chatMessages: new MemoryCollection(seed.chatMessages),
     sopRegulationLinks: new MemoryCollection(seed.sopRegulationLinks),
+    emergencyCodes: new MemoryCollection(seed.emergencyCodes),
+    emergencySiteSettings: new MemoryCollection(seed.emergencySiteSettings),
+    emergencyIncidents: new MemoryCollection(seed.emergencyIncidents),
+    emergencyResponses: new MemoryCollection(seed.emergencyResponses),
+    assistanceRequests: new MemoryCollection(seed.assistanceRequests),
+    emergencyResponderProfiles: new MemoryCollection(seed.emergencyResponderProfiles),
+    emergencyLocationRoles: new MemoryCollection(seed.emergencyLocationRoles),
+    emergencyAudioLog: new MemoryCollection(seed.emergencyAudioLog),
   };
 }

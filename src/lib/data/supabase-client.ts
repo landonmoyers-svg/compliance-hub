@@ -11,6 +11,16 @@
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Collection, DataClient } from "./client";
+import {
+  assistanceRequestMap,
+  emergencyAudioLogMap,
+  emergencyCodeMap,
+  emergencyIncidentMap,
+  emergencyLocationRoleMap,
+  emergencyResponderProfileMap,
+  emergencyResponseMap,
+  emergencySiteSettingsMap,
+} from "./emergency-mappers";
 import type {
   AuditLog,
   Benefit,
@@ -2560,5 +2570,13 @@ export function createSupabaseDataClient(): DataClient {
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
     chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),
     sopRegulationLinks: makeCollection(supabase, "sop_regulation_links", sopRegLinkFrom,         sopRegLinkTo),
+    emergencyCodes:     makeCollection(supabase, "emergency_codes",      emergencyCodeMap.from,       emergencyCodeMap.to),
+    emergencySiteSettings: makeCollection(supabase, "emergency_site_settings", emergencySiteSettingsMap.from, emergencySiteSettingsMap.to),
+    emergencyIncidents: makeCollection(supabase, "emergency_incidents",  emergencyIncidentMap.from,   emergencyIncidentMap.to),
+    emergencyResponses: makeCollection(supabase, "emergency_responses",  emergencyResponseMap.from,   emergencyResponseMap.to),
+    assistanceRequests: makeCollection(supabase, "assistance_requests",  assistanceRequestMap.from,   assistanceRequestMap.to),
+    emergencyResponderProfiles: makeCollection(supabase, "emergency_responder_profiles", emergencyResponderProfileMap.from, emergencyResponderProfileMap.to),
+    emergencyLocationRoles: makeCollection(supabase, "emergency_location_roles", emergencyLocationRoleMap.from, emergencyLocationRoleMap.to),
+    emergencyAudioLog:  makeCollection(supabase, "emergency_audio_log",  emergencyAudioLogMap.from,   emergencyAudioLogMap.to),
   };
 }

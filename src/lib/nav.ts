@@ -30,6 +30,9 @@ import {
   Syringe,
   Pill,
   Shield,
+  Siren,
+  Settings2,
+  History,
   Sparkles,
   Star,
   Upload,
@@ -70,6 +73,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Daily Priorities", href: "/chief-of-staff", icon: Sparkles, adminOnly: true },
       { label: "Compliance Calendar", href: "/compliance-calendar", icon: CalendarDays, adminOnly: true },
       { label: "Setup Guide", href: "/compliance-concierge", icon: Sparkles, adminOnly: true },
+    ],
+  },
+  // Emergency Alert (LP Alert, rebuilt in the Hub 2026-09-21). Its own top tab
+  // so calling a code is one click from anywhere; every role can reach the page.
+  {
+    label: "Emergency", shortLabel: "Emergency",
+    items: [
+      { label: "Emergency", href: "/emergency", icon: Siren },
+      { label: "Incident History", href: "/emergency/history", icon: History, adminOnly: true },
+      { label: "Emergency Setup", href: "/emergency/setup", icon: Settings2, adminOnly: true },
     ],
   },
   // 2. Personal, daily-use tools every signed-in user has.

@@ -1,4 +1,12 @@
 import type {
+  AssistanceRequest,
+  EmergencyAudioLog,
+  EmergencyCode,
+  EmergencyIncident,
+  EmergencyLocationRole,
+  EmergencyResponderProfile,
+  EmergencyResponse,
+  EmergencySiteSettings,
   AuditLog,
   Benefit,
   ChatMessage,
@@ -160,6 +168,14 @@ export interface DataClient {
   organizationSettings: Collection<OrganizationSettings>;
   chatMessages: Collection<ChatMessage>;
   sopRegulationLinks: Collection<SopRegulationLink>;
+  emergencyCodes: Collection<EmergencyCode>;
+  emergencySiteSettings: Collection<EmergencySiteSettings>;
+  emergencyIncidents: Collection<EmergencyIncident>;
+  emergencyResponses: Collection<EmergencyResponse>;
+  assistanceRequests: Collection<AssistanceRequest>;
+  emergencyResponderProfiles: Collection<EmergencyResponderProfile>;
+  emergencyLocationRoles: Collection<EmergencyLocationRole>;
+  emergencyAudioLog: Collection<EmergencyAudioLog>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */
