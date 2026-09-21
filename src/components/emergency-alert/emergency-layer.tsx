@@ -141,7 +141,7 @@ export function EmergencyLayer() {
             )}
             <Siren className="mx-auto mb-4 size-20 animate-bounce" />
             <h1 id="alarm-title" className="text-4xl font-black tracking-wide">EMERGENCY</h1>
-            <p className="mt-1 text-3xl font-bold" style={{ color: topCode?.colorHex }}>{top.codeName}</p>
+            <p className="mt-3 inline-block rounded-xl px-5 py-1.5 text-3xl font-bold text-white ring-2 ring-white/60" style={{ backgroundColor: topCode?.colorHex ?? "hsl(var(--destructive))" }}>{top.codeName}</p>
             <p className="mt-4 flex items-center justify-center gap-2 text-xl"><MapPin className="size-5" /> {incidentPlace(top)}</p>
             {top.internalLocation && <p className="mt-1 text-lg font-semibold text-warning">{top.internalLocation}</p>}
             {top.triggeredByName && <p className="mt-3 flex items-center justify-center gap-2 text-white/75"><UserIcon className="size-4" /> {top.triggeredByName}</p>}

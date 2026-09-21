@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useOrgId } from "@/lib/emergency-alert/live";
 import { incidentPlace } from "@/lib/emergency-alert/rules";
 import { clipStore, pickMime, requestPersistentStorage, type StoredClip } from "@/lib/emergency-alert/audio/clip-store";
-import { CLIP_MS, ICE_SERVERS, joinSignalling, peerId, sendBlob, type Sig } from "@/lib/emergency-alert/audio/rtc";
+import { CLIP_MS, iceServers, joinSignalling, peerId, sendBlob, type Sig } from "@/lib/emergency-alert/audio/rtc";
 
 interface Peer {
   pc: RTCPeerConnection;
@@ -94,9 +94,10 @@ export function AudioRecorderHost({ incident, enabled }: { incident: EmergencyIn
     // Only verified admin / "can listen" devices get anything.
     const res = await fetch("/api/emergency/audio-ticket", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticket: hello.ticket }) })
       .then((r) => r.json() as Promise<{ ok: boolean; canSave?: boolean }>).catch(() => ({ ok: false } as { ok: boolean; canSave?: boolean }));
+    const servers = await iceServers();
     if (!res.ok || peers.current.has(hello.from)) return;
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: servers });
     const peer: Peer = { pc, dc: null, canSave: !!res.canSave, device: hello.device, sending: false };
     peers.current.set(hello.from, peer);
 

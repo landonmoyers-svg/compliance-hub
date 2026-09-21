@@ -22,9 +22,19 @@
 
 import { supabase } from "../live";
 
-export const ICE_SERVERS: RTCIceServer[] = [
+const STUN_ONLY: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
+let ice: Promise<RTCIceServer[]> | null = null;
+
+/** STUN, plus the TURN relay when the server has one configured (see /api/emergency/ice). */
+export function iceServers(): Promise<RTCIceServer[]> {
+  ice ??= fetch("/api/emergency/ice")
+    .then((r) => (r.ok ? (r.json() as Promise<{ iceServers: RTCIceServer[] }>) : { iceServers: STUN_ONLY }))
+    .then((j) => j.iceServers)
+    .catch(() => { ice = null; return STUN_ONLY; });
+  return ice;
+}
 
 export const CHUNK = 16 * 1024;
 export const CLIP_MS = 30_000;

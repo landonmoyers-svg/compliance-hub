@@ -5,7 +5,7 @@ import { db } from "@/lib/data";
 import { useAuth } from "@/lib/auth/context";
 import { useOrgId } from "@/lib/emergency-alert/live";
 import { clipStore, deviceLabel, requestPersistentStorage } from "@/lib/emergency-alert/audio/clip-store";
-import { ICE_SERVERS, joinSignalling, peerId, type ClipHeader, type Sig } from "@/lib/emergency-alert/audio/rtc";
+import { iceServers, joinSignalling, peerId, type ClipHeader, type Sig } from "@/lib/emergency-alert/audio/rtc";
 import { liveStore } from "@/lib/emergency-alert/audio/live-store";
 
 /**
@@ -49,7 +49,7 @@ export function AudioReceiverHost() {
           return;
         }
         existing?.close();
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: await iceServers() });
         pcs.set(m.from, pc);
         pc.onicecandidate = (e) => { if (e.candidate) sig?.send({ type: "ice", from: me.current, to: m.from, candidate: e.candidate.toJSON() }); };
         pc.ontrack = (e) => {
