@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./live";
+import { inNativeApp } from "./sounds";
 
 /** Browser push is available here and the server has a VAPID key configured. */
 export function pushSupported(): boolean {
@@ -23,6 +24,7 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
  * this device for emergency push. Safe to call repeatedly.
  */
 export async function enableAlertsOnThisDevice(): Promise<"granted" | "denied" | "unsupported"> {
+  if (inNativeApp()) return "granted"; // the Mac app raises macOS notifications itself
   if (typeof Notification === "undefined") return "unsupported";
   const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
   if (perm !== "granted") return "denied";

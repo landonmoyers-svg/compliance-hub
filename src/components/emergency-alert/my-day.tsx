@@ -7,7 +7,7 @@ import { useCreate, useUpdate } from "@/lib/data/hooks";
 import { useAuth } from "@/lib/auth/context";
 import { isClockedInToday, todayISO } from "@/lib/emergency-alert/rules";
 import { enableAlertsOnThisDevice } from "@/lib/emergency-alert/push-client";
-import { unlockAudio, playAlarm } from "@/lib/emergency-alert/sounds";
+import { unlockAudio, playAlarm, inNativeApp } from "@/lib/emergency-alert/sounds";
 import type { EmergencyData } from "@/lib/emergency-alert/use-emergency";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ export function MyDay({ data }: { data: EmergencyData }) {
   const p = data.myProfile;
   const here = data.myLocationId;
   const overridden = isClockedInToday(p);
-  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() => (inNativeApp() ? "granted" : typeof Notification === "undefined" ? "unsupported" : Notification.permission));
 
   const setToday = async (loc: string) => {
     if (!user) return;

@@ -138,6 +138,7 @@ export function startTabAlert(title: string) {
 }
 
 export function stopTabAlert() {
+  nativeBridge()?.postMessage({ type: "clear" });
   if (!flash) return;
   clearInterval(flash);
   flash = null;
@@ -145,8 +146,25 @@ export function stopTabAlert() {
   if (savedIcon) faviconEl().href = savedIcon;
 }
 
-/** A persistent OS-level notification (needs permission). Clicking it focuses the tab. */
-export function osNotify(title: string, body: string, tag: string) {
+type NativeBridge = { postMessage: (m: unknown) => void };
+function nativeBridge(): NativeBridge | null {
+  if (typeof window === "undefined") return null;
+  return (window as unknown as { webkit?: { messageHandlers?: { hubNative?: NativeBridge } } }).webkit?.messageHandlers?.hubNative ?? null;
+}
+
+/** Running inside the Compliance Hub Mac app (a WebKit window with a native bridge). */
+export function inNativeApp(): boolean {
+  return !!nativeBridge();
+}
+
+/**
+ * A persistent OS-level notification. In the Mac app it's a real macOS
+ * notification + Dock bounce via the native bridge (WebKit windows have no
+ * web Notification API); in a browser it needs notification permission.
+ */
+export function osNotify(title: string, body: string, tag: string, urgent = true) {
+  const bridge = nativeBridge();
+  if (bridge) { bridge.postMessage({ type: "alert", title, body, tag, urgent }); return; }
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try {
     const n = new Notification(title, { body, tag, requireInteraction: true, icon: "/icon-192.png" });

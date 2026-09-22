@@ -94,6 +94,7 @@ export function EmergencyLayer() {
       for (const a of d.openAssistance) {
         if (seenAssist.current.has(a.id) || a.requestedBy === user?.id) continue;
         playChime("assistanceRequest");
+        osNotify(`${a.requestedByName} needs a hand`, `${a.assistanceType}${a.locationName ? ` · ${a.locationName}` : ""}`, `assist-${a.id}`, false);
         toast(`${a.requestedByName} needs a hand — ${a.assistanceType}`, {
           description: `${a.locationName ?? ""}${a.urgency === "now" ? " · now" : " · within 5 min"}`,
           action: { label: "Open", onClick: () => router.push("/emergency") },
