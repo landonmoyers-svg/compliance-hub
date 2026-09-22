@@ -93,6 +93,17 @@ export interface Collection<T extends { id: string }> {
   create(input: Omit<T, "id" | "createdDate">): Promise<T>;
   update(id: string, patch: Partial<Omit<T, "id" | "createdDate">>): Promise<T>;
   remove(id: string): Promise<void>;
+  /**
+   * Re-insert records from a backup, keeping their original ids and created
+   * dates (so references between records survive). Insert-only: a record whose
+   * id already exists is reported as failed, never overwritten.
+   */
+  restore(records: T[]): Promise<RestoreResult>;
+}
+
+export interface RestoreResult {
+  inserted: number;
+  failed: { id: string; error: string }[];
 }
 
 export interface DataClient {

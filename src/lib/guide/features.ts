@@ -653,8 +653,10 @@ export const FEATURES: FeatureGuide[] = [
       "Run a backup on the reminder cadence — the tiles show your last one and whether you are current.",
       "Store the download somewhere genuinely separate — not the same laptop or the same cloud account.",
       "The export is readable on its own, so your records survive even if you stop using the app.",
+      "Test a restore every few months: under Check or restore, choose a backup ZIP. It's compared with the live data and nothing changes — you see what's in it and whether anything has gone missing since.",
+      "If records were deleted by mistake, tick the datasets and press Restore. Only missing records are put back, with their original links; anything edited since keeps its current version.",
     ],
-    doneWhen: "A recent backup exists and is stored offsite.",
+    doneWhen: "A recent backup exists, is stored offsite, and has been checked with a test restore.",
     roles: ["owner", "admin"],
   },
   {

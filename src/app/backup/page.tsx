@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/shared/states";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { toast } from "sonner";
+import { RestorePanel } from "@/components/backup/restore-panel";
 
 const BACKUP_DUE_DAYS = 7; // best practice: at least weekly
 
@@ -120,10 +121,12 @@ export default function BackupPage() {
           <Button onClick={runBackup} disabled={running}><Download className="size-4" /> {running ? (progress || "Working…") : "Download full backup (ZIP)"}</Button>
           <div className="rounded-lg border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
             <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground"><ShieldCheck className="size-3.5" /> Backup best practice & law</p>
-            HIPAA requires a data backup and contingency plan (45 CFR 164.308(a)(7)). Follow the <span className="font-medium">3-2-1 rule</span> — 3 copies, 2 media types, 1 offsite — back up at least <span className="font-medium">weekly</span>, keep records <span className="font-medium">6 years</span>, and <span className="font-medium">test a restore</span> periodically. Your database is also backed up automatically by Supabase; this export is your portable, offsite copy. Uploaded file attachments live in Supabase Storage and are referenced by path in the export.
+            HIPAA requires a data backup and contingency plan (45 CFR 164.308(a)(7)). Follow the <span className="font-medium">3-2-1 rule</span> — 3 copies, 2 media types, 1 offsite — back up at least <span className="font-medium">weekly</span>, keep records <span className="font-medium">6 years</span>, and <span className="font-medium">test a restore</span> periodically (use Check or restore below). Your database is also backed up automatically by Supabase; this export is your portable, offsite copy. Uploaded file attachments live in Supabase Storage and are referenced by path in the export.
           </div>
         </CardContent>
       </Card>
+
+      <RestorePanel />
 
       {(backupsQ.data ?? []).length > 0 && (
         <Card>

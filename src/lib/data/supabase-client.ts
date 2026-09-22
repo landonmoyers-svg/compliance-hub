@@ -10,7 +10,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Collection, DataClient } from "./client";
+import type { Collection, DataClient, RestoreResult } from "./client";
 import {
   assistanceRequestMap,
   emergencyAudioLogMap,
@@ -169,6 +169,24 @@ function makeCollection<T extends { id: string }>(
     async remove(id) {
       const { error } = await supabase.from(table).delete().eq("id", id);
       if (error) throw new Error(error.message);
+    },
+
+    async restore(records) {
+      const result: RestoreResult = { inserted: 0, failed: [] };
+      const rows = records.map((r) => ({ ...toRow(r as Partial<T>), id: r.id, created_date: (r as unknown as { createdDate?: string }).createdDate }));
+      // Batches for speed; if a batch fails, retry its rows one by one so one
+      // bad record doesn't block the rest, and every failure is named.
+      for (let i = 0; i < rows.length; i += 200) {
+        const batch = rows.slice(i, i + 200);
+        const { error } = await supabase.from(table).insert(batch);
+        if (!error) { result.inserted += batch.length; continue; }
+        for (const row of batch) {
+          const { error: e } = await supabase.from(table).insert(row);
+          if (e) result.failed.push({ id: row.id, error: e.message });
+          else result.inserted += 1;
+        }
+      }
+      return result;
     },
   };
 }

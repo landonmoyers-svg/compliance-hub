@@ -57,6 +57,16 @@ class MemoryCollection<T extends { id: string; createdDate: string }>
     return delay(clone(this.items[idx]));
   }
 
+  restore(records: T[]) {
+    const failed: { id: string; error: string }[] = [];
+    let inserted = 0;
+    for (const r of records) {
+      if (this.items.some((i) => i.id === r.id)) failed.push({ id: r.id, error: "already exists" });
+      else { this.items.push(clone(r)); inserted += 1; }
+    }
+    return delay({ inserted, failed });
+  }
+
   remove(id: string): Promise<void> {
     this.items = this.items.filter((i) => i.id !== id);
     return delay(undefined);
