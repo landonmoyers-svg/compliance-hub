@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 
 /**
- * Entity schemas (Zod) + inferred TS types for the Compliance Hub.
+ * Entity schemas (Zod) + inferred TS types for the Lone Peak Compliance.
  *
  * This is the typed core consumed by the foundation + flagship dashboards.
  * It is intentionally structured so the remaining entities from the 65-entity

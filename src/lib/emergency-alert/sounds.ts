@@ -152,7 +152,7 @@ function nativeBridge(): NativeBridge | null {
   return (window as unknown as { webkit?: { messageHandlers?: { hubNative?: NativeBridge } } }).webkit?.messageHandlers?.hubNative ?? null;
 }
 
-/** Running inside the Compliance Hub Mac app (a WebKit window with a native bridge). */
+/** Running inside the Lone Peak Compliance Mac app (a WebKit window with a native bridge). */
 export function inNativeApp(): boolean {
   return !!nativeBridge();
 }

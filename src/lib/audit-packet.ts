@@ -156,7 +156,7 @@ export function buildPacketHtml(input: PacketInput): string {
 <body>
   <div class="noprint"><button class="btn" onclick="window.print()">Print / Save as PDF</button></div>
   <header>
-    <div class="org">${esc(orgName || "Compliance Hub")}</div>
+    <div class="org">${esc(orgName || "Lone Peak Compliance")}</div>
     <h1>${esc(name)}</h1>
     <div class="meta">${esc(PROVIDER_TYPE_LABEL[providerType])} · Generated ${esc(generated.toLocaleString())}</div>
   </header>

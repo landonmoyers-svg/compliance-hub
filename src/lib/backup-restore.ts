@@ -17,13 +17,13 @@ export async function readBackupFile(file: File): Promise<BackupData> {
     const { default: JSZip } = await import("jszip");
     const zip = await JSZip.loadAsync(file);
     const entry = zip.file("backup.json") ?? zip.file(/(^|\/)backup\.json$/)[0];
-    if (!entry) throw new Error("This ZIP has no backup.json — is it a Compliance Hub backup?");
+    if (!entry) throw new Error("This ZIP has no backup.json — is it a Lone Peak Compliance backup?");
     text = await entry.async("string");
   } else {
     text = await file.text();
   }
   const parsed = JSON.parse(text) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Not a Compliance Hub backup.");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Not a Lone Peak Compliance backup.");
   const out: BackupData = {};
   for (const [name, rows] of Object.entries(parsed as Record<string, unknown>)) {
     if (!Array.isArray(rows)) continue;

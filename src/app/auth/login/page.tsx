@@ -74,7 +74,7 @@ export default function LoginPage() {
     try {
       const { data, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        issuer: "Compliance Hub",
+        issuer: "Compliance Hub"  /* unchanged: renaming breaks existing authenticator entries */,
         friendlyName: "Authenticator App",
       });
 
@@ -139,7 +139,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2">
           <ShieldCheck className="size-10 text-primary" />
-          <h1 className="text-xl font-semibold">Compliance Hub</h1>
+          <h1 className="text-xl font-semibold">Lone Peak Compliance</h1>
+          <p className="text-xs font-medium tracking-wide text-primary">Let&apos;s reach the peak together</p>
           <p className="text-sm text-muted-foreground">
             {step === "credentials" ? "Sign in to your account" :
              step === "mfa" ? "Enter your authenticator code" :
@@ -265,7 +266,7 @@ export default function LoginPage() {
             <CardContent>
               <form onSubmit={handleMFAVerify} className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Open your authenticator app and enter the 6-digit code for Compliance Hub.
+                  Open your authenticator app and enter the 6-digit code for Compliance Hub (the name your authenticator saved).
                 </p>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Authenticator code</label>

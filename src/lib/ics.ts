@@ -57,7 +57,7 @@ export function buildIcs(events: IcsEvent[], stamp: string): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Lone Peak Compliance Hub//Compliance Calendar//EN",
+    "PRODID:-//Lone Peak Lone Peak Compliance//Compliance Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];

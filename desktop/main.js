@@ -30,7 +30,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 680,
-    title: "Compliance Hub",
+    title: "Lone Peak Compliance",
     backgroundColor: "#121212", // matches the app's dark base; avoids white flash
     autoHideMenuBar: false,
     webPreferences: {

@@ -165,7 +165,7 @@ const CAPABILITIES: Record<string, PageCapability> = {
 };
 
 const DEFAULT: PageCapability = {
-  title: "Compliance Hub",
+  title: "Lone Peak Compliance",
   purpose: "A healthcare compliance and practice-management app.",
   actions: [TASK],
   examples: ["What can I do on this page?", "Create a follow-up task"],

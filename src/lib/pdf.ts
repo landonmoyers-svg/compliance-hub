@@ -102,7 +102,7 @@ export async function downloadCompletedFormPdf(
   doc.setTextColor(120);
   doc.setFontSize(8);
   doc.text(
-    "Electronically completed via Compliance Hub. This record reflects the values entered at completion time.",
+    "Electronically completed via Lone Peak Compliance. This record reflects the values entered at completion time.",
     margin,
     y,
   );

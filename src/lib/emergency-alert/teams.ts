@@ -93,7 +93,7 @@ export function incidentCard(i: EmergencyIncident, siteNotes: string[], appUrl: 
     body.push({ type: "Container", style: "warning", items: siteNotes.map((n) => text(`⚠️ ${n}`, { color: "Warning" })) });
   }
   const steps = [
-    `Open the Emergency Dashboard in Compliance Hub and review the ${i.codeName} steps before responding.`,
+    `Open the Emergency Dashboard in Lone Peak Compliance and review the ${i.codeName} steps before responding.`,
     "Keep the Hub and Teams open for the whole incident.",
     "Whoever triggered the alert: click **Meet Now** at the top of this channel.",
     "Responders: join the meeting with your microphone MUTED and volume low — not audible to patients or bystanders.",

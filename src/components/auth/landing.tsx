@@ -30,7 +30,7 @@ export function Landing() {
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-6 text-primary" />
-          <span className="text-base font-semibold">Compliance Hub</span>
+          <span className="text-base font-semibold">Lone Peak Compliance</span>
         </div>
         <Button onClick={login} size="sm">
           Sign in
@@ -38,6 +38,7 @@ export function Landing() {
       </header>
 
       <section className="mx-auto max-w-4xl px-6 py-16 text-center sm:py-24">
+        <p className="mb-3 text-sm font-medium uppercase tracking-widest text-primary">Let&apos;s reach the peak together</p>
         <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
           Healthcare compliance, finally in one place.
         </h1>

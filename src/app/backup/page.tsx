@@ -178,9 +178,9 @@ RETENTION & HANDLING
 
 function indexHtml(stamp: string, total: number, counts: Record<string, number>): string {
   const rows = Object.entries(counts).map(([k, v]) => `<tr><td>${k}</td><td style="text-align:right">${v < 0 ? "—" : v}</td></tr>`).join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Compliance Hub Backup ${stamp}</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Lone Peak Compliance Backup ${stamp}</title>
 <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;color:#111}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:16px}td,th{border-bottom:1px solid #eee;padding:6px 8px;font-size:14px}th{text-align:left}.muted{color:#666;font-size:13px}</style></head>
-<body><h1>Compliance Hub — Data Backup</h1>
+<body><h1>Lone Peak Compliance — Data Backup</h1>
 <p class="muted">Generated ${stamp} · ${total} total records. Open the CSV files in the <code>data/</code> folder, or <code>backup.json</code>, to view the data.</p>
 <table><thead><tr><th>Dataset</th><th style="text-align:right">Records</th></tr></thead><tbody>${rows}</tbody></table>
 <p class="muted">Retain for at least 6 years (HIPAA). Store securely offsite.</p></body></html>`;

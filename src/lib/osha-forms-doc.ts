@@ -159,7 +159,7 @@ function docShell(title: string, orientation: "portrait" | "landscape", inner: s
 </style></head><body>
   <div class="btnbar noprint"><button class="btn" onclick="window.print()">Print / Save as PDF</button></div>
   ${inner}
-  <footer>Generated ${esc(new Date().toLocaleString())} from Compliance Hub records. OSHA-equivalent form under 29 CFR 1904 — verify entries before filing. Where a field is blank, complete it by hand.</footer>
+  <footer>Generated ${esc(new Date().toLocaleString())} from Lone Peak Compliance records. OSHA-equivalent form under 29 CFR 1904 — verify entries before filing. Where a field is blank, complete it by hand.</footer>
 </body></html>`;
 }
 
