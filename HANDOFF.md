@@ -207,6 +207,8 @@ Earlier history (June–August) is summarised; recent work is detailed.
 - **Emergency Alert go-live** (§8a): logins for staff, env vars, a live drill, then retire LP Alert on Base44.
 - Fixed on `feature/emergency-alert` (`f1a70ac`), reaches prod on merge: `src/proxy.ts` redirected `/sw.js` to login, so the PWA service worker never registered on production (no install, no push); next 16.3.0→16.3.5 + `npm audit fix` → 0 vulnerabilities.
 
+- **Desktop app = the NATIVE Mac app** (Swift/WKWebView + Sparkle, signed Team XVN4NXD6CJ), source `~/Desktop/General/Apple Developer/Compliance Hub` (own git repo), installed at /Applications, updates from `public/appcast.xml`. The Electron shell in `desktop/` is NOT what's installed. 2026-09-22: native app got mic/location permissions, native notification bridge (`hubNative`), no App Nap (`d276e91`); `release.sh` fixed (moved folder; publishes appcast via a worktree of main). **Release 1.2 is blocked: notarytool profile `compliance-hub-notary` returns 401 — Landon must make a new app-specific password at appleid.apple.com and re-run `xcrun notarytool store-credentials compliance-hub-notary --apple-id <his Apple ID> --team-id XVN4NXD6CJ`, then `./release.sh 1.2`.**
+
 **Offered, not started**
 - Import the two provider credential spreadsheets in `~/Downloads/untitled folder 4/` (`LPP_Provider_License_Certification_Tracker_2026-09-02.xlsx`, `LPP RESOURCES 2026(PROVIDER INFO).xlsx`) into Credentials — reconcile, flag conflicts, don't overwrite.
 - Attach de-identified evidence to the ketamine audit findings.
@@ -214,7 +216,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 **Known gaps**
 - Starter-content seeding for new tenants; org switcher; per-org notification scan.
-- Backup **restore** (spec exists in the audit notes; export works, restore not built).
+- Backup restore: BUILT 2026-09-22 on `feature/emergency-alert` (`0ba7c05`) — /backup → Check or restore (compare, then insert-only restore of missing records). Not yet exercised against a real backup file.
 - Supabase Auth URL configuration should point at the `lone-peak` origin.
 - Rotate the Anthropic API key (it was exposed in a chat earlier).
 - The previous version of this file committed a **staging** test password and 2FA secret to git history. Staging holds no real data and is paused, but reset those accounts if the repo is ever shared.
