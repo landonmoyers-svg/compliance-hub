@@ -88,6 +88,10 @@ export const WorkLocation = z.object({
   // Reference coordinates used to guess a location from photo GPS metadata.
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+  /* A retired registration: only supervisors may file its controlled-substance
+     logs. Not closed — an inspector can require an amendment at any time — just
+     not part of anyone's daily round. */
+  restrictedFiling: z.boolean().optional(),
 });
 export type WorkLocation = z.infer<typeof WorkLocation>;
 

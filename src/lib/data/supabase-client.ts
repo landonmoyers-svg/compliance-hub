@@ -238,6 +238,7 @@ function locationFrom(r: Record<string, unknown>): WorkLocation {
     active: r.active as boolean,
     lat: (r.lat as number | null) ?? undefined,
     lng: (r.lng as number | null) ?? undefined,
+    restrictedFiling: (r.restricted_filing as boolean | null) ?? false,
   };
 }
 function locationTo(d: Partial<WorkLocation>) {
@@ -251,6 +252,7 @@ function locationTo(d: Partial<WorkLocation>) {
     ...(d.active !== undefined && { active: d.active }),
     ...(d.lat !== undefined && { lat: d.lat }),
     ...(d.lng !== undefined && { lng: d.lng }),
+    ...(d.restrictedFiling !== undefined && { restricted_filing: d.restrictedFiling }),
   };
 }
 

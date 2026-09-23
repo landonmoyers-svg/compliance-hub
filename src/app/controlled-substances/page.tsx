@@ -715,6 +715,12 @@ export default function ControlledSubstancesPage() {
   const [openDea, setOpenDea] = useState<string | null>(null);
   const [filingLog, setFilingLog] = useState(false);
   const mayFileLogs = hasPermission(profile?.accountRole, "canFileControlledSubstanceLogs");
+  /* Murray Clinic 1's registration is retired. It still accepts amendments —
+     an inspector can ask for one years later — but not from the medical staff
+     who keep the day-to-day logs, so it isn't offered to them. SharePoint's own
+     permissions on that inbox are the actual control; this just avoids letting
+     someone scan twenty pages before being refused. */
+  const maySupervise = hasPermission(profile?.accountRole, "canOpenIdentifiedLogs");
   const [openId, setOpenId] = useState<string | null>(null);
   const [addingEvent, setAddingEvent] = useState(false);
   const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
@@ -727,6 +733,12 @@ export default function ControlledSubstancesPage() {
   const staff = useMemo(() => (employeesQ.data ?? []).filter((e) => e.employmentStatus === "active").map((e) => ({ id: e.id, name: fullName(e), userId: e.userId ?? undefined })), [employeesQ.data]);
   const owners = useMemo(() => staff.map((s) => s.name).sort(), [staff]);
   const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
+  const filingLocations = useMemo(
+    () => (locationsQ.data ?? [])
+      .filter((l) => maySupervise || !l.restrictedFiling)
+      .map((l) => ({ id: l.id, name: l.name })),
+    [locationsQ.data, maySupervise],
+  );
   const locName = (id?: string | null) => locations.find((l) => l.id === id)?.name;
   const capaById = useMemo(() => new Map((capasQ.data ?? []).map((c) => [c.id, c])), [capasQ.data]);
   const deaChains = useMemo(() => buildChains(deaQ.data ?? []), [deaQ.data]);
@@ -1191,7 +1203,7 @@ export default function ControlledSubstancesPage() {
       {receiving && <ReceiveDialog locations={locations} existingBoxLabels={existingBoxLabels} onClose={() => setReceiving(false)} onSave={receiveBox} saving={saving} />}
       {checkingOut && <CheckoutDialog bottles={availableBottles} staff={staff} onClose={() => setCheckingOut(false)} onSave={checkoutBottles} saving={saving} />}
       {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
-      {filingLog && <PaperLogDialog locations={locations} amendable={amendableLogs} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
+      {filingLog && <PaperLogDialog locations={filingLocations} amendable={amendableLogs} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
       <PageHeader
         title="Controlled Substances"
         description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Photograph a delivery's paperwork and boxes to log the whole shipment at once, check bottles out to providers, and track every dose against its bottle."
