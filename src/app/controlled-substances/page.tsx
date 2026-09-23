@@ -735,6 +735,7 @@ export default function ControlledSubstancesPage() {
       id: r.id,
       archiveKey: r.archiveKey,
       folderLabel: archiveFolderLabel({
+        locationName: locations.find((l) => l.id === r.locationId)?.name,
         substanceName: r.substanceName,
         recordTypeLabel: DEA_RECORD_LABEL[r.recordType],
         periodStart: r.periodStart, periodEnd: r.periodEnd, recordDate: r.recordDate,
@@ -743,7 +744,7 @@ export default function ControlledSubstancesPage() {
               r.periodStart && r.periodEnd ? `${formatDate(r.periodStart)}–${formatDate(r.periodEnd)}`
               : r.recordDate ? formatDate(r.recordDate) : ""].filter(Boolean).join(" · "),
     })),
-    [deaQ.data],
+    [deaQ.data, locations],
   );
   const deaRecords = useMemo(() => [...(deaQ.data ?? [])].sort((a, b) => (b.recordDate ?? b.createdDate).localeCompare(a.recordDate ?? a.createdDate)), [deaQ.data]);
 

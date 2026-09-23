@@ -108,9 +108,19 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   const [amendsRecordId, setAmendsRecordId] = useState("");
   const [amendmentReason, setAmendmentReason] = useState("");
 
-  const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder());
-  const [folderUrl, setFolderUrl] = useState(() => rememberedFolder()?.webUrl ?? "");
+  // Murray and Lehi file into different libraries, so the folder is remembered
+  // per clinic. Changing the clinic swaps the folder rather than keeping the
+  // last one — otherwise the second clinic quietly files into the first's inbox.
+  const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder(locations[0]?.id));
+  const [folderUrl, setFolderUrl] = useState(() => rememberedFolder(locations[0]?.id)?.webUrl ?? "");
   const [resolving, setResolving] = useState(false);
+
+  function chooseLocation(id: string) {
+    setLocationId(id);
+    const remembered = rememberedFolder(id);
+    setFolder(remembered);
+    setFolderUrl(remembered?.webUrl ?? "");
+  }
 
   const engine = ocrEngine();
   const identifierCount = useMemo(() => rows.reduce((n, r) => n + r.identifiers.length, 0), [rows]);
@@ -162,7 +172,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
       const ref = await msResolveUrl(folderUrl);
       if (!ref.isFolder) throw new Error("That link points at a file — paste the address of the folder the logs go in.");
       setFolder(ref);
-      rememberFolder(ref);
+      rememberFolder(ref, locationId);
       toast.success(`Filing to ${ref.name}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't open that folder.");
@@ -177,7 +187,8 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   const label = [substanceName || "Controlled substance", LOG_TYPES.find((t) => t.value === recordType)?.label.toLowerCase(), periodStart && periodEnd ? `${periodStart} to ${periodEnd}` : recordDate].filter(Boolean).join(" · ");
 
   async function save() {
-    if (!folder) { toast.error("Choose the SharePoint folder first."); return; }
+    if (!locationId) { toast.error("Choose the clinic — Murray and Lehi keep separate logs and file to separate folders."); return; }
+    if (!folder) { toast.error("Choose the SharePoint folder for this clinic first."); return; }
     if (rows.length === 0) { toast.error("No entries were read off these pages."); return; }
 
     const audit = { movement: "upload" as const, label, location: folder.name, identified: hasIdentifiers, pages: files.length };
@@ -192,6 +203,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
       const parent = amendsRecordId ? amendable.find((r) => r.id === amendsRecordId) : undefined;
       const archiveKey = parent?.archiveKey || newArchiveKey();
       const destination = parent?.folderLabel || folderLabel({
+        locationName: locations.find((l) => l.id === locationId)?.name,
         substanceName,
         recordTypeLabel: LOG_TYPES.find((t) => t.value === recordType)?.label ?? "Log",
         periodStart, periodEnd, recordDate,
@@ -288,7 +300,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Clinic</label>
-              <select className="input w-full" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+              <select className="input w-full" value={locationId} onChange={(e) => chooseLocation(e.target.value)}>
                 <option value="">Not specified</option>
                 {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>

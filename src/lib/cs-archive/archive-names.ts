@@ -40,10 +40,16 @@ export function sanitize(part: string): string {
 }
 
 /**
- * The human half of the folder name, taken from the log itself: the period it
- * covers (or its date), the substance, and what kind of log it is.
+ * The human half of the folder name: which clinic, the period it covers (or its
+ * date), the substance, and what kind of log it is.
+ *
+ * The clinic comes first and is not decoration. Murray and Lehi are separate
+ * DEA registrations keeping separate logs, and they file into separate
+ * libraries — so if a file ever lands in the wrong one, the name says so
+ * instead of it sitting there looking like it belongs.
  */
 export function folderLabel(input: {
+  locationName?: string | null;
   substanceName?: string | null;
   recordTypeLabel: string;
   periodStart?: string | null;
@@ -53,7 +59,7 @@ export function folderLabel(input: {
   const when = input.periodStart
     ? input.periodStart.slice(0, 7)
     : (input.recordDate ?? "").slice(0, 7);
-  return sanitize([when, input.substanceName ?? "Controlled substance", input.recordTypeLabel.toLowerCase()]
+  return sanitize([when, input.locationName, input.substanceName ?? "Controlled substance", input.recordTypeLabel.toLowerCase()]
     .filter(Boolean).join(" "));
 }
 

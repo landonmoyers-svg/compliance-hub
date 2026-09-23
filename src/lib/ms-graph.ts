@@ -311,16 +311,23 @@ export function saveBlob(blob: Blob, name: string) {
 
 /* ------------------------------------------------ remembering the folder */
 
-/** The archive folder, remembered per browser so it's chosen once, not every time. */
+/**
+ * The inbox folder, remembered per browser so it's chosen once, not every time
+ * — and remembered PER CLINIC, because Murray and Lehi hold separate DEA
+ * registrations and separate logs. One remembered folder would have meant the
+ * second clinic quietly filing into the first one's inbox.
+ */
 const FOLDER_KEY = "hub.ms.archiveFolder";
 
-export function rememberFolder(f: DriveItemRef) {
-  try { localStorage.setItem(FOLDER_KEY, JSON.stringify(f)); } catch { /* private window */ }
+const folderKeyFor = (locationId: string | null | undefined) => `${FOLDER_KEY}.${locationId || "unspecified"}`;
+
+export function rememberFolder(f: DriveItemRef, locationId: string | null | undefined) {
+  try { localStorage.setItem(folderKeyFor(locationId), JSON.stringify(f)); } catch { /* private window */ }
 }
 
-export function rememberedFolder(): DriveItemRef | null {
+export function rememberedFolder(locationId: string | null | undefined): DriveItemRef | null {
   try {
-    const raw = localStorage.getItem(FOLDER_KEY);
+    const raw = localStorage.getItem(folderKeyFor(locationId));
     return raw ? (JSON.parse(raw) as DriveItemRef) : null;
   } catch { return null; }
 }

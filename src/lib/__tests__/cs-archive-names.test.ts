@@ -10,15 +10,22 @@ const chk = (name: string, got: unknown, want: unknown) => {
 // The folder is named for the period the log covers, so it sorts by when the
 // log happened rather than when somebody got round to filing it.
 chk("folder label from the period", folderLabel({
-  substanceName: "Ketamine", recordTypeLabel: "Administration log",
+  locationName: "Murray Clinic 2", substanceName: "Ketamine", recordTypeLabel: "Administration log",
   periodStart: "2024-03-01", periodEnd: "2024-03-31",
-}), "2024-03 Ketamine administration log");
+}), "2024-03 Murray Clinic 2 Ketamine administration log");
+
+// Murray and Lehi are separate registrations keeping separate logs. Two logs
+// for the same month must never resolve to the same folder.
+const murray = folderLabel({ locationName: "Murray Clinic 2", substanceName: "Ketamine", recordTypeLabel: "Vial log", periodStart: "2024-05-01" });
+const lehi = folderLabel({ locationName: "Lehi Clinic", substanceName: "Ketamine", recordTypeLabel: "Vial log", periodStart: "2024-05-01" });
+chk("the two clinics never share a folder", murray === lehi, false);
+chk("and each names its own clinic", [murray, lehi], ["2024-05 Murray Clinic 2 Ketamine vial log", "2024-05 Lehi Clinic Ketamine vial log"]);
 
 chk("falls back to the record date", folderLabel({
-  substanceName: "Ketamine", recordTypeLabel: "Vial log", recordDate: "2023-11-14",
-}), "2023-11 Ketamine vial log");
+  locationName: "Lehi Clinic", substanceName: "Ketamine", recordTypeLabel: "Vial log", recordDate: "2023-11-14",
+}), "2023-11 Lehi Clinic Ketamine vial log");
 
-chk("survives a missing substance", folderLabel({
+chk("survives a missing substance and clinic", folderLabel({
   recordTypeLabel: "Count sheet", recordDate: "2024-01-02",
 }), "2024-01 Controlled substance count sheet");
 
