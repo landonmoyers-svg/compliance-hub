@@ -11,7 +11,16 @@
  * under the practice's Microsoft agreement. It is fetched straight from
  * Microsoft by the person asking, so SharePoint's own permissions decide
  * whether they get it; the Hub's permission only decides whether to offer.
- * Both gates have to agree, and neither can be talked round by the other.
+ *
+ * BE PRECISE ABOUT WHAT THAT PROTECTS. For anyone with no access to the
+ * SharePoint folder, this is a real boundary and it holds absolutely: they see
+ * the reconciliation below and can reach the identified record by no route at
+ * all. For anyone who CAN write to that folder — the medical staff who file
+ * these logs — it is not a boundary, because SharePoint's Contribute
+ * permission includes read, and no permission level offers write-without-read.
+ * They would simply open the folder. For them this button is a workflow
+ * distinction and an audit trail, not a wall, and it should not be described
+ * as one. The folder's membership list is the actual policy.
  *
  * Every fetch is written to the audit log before it starts, naming the Hub user
  * and the Microsoft account used. "We can't tell who opened it" is not an

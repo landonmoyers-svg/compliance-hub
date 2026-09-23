@@ -18,6 +18,7 @@ import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-su
 import { PaperLogDetail } from "@/components/controlled-substances/paper-log-detail";
 import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
 import { hasPermission } from "@/lib/auth/roles";
+import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType } from "@/lib/data/schema";
@@ -727,6 +728,16 @@ export default function ControlledSubstancesPage() {
   const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
   const locName = (id?: string | null) => locations.find((l) => l.id === id)?.name;
   const capaById = useMemo(() => new Map((capasQ.data ?? []).map((c) => [c.id, c])), [capasQ.data]);
+  const deaChains = useMemo(() => buildChains(deaQ.data ?? []), [deaQ.data]);
+  const amendableLogs = useMemo(
+    () => amendableRecords(deaQ.data ?? [], PAPER_LOG_TYPES).map((r) => ({
+      id: r.id,
+      label: [r.substanceName ?? "Controlled substance", DEA_RECORD_LABEL[r.recordType].toLowerCase(),
+              r.periodStart && r.periodEnd ? `${formatDate(r.periodStart)}–${formatDate(r.periodEnd)}`
+              : r.recordDate ? formatDate(r.recordDate) : ""].filter(Boolean).join(" · "),
+    })),
+    [deaQ.data],
+  );
   const deaRecords = useMemo(() => [...(deaQ.data ?? [])].sort((a, b) => (b.recordDate ?? b.createdDate).localeCompare(a.recordDate ?? a.createdDate)), [deaQ.data]);
 
   const eventsFor = (itemId: string) => events.filter((e) => e.itemId === itemId).sort((a, b) => (b.eventDate ?? b.createdDate).localeCompare(a.eventDate ?? a.createdDate));
@@ -1172,7 +1183,7 @@ export default function ControlledSubstancesPage() {
       {receiving && <ReceiveDialog locations={locations} existingBoxLabels={existingBoxLabels} onClose={() => setReceiving(false)} onSave={receiveBox} saving={saving} />}
       {checkingOut && <CheckoutDialog bottles={availableBottles} staff={staff} onClose={() => setCheckingOut(false)} onSave={checkoutBottles} saving={saving} />}
       {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
-      {filingLog && <PaperLogDialog locations={locations} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
+      {filingLog && <PaperLogDialog locations={locations} amendable={amendableLogs} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
       <PageHeader
         title="Controlled Substances"
         description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Photograph a delivery's paperwork and boxes to log the whole shipment at once, check bottles out to providers, and track every dose against its bottle."
@@ -1272,9 +1283,14 @@ export default function ControlledSubstancesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {deaRecords.flatMap((r) => [
+                  {deaChains.map((chain) => chain.current).flatMap((r) => [
                     <tr key={r.id} className="border-b border-border/50">
-                      <td data-label="Type" className="py-2.5 pr-4 font-medium">{DEA_RECORD_LABEL[r.recordType]}</td>
+                      <td data-label="Type" className="py-2.5 pr-4 font-medium">
+                        {DEA_RECORD_LABEL[r.recordType]}
+                        {(deaChains.find((c) => c.current.id === r.id)?.superseded.length ?? 0) > 0 && (
+                          <Badge variant="secondary" className="ml-2">Amended</Badge>
+                        )}
+                      </td>
                       <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">
                         {r.recordDate ? formatDate(r.recordDate) : "—"}
                         {r.recordType === "biennial_inventory" && r.periodStart && r.periodEnd && <span className="block text-xs">{formatDate(r.periodStart)}–{formatDate(r.periodEnd)}</span>}
@@ -1300,7 +1316,23 @@ export default function ControlledSubstancesPage() {
                     </tr>,
                     openDea === r.id && (
                       <tr key={`${r.id}-detail`} className="border-b border-border/50">
-                        <td colSpan={5} className="py-3"><PaperLogDetail record={r} /></td>
+                        <td colSpan={5} className="space-y-3 py-3">
+                          <PaperLogDetail record={r} />
+                          {/* What this one replaced. Kept and still readable —
+                              a record you can erase is one you can't defend. */}
+                          {(deaChains.find((c) => c.current.id === r.id)?.superseded ?? []).map((old) => (
+                            <div key={old.id} className="rounded-lg border border-dashed border-border p-3">
+                              <p className="pb-2 text-xs text-muted-foreground">
+                                Superseded{old.recordDate ? ` · filed for ${formatDate(old.recordDate)}` : ""}
+                                {deaChains.find((c) => c.current.id === r.id)?.current.amendmentReason
+                                  ? ` — ${deaChains.find((c) => c.current.id === r.id)!.current.amendmentReason}`
+                                  : ""}
+                                {" · not counted towards reconciliation"}
+                              </p>
+                              <PaperLogDetail record={old} />
+                            </div>
+                          ))}
+                        </td>
                       </tr>
                     ),
                   ])}

@@ -1895,6 +1895,13 @@ export const DeaRecord = z.object({
   reconciledAt: z.string().nullable().optional(),
   discrepancy: z.boolean().optional(),
   discrepancyNote: z.string().nullable().optional(),
+
+  /* A filed log is never edited — the archive is append-only, which is what
+     makes it defensible. A correction is a new filing that points back at what
+     it corrects. The superseded record is kept and stays readable; only the
+     newest in a chain counts towards reconciliation. */
+  amendsRecordId: z.string().nullable().optional(),
+  amendmentReason: z.string().nullable().optional(),
 });
 export type DeaRecord = z.infer<typeof DeaRecord>;
 

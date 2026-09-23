@@ -43,6 +43,12 @@ export const PERMISSIONS = [
   // stops at the people who supervise them: owner, admin, clinical leadership
   // and managers. Staff can file a page they are holding, not go back for
   // somebody else's months later.
+  //
+  // canOpenIdentifiedLogs is a real boundary only for people with no access to
+  // the SharePoint folder. Anyone who can file necessarily has write access
+  // there, and SharePoint has no write-without-read permission level, so they
+  // could open the folder directly. Treat the folder's membership as the
+  // policy; this permission governs the Hub's own route and its audit trail.
   "canFileControlledSubstanceLogs",
   "canOpenIdentifiedLogs",
 ] as const;

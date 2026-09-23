@@ -2388,6 +2388,8 @@ function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
     reconciledAt: toISO(r.reconciled_at as string),
     discrepancy: (r.discrepancy as boolean | null) ?? false,
     discrepancyNote: (r.discrepancy_note as string | null) ?? undefined,
+    amendsRecordId: (r.amends_record_id as string | null) ?? undefined,
+    amendmentReason: (r.amendment_reason as string | null) ?? undefined,
   };
 }
 function deaRecordTo(d: Partial<DeaRecord>) {
@@ -2417,6 +2419,8 @@ function deaRecordTo(d: Partial<DeaRecord>) {
     ...(d.reconciledAt !== undefined && { reconciled_at: d.reconciledAt }),
     ...(d.discrepancy !== undefined && { discrepancy: d.discrepancy }),
     ...(d.discrepancyNote !== undefined && { discrepancy_note: d.discrepancyNote }),
+    ...(d.amendsRecordId !== undefined && { amends_record_id: d.amendsRecordId }),
+    ...(d.amendmentReason !== undefined && { amendment_reason: d.amendmentReason }),
   };
 }
 

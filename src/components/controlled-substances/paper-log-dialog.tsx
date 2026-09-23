@@ -41,6 +41,9 @@ import {
 import { toast } from "sonner";
 
 export interface PaperLogPayload {
+  /** Set when this filing corrects one already on file. */
+  amendsRecordId?: string | null;
+  amendmentReason?: string | null;
   recordType: DeaRecordType;
   substanceName: string;
   unit: string;
@@ -74,8 +77,10 @@ function fileToBase64(file: Blob): Promise<string> {
 
 const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
 
-export function PaperLogDialog({ locations, onClose, onSave }: {
+export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   locations: { id: string; name: string }[];
+  /** Logs already on file that this one could be correcting. */
+  amendable: { id: string; label: string }[];
   onClose: () => void;
   onSave: (p: PaperLogPayload) => Promise<void>;
 }) {
@@ -96,6 +101,9 @@ export function PaperLogDialog({ locations, onClose, onSave }: {
   const [closing, setClosing] = useState("");
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [hasIdentifiers, setHasIdentifiers] = useState(true);
+
+  const [amendsRecordId, setAmendsRecordId] = useState("");
+  const [amendmentReason, setAmendmentReason] = useState("");
 
   const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder());
   const [folderUrl, setFolderUrl] = useState(() => rememberedFolder()?.webUrl ?? "");
@@ -198,6 +206,8 @@ export function PaperLogDialog({ locations, onClose, onSave }: {
         openingBalance: numOrNull(opening),
         closingBalance: numOrNull(closing),
         containsPatientIdentifiers: hasIdentifiers,
+        amendsRecordId: amendsRecordId || null,
+        amendmentReason: amendsRecordId ? (amendmentReason.trim() || null) : null,
         externalUrl: index.webUrl,
         externalSystem: "SharePoint",
         entries: hubEntries(rows),
@@ -274,6 +284,38 @@ export function PaperLogDialog({ locations, onClose, onSave }: {
               <input type="date" className="input w-full" value={recordDate} onChange={(e) => setRecordDate(e.target.value)} />
             </div>
           </section>
+
+          {/* correcting something already filed */}
+          {amendable.length > 0 && (
+            <section className="space-y-2 rounded-md border border-border bg-secondary/10 p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox" className="mt-1" checked={!!amendsRecordId}
+                  onChange={(e) => setAmendsRecordId(e.target.checked ? (amendable[0]?.id ?? "") : "")}
+                />
+                <span>
+                  <span className="font-medium">This corrects a log already on file</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Filed records can&apos;t be edited or deleted — a correction is filed as a new record that supersedes the old one. Both are kept, and only this one counts towards reconciliation.
+                  </span>
+                </span>
+              </label>
+              {amendsRecordId && (
+                <div className="grid gap-3 pl-6 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Which log</label>
+                    <select className="input w-full" value={amendsRecordId} onChange={(e) => setAmendsRecordId(e.target.value)}>
+                      {amendable.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Why it&apos;s being corrected</label>
+                    <input className="input w-full" value={amendmentReason} onChange={(e) => setAmendmentReason(e.target.value)} placeholder="e.g. a page was missed" />
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* the pages */}
           <section className="space-y-2">
