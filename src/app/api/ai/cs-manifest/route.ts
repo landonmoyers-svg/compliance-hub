@@ -30,7 +30,7 @@ Return ONLY valid JSON:
 Rules:
 - Dates YYYY-MM-DD. "9/22/26" is 2026-09-22. NEVER invent a date.
 - "boxCount": physical boxes on that line (a "Boxes" column, or handwriting like "boxes 1-4"). "unitsPerBox": vials inside EACH box — usually handwritten ("each box = 10 vials") or derivable from a pack like "10X5ML MDV" (10 vials of 5 mL). If they disagree, prefer the handwriting and say so in "lotNote".
-- "boxes": one entry per physical box you can actually see a label for. "assignedLetter" is the handwritten letter for that box (A, B, C, D) — a note like "4 = D as in dog" means boxNumber 4, assignedLetter "D". Copy GTIN, SN, LOT, EXP exactly as printed, digit for digit. If two boxes appear to share a serial number, you misread one — return null for the one you are unsure of rather than repeating it.
+- "boxes": one entry per physical box you can actually see a label for. "assignedLetter" is the handwritten letter for that box (A, B, C, D) — a note like "4 = D as in dog" means that box's identity is the LETTER D — the number is only how it was marked at first, so return boxNumber 4 AND assignedLetter "D". Copy GTIN, SN, LOT, EXP exactly as printed, digit for digit. If two boxes appear to share a serial number, you misread one — return null for the one you are unsure of rather than repeating it.
 - Serial numbers and lot numbers are the whole point of this record. Transcribe them character by character. If a digit is blurred or cut off, return null for that field. A blank is safe; a wrong serial number is not.
 - "expirationDate": from the box label if present ("EXP: 2028/05" → 2028-05-31, expirationIsMonth true). Packing slips rarely show it — null then.
 - "scheduleClass": ketamine = III; null unless clear.

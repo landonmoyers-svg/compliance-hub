@@ -210,8 +210,9 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
   }]);
 
   const totalVials = boxes.reduce((n, b) => n + (Number(b.units) || 0), 0);
-  const firstId = boxes[0] ? `${prefix}-${boxes[0].letter}1` : "";
-  const lastBox = boxes[boxes.length - 1];
+  const sortedBoxes = [...boxes].sort((a, b) => a.letter.localeCompare(b.letter));
+  const firstId = sortedBoxes[0] ? `${prefix}-${sortedBoxes[0].letter}1` : "";
+  const lastBox = sortedBoxes[sortedBoxes.length - 1];
   const lastId = lastBox ? `${prefix}-${lastBox.letter}${lastBox.units}` : "";
 
   const problems = useMemo(() => {
@@ -245,7 +246,7 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
           <section>
             <p className="text-sm font-medium">1. Photograph the paperwork</p>
             <p className="mb-2 text-xs text-muted-foreground">
-              The packing slip <em>and</em> the boxes. The box labels carry the serial numbers and the expiry date, which the slip doesn&apos;t — and your handwriting (lot numbers, &quot;each box = 10 vials&quot;, &quot;1 = A&quot;) is read too.
+              The packing slip <em>and</em> the boxes. The box labels carry the serial numbers and the expiry date, which the slip doesn&apos;t — and your handwriting is read too (lot numbers, &quot;each box = 10 vials&quot;, and lettering like &quot;1 = A&quot;, which means that box is <strong>A</strong>).
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <input ref={fileRef} type="file" accept="application/pdf,image/*,.heic,.heif" multiple className="hidden"
@@ -344,7 +345,7 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-2">Box</th><th className="px-2 py-2">Letter</th><th className="px-2 py-2">Vials</th>
+                      <th className="px-2 py-2">Box</th><th className="px-2 py-2">Vials</th>
                       <th className="px-2 py-2">Lot</th><th className="px-2 py-2">Expiry</th>
                       <th className="px-2 py-2">Serial number</th><th className="px-2 py-2">Vial IDs</th><th />
                     </tr>
@@ -352,8 +353,13 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
                   <tbody className="divide-y divide-border">
                     {boxes.map((b) => (
                       <tr key={b.key}>
-                        <td className="px-2 py-1.5 text-muted-foreground">{b.boxNumber ?? "—"}</td>
-                        <td className="px-2 py-1.5"><input aria-label="Box letter" className={`${input} w-14 uppercase`} maxLength={2} value={b.letter} onChange={(e) => setBox(b.key, { letter: e.target.value.toUpperCase() })} /></td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">{prefix}-</span>
+                            <input aria-label="Box letter" className={`${input} w-14 font-mono uppercase`} maxLength={2} value={b.letter} onChange={(e) => setBox(b.key, { letter: e.target.value.toUpperCase() })} />
+                          </div>
+                          {b.boxNumber != null && <span className="text-[11px] text-muted-foreground">written on the box as {b.boxNumber}</span>}
+                        </td>
                         <td className="px-2 py-1.5"><input aria-label="Vials in box" type="number" min={1} max={50} className={`${input} w-16`} value={b.units} onChange={(e) => setBox(b.key, { units: Number(e.target.value) })} /></td>
                         <td className="px-2 py-1.5"><input aria-label="Lot" className={`${input} w-28 font-mono`} value={b.lotNumber} onChange={(e) => setBox(b.key, { lotNumber: e.target.value })} /></td>
                         <td className="px-2 py-1.5"><input aria-label="Expiry" type="date" className={`${input} w-36`} value={b.expirationDate} onChange={(e) => setBox(b.key, { expirationDate: e.target.value, expirationIsMonth: false })} /></td>

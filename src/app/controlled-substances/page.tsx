@@ -1302,7 +1302,7 @@ function ShipmentsPanel({ manifests, boxes, items, locations, onSearchBox }: {
       <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><PackageCheck className="size-4 text-primary" /> Deliveries</CardTitle></CardHeader>
       <CardContent className="space-y-2">
         {manifests.slice(0, 10).map((m) => {
-          const mBoxes = boxes.filter((b) => b.manifestId === m.id).sort((a, b) => (a.boxNumber ?? 0) - (b.boxNumber ?? 0));
+          const mBoxes = boxes.filter((b) => b.manifestId === m.id).sort((a, b) => a.label.localeCompare(b.label));
           const vials = items.filter((i) => i.manifestId === m.id);
           const remaining = vials.filter((i) => !CLOSED_STATES.includes(i.state)).length;
           const isOpen = openId === m.id;
