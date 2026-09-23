@@ -15,6 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
 import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-substances/shipment-dialog";
+import { PaperLogDetail } from "@/components/controlled-substances/paper-log-detail";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
@@ -707,6 +708,7 @@ export default function ControlledSubstancesPage() {
   const [receivingShipment, setReceivingShipment] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [addingDea, setAddingDea] = useState(false);
+  const [openDea, setOpenDea] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [addingEvent, setAddingEvent] = useState(false);
   const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
@@ -1244,11 +1246,11 @@ export default function ControlledSubstancesPage() {
                     <th className="pb-2 pr-4 font-medium">Date</th>
                     <th className="pb-2 pr-4 font-medium">Reference</th>
                     <th className="pb-2 pr-4 font-medium">Filed by</th>
-                    <th className="pb-2 font-medium">Document</th>
+                    <th className="pb-2 font-medium">Record</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {deaRecords.map((r) => (
+                  {deaRecords.flatMap((r) => [
                     <tr key={r.id} className="border-b border-border/50">
                       <td data-label="Type" className="py-2.5 pr-4 font-medium">{DEA_RECORD_LABEL[r.recordType]}</td>
                       <td data-label="Date" className="py-2.5 pr-4 text-muted-foreground">
@@ -1262,9 +1264,24 @@ export default function ControlledSubstancesPage() {
                         )}
                       </td>
                       <td data-label="Filed by" className="py-2.5 pr-4 text-muted-foreground">{r.filedByName ?? "—"}</td>
-                      <td data-label="Document" className="py-2.5">{r.documentUrl ? <FileLink path={r.documentUrl} label="View" className="text-primary hover:underline" /> : <span className="text-muted-foreground">—</span>}</td>
-                    </tr>
-                  ))}
+                      <td data-label="Record" className="py-2.5">
+                        {isPaperLog(r.recordType) ? (
+                          <button onClick={() => setOpenDea((p) => (p === r.id ? null : r.id))} className="text-primary hover:underline">
+                            {openDea === r.id ? "Hide" : `Open${(r.entries?.length ?? 0) > 0 ? ` (${r.entries!.length} entries)` : ""}`}
+                          </button>
+                        ) : r.documentUrl ? (
+                          <FileLink path={r.documentUrl} label="View" className="text-primary hover:underline" />
+                        ) : r.externalUrl ? (
+                          <a href={r.externalUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open in {r.externalSystem ?? "SharePoint"}</a>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    </tr>,
+                    openDea === r.id && (
+                      <tr key={`${r.id}-detail`} className="border-b border-border/50">
+                        <td colSpan={5} className="py-3"><PaperLogDetail record={r} /></td>
+                      </tr>
+                    ),
+                  ])}
                 </tbody>
               </table>
             </div>

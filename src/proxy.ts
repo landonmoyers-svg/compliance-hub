@@ -26,10 +26,15 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isAuthRoute = path.startsWith("/auth/");
+  // Microsoft sends the sign-in popup here with the authorization code in the
+  // query string. Redirecting it to the login page would throw the code away,
+  // so this page is never gated; it holds nothing and only hands the code to
+  // the window that opened it.
+  const isMsCallback = path === "/ms-auth";
   const isApiRoute = path.startsWith("/api/");
 
   // Unauthenticated users can only access auth routes and public API
-  if (!user && !isAuthRoute && !isApiRoute) {
+  if (!user && !isAuthRoute && !isApiRoute && !isMsCallback) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);

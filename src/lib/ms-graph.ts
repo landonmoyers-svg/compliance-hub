@@ -14,12 +14,18 @@
  * documents on its own. Every call runs as the signed-in person, so SharePoint's
  * own permissions decide what they can open — the Hub cannot widen them.
  *
- * Sign-in is the standard browser flow for an app with no secret to keep:
- * authorization code with PKCE, in a popup, against the practice's own tenant.
- * Nothing works until an app registration exists and its id is set in
+ * Signing in usually costs nothing, because staff sign into the HUB with their
+ * Microsoft account: Supabase returns the Microsoft token with the session, so
+ * SharePoint already knows who they are and no second prompt appears all day.
+ * For a password account there is a fallback — authorization code with PKCE in
+ * a popup, against the practice's own tenant.
+ *
+ * Nothing here works until an app registration exists and its id is set in
  * NEXT_PUBLIC_MS_CLIENT_ID; until then `msConfigured()` is false and the Hub
- * falls back to pasting a link by hand.
+ * falls back to pasting a SharePoint link by hand.
  */
+
+import { createClient } from "@/lib/supabase/client";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_MS_CLIENT_ID ?? "";
 const TENANT = process.env.NEXT_PUBLIC_MS_TENANT_ID || "organizations";
@@ -50,11 +56,50 @@ const REFRESH_KEY = "hub.ms.refresh";
 /** Refresh tokens live for the tab only — closing it signs the person out. */
 const stored = {
   get: () => { try { return sessionStorage.getItem(REFRESH_KEY); } catch { return null; } },
-  set: (v: string | null) => { try { v ? sessionStorage.setItem(REFRESH_KEY, v) : sessionStorage.removeItem(REFRESH_KEY); } catch { /* private window */ } },
+  set: (v: string | null) => {
+    try {
+      if (v) sessionStorage.setItem(REFRESH_KEY, v);
+      else sessionStorage.removeItem(REFRESH_KEY);
+    } catch { /* private window */ }
+  },
 };
 
 export function msSignedIn(): boolean {
   return !!token && token.expiresAt > Date.now();
+}
+
+/**
+ * The Microsoft token that came in with the Hub session.
+ *
+ * Staff sign into the Hub WITH their Microsoft account, and Supabase hands the
+ * Microsoft access token back alongside the Hub session. So for anyone signed
+ * in that way there is nothing more to do — no popup, not even a silent one.
+ * The PKCE flow below is the fallback for password accounts.
+ *
+ * Supabase does not renew this token, so when it expires we renew it ourselves
+ * from the provider refresh token and, failing that, ask.
+ */
+async function fromHubSession(): Promise<Token | null> {
+  try {
+    const { data } = await createClient().auth.getSession();
+    const s = data.session;
+    if (!s?.provider_token) {
+      // Keep the refresh token if there is one: the access token may be spent
+      // but the session can still mint another without troubling anybody.
+      if (s?.provider_refresh_token) stored.set(s.provider_refresh_token);
+      return null;
+    }
+    if (s.provider_refresh_token) stored.set(s.provider_refresh_token);
+    return {
+      accessToken: s.provider_token,
+      // Supabase doesn't tell us when it expires; assume the short end of
+      // Microsoft's range and let a 401 correct us.
+      expiresAt: Date.now() + 50 * 60 * 1000,
+      account: s.user?.email ?? "",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function msAccount(): string | null {
@@ -132,6 +177,8 @@ export async function msSignIn(): Promise<void> {
 /** A usable access token, renewing silently where possible. */
 async function accessToken(): Promise<string> {
   if (token && token.expiresAt > Date.now()) return token.accessToken;
+  token = await fromHubSession();
+  if (token) return token.accessToken;
   const refresh = stored.get();
   if (refresh) {
     try {
@@ -143,11 +190,17 @@ async function accessToken(): Promise<string> {
   return token!.accessToken;
 }
 
-async function graph(path: string, init: RequestInit = {}): Promise<Response> {
+async function graph(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
   const res = await fetch(path.startsWith("http") ? path : `${GRAPH}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${await accessToken()}`, ...(init.headers ?? {}) },
   });
+  // The token the Hub session carried has run out. Renew and try once more —
+  // but only once, so a genuinely bad token can't loop.
+  if (res.status === 401 && !retried) {
+    token = null;
+    return graph(path, init, true);
+  }
   if (res.status === 403) throw new Error("Your Microsoft account doesn't have access to that SharePoint folder.");
   if (res.status === 404) throw new Error("That SharePoint folder or file couldn't be found — it may have been moved.");
   if (!res.ok) {

@@ -8,6 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Step = "credentials" | "mfa" | "enroll_mfa";
 
+/** Microsoft's four squares. Their brand guidance asks for the mark beside the wording. */
+function MicrosoftMark() {
+  return (
+    <svg viewBox="0 0 23 23" className="size-4" aria-hidden="true">
+      <path fill="#f25022" d="M0 0h11v11H0z" />
+      <path fill="#7fba00" d="M12 0h11v11H12z" />
+      <path fill="#00a4ef" d="M0 12h11v11H0z" />
+      <path fill="#ffb900" d="M12 12h11v11H12z" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const supabase = createClient();
 
@@ -21,7 +33,40 @@ export default function LoginPage() {
   const [qrCode, setQrCode] = useState("");
   const [secret, setSecret] = useState("");
   const [loading, setLoading] = useState(false);
+  const [msLoading, setMsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  /**
+   * Sign in with the practice's Microsoft account.
+   *
+   * This is the way in for staff: the same account they use for email and
+   * SharePoint, so there is no second password to issue or revoke, and
+   * offboarding someone in Microsoft 365 closes the Hub too.
+   *
+   * The Graph scopes are asked for HERE, at the door, rather than again later
+   * when someone files a controlled-substance log — Supabase hands the
+   * Microsoft token back with the session, so SharePoint works for the rest of
+   * the day with no second prompt.
+   *
+   * Two-factor for these accounts is Entra's job, not the Hub's. The TOTP
+   * enrolment below applies to password sign-ins only.
+   */
+  async function signInWithMicrosoft() {
+    setError("");
+    setMsLoading(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "openid profile email offline_access User.Read Files.ReadWrite.All Sites.ReadWrite.All",
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    // On success the browser leaves for Microsoft, so this only runs on failure.
+    if (oauthError) {
+      setError(oauthError.message);
+      setMsLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -150,7 +195,16 @@ export default function LoginPage() {
 
         {step === "credentials" && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="space-y-4 pt-6">
+              <Button variant="outline" className="w-full" onClick={signInWithMicrosoft} disabled={msLoading || loading}>
+                <MicrosoftMark />
+                {msLoading ? "Opening Microsoft…" : "Sign in with Microsoft"}
+              </Button>
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or sign in with a password</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Email</label>

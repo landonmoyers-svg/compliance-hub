@@ -35,6 +35,13 @@ export const PERMISSIONS = [
   "canUseChatbot",
   "canViewAuditLogs",
   "canManageRisk",
+  // Controlled-substance paper logs. Two permissions, because filing a log and
+  // reading one back are different acts: the person filing is holding the page
+  // and has already read the chart numbers on it, while everyone else only
+  // needs the de-identified entries the Hub keeps. Opening a filed record
+  // means fetching a document that identifies patients.
+  "canFileControlledSubstanceLogs",
+  "canOpenIdentifiedLogs",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -56,6 +63,8 @@ const ROLE_PERMISSIONS: Record<AccountRole, Permission[]> = {
     "canUseChatbot",
   ],
   clinical_leadership: [
+    "canFileControlledSubstanceLogs",
+    "canOpenIdentifiedLogs",
     "canViewCredentialing",
     "canManageCredentialing",
     "canViewAllSOPs",
