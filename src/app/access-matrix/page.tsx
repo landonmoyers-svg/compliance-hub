@@ -17,6 +17,7 @@ const ROLES = [
   { key: "hr", label: "HR" },
   { key: "clinical_leadership", label: "Clinical Ldr" },
   { key: "manager", label: "Manager" },
+  { key: "medical_staff", label: "Medical" },
   { key: "staff", label: "Staff" },
   { key: "contractor", label: "Contractor" },
   { key: "read_only", label: "Read-only" },
@@ -24,27 +25,27 @@ const ROLES = [
 type RoleKey = typeof ROLES[number]["key"];
 
 interface Area { area: string; basis: string; access: Record<RoleKey, Access>; }
-const A = (owner: Access, admin: Access, hr: Access, cl: Access, mgr: Access, staff: Access, con: Access, ro: Access): Record<RoleKey, Access> =>
-  ({ owner, admin, hr, clinical_leadership: cl, manager: mgr, staff, contractor: con, read_only: ro });
+const A = (owner: Access, admin: Access, hr: Access, cl: Access, mgr: Access, med: Access, staff: Access, con: Access, ro: Access): Record<RoleKey, Access> =>
+  ({ owner, admin, hr, clinical_leadership: cl, manager: mgr, medical_staff: med, staff, contractor: con, read_only: ro });
 
 const AREAS: Area[] = [
-  { area: "Policies & SOPs", basis: "All workforce must access policies; only admins author them.", access: A("M", "M", "V", "V", "V", "V", "V", "V") },
-  { area: "My training & credentials", basis: "Everyone manages their own; self-service.", access: A("O", "O", "O", "O", "O", "O", "O", "O") },
-  { area: "All staff training & credentials", basis: "Compliance oversight function.", access: A("M", "M", "M", "M", "V", "-", "-", "V") },
-  { area: "Report an incident", basis: "Anyone must be able to report a concern.", access: A("M", "M", "M", "M", "M", "M", "M", "-") },
-  { area: "Incident investigation & CAPA", basis: "Compliance-managed.", access: A("M", "M", "M", "M", "-", "-", "-", "V") },
-  { area: "HR files / Employee Vault", basis: "Minimum necessary — HR + ownership only.", access: A("M", "V", "M", "-", "-", "-", "-", "-") },
-  { area: "Payroll", basis: "Financial-sensitive — owner/HR only.", access: A("M", "-", "M", "-", "-", "-", "-", "-") },
-  { area: "Performance & disciplinary", basis: "HR + the person's manager (own team).", access: A("M", "V", "M", "-", "V", "-", "-", "-") },
-  { area: "HIPAA / Risk / Breach / SRA", basis: "Security & privacy oversight.", access: A("M", "M", "V", "M", "-", "-", "-", "V") },
-  { area: "Controlled substances log", basis: "DEA — clinical leadership + admin.", access: A("M", "M", "-", "M", "-", "-", "-", "V") },
-  { area: "Exclusion screening", basis: "Screen before hire / monthly — HR + admin.", access: A("M", "M", "M", "-", "-", "-", "-", "V") },
-  { area: "Vendors / BAAs / Insurance", basis: "Business & contract management.", access: A("M", "M", "V", "-", "-", "-", "-", "V") },
-  { area: "Inventory / SDS / OSHA", basis: "Operational safety — broad view, admin manage.", access: A("M", "M", "V", "V", "V", "V", "-", "V") },
-  { area: "Audit trail", basis: "Tamper-evidence — leadership review only.", access: A("V", "V", "-", "-", "-", "-", "-", "-") },
-  { area: "Org chart & role requirements", basis: "HR/leadership define; staff view.", access: A("M", "M", "M", "V", "V", "V", "-", "V") },
-  { area: "User management & Settings", basis: "System administration.", access: A("M", "M", "-", "-", "-", "-", "-", "-") },
-  { area: "Chief of Staff / Exec dashboards", basis: "Program leadership cockpit.", access: A("M", "M", "V", "V", "-", "-", "-", "V") },
+  { area: "Policies & SOPs", basis: "All workforce must access policies; only admins author them.", access: A("M", "M", "V", "V", "V", "V", "V", "V", "V") },
+  { area: "My training & credentials", basis: "Everyone manages their own; self-service.", access: A("O", "O", "O", "O", "O", "O", "O", "O", "O") },
+  { area: "All staff training & credentials", basis: "Compliance oversight function.", access: A("M", "M", "M", "M", "V", "-", "-", "-", "V") },
+  { area: "Report an incident", basis: "Anyone must be able to report a concern.", access: A("M", "M", "M", "M", "M", "M", "M", "M", "-") },
+  { area: "Incident investigation & CAPA", basis: "Compliance-managed.", access: A("M", "M", "M", "M", "-", "-", "-", "-", "V") },
+  { area: "HR files / Employee Vault", basis: "Minimum necessary — HR + ownership only.", access: A("M", "V", "M", "-", "-", "-", "-", "-", "-") },
+  { area: "Payroll", basis: "Financial-sensitive — owner/HR only.", access: A("M", "-", "M", "-", "-", "-", "-", "-", "-") },
+  { area: "Performance & disciplinary", basis: "HR + the person's manager (own team).", access: A("M", "V", "M", "-", "V", "-", "-", "-", "-") },
+  { area: "HIPAA / Risk / Breach / SRA", basis: "Security & privacy oversight.", access: A("M", "M", "V", "M", "-", "-", "-", "-", "V") },
+  { area: "Controlled substances log", basis: "DEA — kept by medical staff, overseen by clinical leadership + admin.", access: A("M", "M", "-", "M", "-", "M", "-", "-", "V") },
+  { area: "Exclusion screening", basis: "Screen before hire / monthly — HR + admin.", access: A("M", "M", "M", "-", "-", "-", "-", "-", "V") },
+  { area: "Vendors / BAAs / Insurance", basis: "Business & contract management.", access: A("M", "M", "V", "-", "-", "-", "-", "-", "V") },
+  { area: "Inventory / SDS / OSHA", basis: "Operational safety — broad view, admin manage.", access: A("M", "M", "V", "V", "V", "V", "V", "-", "V") },
+  { area: "Audit trail", basis: "Tamper-evidence — leadership review only.", access: A("V", "V", "-", "-", "-", "-", "-", "-", "-") },
+  { area: "Org chart & role requirements", basis: "HR/leadership define; staff view.", access: A("M", "M", "M", "V", "V", "V", "V", "-", "V") },
+  { area: "User management & Settings", basis: "System administration.", access: A("M", "M", "-", "-", "-", "-", "-", "-", "-") },
+  { area: "Chief of Staff / Exec dashboards", basis: "Program leadership cockpit.", access: A("M", "M", "V", "V", "-", "-", "-", "-", "V") },
 ];
 
 const CELL: Record<Access, { label: string; cls: string }> = {

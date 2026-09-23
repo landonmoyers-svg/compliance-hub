@@ -18,7 +18,7 @@ import { humanizeLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 
-const ROLE_SHORT: Record<string, string> = { owner: "Owner", admin: "Admin", hr: "HR", clinical_leadership: "Clinical", manager: "Mgr", staff: "Staff", contractor: "Contr", read_only: "Read" };
+const ROLE_SHORT: Record<string, string> = { owner: "Owner", admin: "Admin", hr: "HR", clinical_leadership: "Clinical", manager: "Mgr", medical_staff: "Medical", staff: "Staff", contractor: "Contr", read_only: "Read" };
 
 type Tab = "organization" | "locations" | "access" | "security" | "notifications" | "storage";
 

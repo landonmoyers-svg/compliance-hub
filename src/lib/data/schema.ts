@@ -24,6 +24,9 @@ export const accountRoles = [
   "hr",
   "clinical_leadership",
   "manager",
+  // Providers, MAs and nurses — the people who keep the clinical records.
+  // Split out of "staff" so clinical permissions don't reach the front desk.
+  "medical_staff",
   "staff",
   "contractor",
   "read_only",

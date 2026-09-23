@@ -16,9 +16,11 @@ import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
 import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-substances/shipment-dialog";
 import { PaperLogDetail } from "@/components/controlled-substances/paper-log-detail";
+import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
+import { hasPermission } from "@/lib/auth/roles";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
-import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
+import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType } from "@/lib/data/schema";
 import { deaRecordTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -709,6 +711,8 @@ export default function ControlledSubstancesPage() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [addingDea, setAddingDea] = useState(false);
   const [openDea, setOpenDea] = useState<string | null>(null);
+  const [filingLog, setFilingLog] = useState(false);
+  const mayFileLogs = hasPermission(profile?.accountRole, "canFileControlledSubstanceLogs");
   const [openId, setOpenId] = useState<string | null>(null);
   const [addingEvent, setAddingEvent] = useState(false);
   const [resolving, setResolving] = useState<ControlledSubstanceEvent | null>(null);
@@ -990,6 +994,20 @@ export default function ControlledSubstancesPage() {
     finally { setSaving(false); }
   }
 
+  /**
+   * The SharePoint upload has already happened by the time this runs, and it
+   * succeeded — the dialog does not call this otherwise. So what arrives here
+   * is only ever the de-identified half plus a link to the rest.
+   */
+  async function savePaperLog(p: PaperLogPayload) {
+    await createDea.mutateAsync({
+      ...p,
+      filedByName: profile?.fullName || undefined,
+      documentUrl: null,   // the page itself is in SharePoint; the DB refuses it here
+      referenceNumber: undefined,
+    });
+  }
+
   async function saveDea(d: DeaForm & { locationId: string }, file: File | null) {
     setSaving(true);
     try {
@@ -1154,11 +1172,15 @@ export default function ControlledSubstancesPage() {
       {receiving && <ReceiveDialog locations={locations} existingBoxLabels={existingBoxLabels} onClose={() => setReceiving(false)} onSave={receiveBox} saving={saving} />}
       {checkingOut && <CheckoutDialog bottles={availableBottles} staff={staff} onClose={() => setCheckingOut(false)} onSave={checkoutBottles} saving={saving} />}
       {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
+      {filingLog && <PaperLogDialog locations={locations} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
       <PageHeader
         title="Controlled Substances"
         description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Photograph a delivery's paperwork and boxes to log the whole shipment at once, check bottles out to providers, and track every dose against its bottle."
         actions={<div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAddingDea(true)}><Plus className="size-4" /> DEA record</Button>
+          {mayFileLogs && (
+            <Button variant="outline" onClick={() => setFilingLog(true)}><ClipboardCheck className="size-4" /> File paper log</Button>
+          )}
           <Button variant="outline" onClick={() => setCheckingOut(true)} disabled={availableBottles.length === 0}><ClipboardCheck className="size-4" /> Check out to provider</Button>
           <Button onClick={() => setReceivingShipment(true)}><PackageCheck className="size-4" /> Receive shipment</Button>
           <Button variant="outline" onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive one box</Button>

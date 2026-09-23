@@ -39,7 +39,7 @@ export const PERMISSIONS = [
   // reading one back are different acts: the person filing is holding the page
   // and has already read the chart numbers on it, while retrieving a filed
   // record months later reaches for patient identifiers with no page in hand.
-  // So filing is wide — the MAs and nurses who keep the logs — while opening
+  // So filing is wide — medical staff, who keep the logs — while opening
   // stops at the people who supervise them: owner, admin, clinical leadership
   // and managers. Staff can file a page they are holding, not go back for
   // somebody else's months later.
@@ -79,7 +79,12 @@ const ROLE_PERMISSIONS: Record<AccountRole, Permission[]> = {
   // are not given canOpenIdentifiedLogs: filing a page you are holding is not
   // the same as retrieving other people's pages months later.
   manager: ["canViewAllSOPs", "canViewCredentialing", "canViewSDS", "canUseChatbot", "canFileControlledSubstanceLogs", "canOpenIdentifiedLogs"],
-  staff: ["canViewSDS", "canUseChatbot", "canFileControlledSubstanceLogs"],
+  // Providers, MAs and nurses. They keep the controlled-substance logs, so they
+  // file them — but filing a page you are holding is not the same as going back
+  // for someone else's months later, so no canOpenIdentifiedLogs.
+  medical_staff: ["canViewAllSOPs", "canViewSDS", "canUseChatbot", "canFileControlledSubstanceLogs"],
+  // Everyone else at this level: reception, billing, operations.
+  staff: ["canViewSDS", "canUseChatbot"],
   contractor: ["canViewSDS", "canUseChatbot"],
   read_only: [],
   inactive: [],

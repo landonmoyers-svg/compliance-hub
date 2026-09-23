@@ -207,7 +207,7 @@ import type { AccountRole } from "@/lib/data/schema";
 
 // Roles that can be granted page access (inactive gets nothing).
 export const PRIVILEGED_ROLES = ["owner", "admin", "hr", "clinical_leadership"] as const;
-export const SELECTABLE_ROLES: AccountRole[] = ["owner", "admin", "hr", "clinical_leadership", "manager", "staff", "contractor", "read_only"];
+export const SELECTABLE_ROLES: AccountRole[] = ["owner", "admin", "hr", "clinical_leadership", "manager", "medical_staff", "staff", "contractor", "read_only"];
 
 export interface PageDef { href: string; label: string; group: string; adminOnly: boolean; }
 
