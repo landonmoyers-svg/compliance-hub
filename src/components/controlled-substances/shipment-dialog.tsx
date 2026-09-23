@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Camera, FileScan, Loader2, Plus, Trash2, X, AlertTriangle, PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 import { normalizeImage } from "@/lib/images";
+import { boxLabel, logCodeForSite, nextBoxLabels } from "@/lib/cs-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
@@ -32,6 +33,8 @@ export interface Extracted {
 
 export interface BoxRow {
   key: string;
+  /** The run of letters this box sits in: 1 for M1A, 2 once M1Z is used up. */
+  run: number;
   letter: string;
   boxNumber: number | null;
   serialNumber: string;
@@ -46,7 +49,8 @@ export interface ShipmentPayload {
   files: File[];
   extracted: Extracted | null;
   locationId: string;
-  prefix: string;
+  /** Campus log this delivery goes into: "M" (Murray) or "L" (Lehi). */
+  code: string;
   header: {
     supplierName: string; supplierDea: string; customerDea: string; shipToName: string; shipToAddress: string;
     poNumber: string; orderNumber: string; packingSlipNumber: string; orderDate: string; receivedDate: string;
@@ -60,7 +64,6 @@ export interface ShipmentPayload {
 }
 
 const todayInput = () => new Date().toISOString().slice(0, 10);
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const input = "w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 const label = "mb-1 block text-xs font-medium text-muted-foreground";
 
@@ -71,17 +74,6 @@ function fileToBase64(file: Blob): Promise<string> {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(file);
   });
-}
-
-/** Next free letters for this site, skipping ones already in use. */
-function freeLetters(prefix: string, used: string[], count: number): string[] {
-  const taken = new Set(used.filter((b) => b.toUpperCase().startsWith(`${prefix.toUpperCase()}-`)).map((b) => b.slice(prefix.length + 1).toUpperCase()));
-  const out: string[] = [];
-  for (const ch of LETTERS) {
-    if (out.length >= count) break;
-    if (!taken.has(ch)) out.push(ch);
-  }
-  return out;
 }
 
 /**
@@ -103,7 +95,7 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
   const [extracted, setExtracted] = useState<Extracted | null>(null);
 
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
-  const [prefix, setPrefix] = useState((locations[0]?.name ?? "").match(/[a-zA-Z]/)?.[0]?.toUpperCase() ?? "");
+  const [code, setCode] = useState(logCodeForSite(locations[0]?.name));
   const [header, setHeader] = useState<ShipmentPayload["header"]>({
     supplierName: "", supplierDea: "", customerDea: "", shipToName: "", shipToAddress: "",
     poNumber: "", orderNumber: "", packingSlipNumber: "", orderDate: "", receivedDate: todayInput(),
@@ -151,8 +143,8 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
       return hay.includes(l.name.toLowerCase()) || (!!num && hay.includes(num) && hay.includes((l.name.split(" ")[0] ?? "").toLowerCase()));
     });
     const site = matched ?? locations.find((l) => l.id === locationId) ?? locations[0];
-    const pfx = (site?.name ?? "").match(/[a-zA-Z]/)?.[0]?.toUpperCase() ?? prefix;
-    if (site) { setLocationId(site.id); setPrefix(pfx); }
+    const campus = site ? logCodeForSite(site.name) : code;
+    if (site) { setLocationId(site.id); setCode(campus); }
 
     setHeader((p) => ({
       ...p,
@@ -183,12 +175,14 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
     const perBox = line?.unitsPerBox ?? 0;
     const labelled = (d.boxes ?? []).filter((b) => b.serialNumber || b.assignedLetter || b.boxNumber != null);
     const count = Math.max(labelled.length, line?.boxCount ?? 0);
-    const suggested = freeLetters(pfx, existingBoxLabels, count);
+    // Continue the campus log: fill the current run of letters, then roll over.
+    const suggested = nextBoxLabels(existingBoxLabels, campus, count);
     const rows: BoxRow[] = Array.from({ length: count }, (_, i) => {
       const b = labelled[i];
       return {
         key: `${i}-${Math.random().toString(36).slice(2, 7)}`,
-        letter: (b?.assignedLetter ?? suggested[i] ?? "").toUpperCase(),
+        run: suggested[i]?.run ?? 1,
+        letter: (b?.assignedLetter ?? suggested[i]?.letter ?? "").toUpperCase(),
         boxNumber: b?.boxNumber ?? i + 1,
         serialNumber: b?.serialNumber ?? "",
         gtin: b?.gtin ?? "",
@@ -202,25 +196,29 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
   }
 
   const setBox = (key: string, patch: Partial<BoxRow>) => setBoxes((p) => p.map((b) => (b.key === key ? { ...b, ...patch } : b)));
-  const addBox = () => setBoxes((p) => [...p, {
+  const addBox = () => setBoxes((p) => {
+    const next = nextBoxLabels([...existingBoxLabels, ...p.map((b) => boxLabel(code, b.run, b.letter))], code, 1)[0];
+    return [...p, {
     key: `${p.length}-${Math.random().toString(36).slice(2, 7)}`,
-    letter: freeLetters(prefix, [...existingBoxLabels, ...p.map((b) => `${prefix}-${b.letter}`)], 1)[0] ?? "",
+    run: next?.run ?? 1,
+    letter: next?.letter ?? "",
     boxNumber: p.length + 1, serialNumber: "", gtin: "", lotNumber: p[0]?.lotNumber ?? "",
     expirationDate: p[0]?.expirationDate ?? "", expirationIsMonth: p[0]?.expirationIsMonth ?? false, units: p[0]?.units ?? 10,
-  }]);
+    }];
+  });
 
   const totalVials = boxes.reduce((n, b) => n + (Number(b.units) || 0), 0);
-  const sortedBoxes = [...boxes].sort((a, b) => a.letter.localeCompare(b.letter));
-  const firstId = sortedBoxes[0] ? `${prefix}-${sortedBoxes[0].letter}1` : "";
+  const sortedBoxes = [...boxes].sort((a, b) => a.run - b.run || a.letter.localeCompare(b.letter));
+  const firstId = sortedBoxes[0] ? `${boxLabel(code, sortedBoxes[0].run, sortedBoxes[0].letter)}1` : "";
   const lastBox = sortedBoxes[sortedBoxes.length - 1];
-  const lastId = lastBox ? `${prefix}-${lastBox.letter}${lastBox.units}` : "";
+  const lastId = lastBox ? `${boxLabel(code, lastBox.run, lastBox.letter)}${lastBox.units}` : "";
 
   const problems = useMemo(() => {
     const out: string[] = [];
-    const letters = boxes.map((b) => b.letter.toUpperCase()).filter(Boolean);
-    if (new Set(letters).size !== letters.length) out.push("Two boxes have the same letter.");
-    const clash = letters.filter((l) => existingBoxLabels.some((e) => e.toUpperCase() === `${prefix.toUpperCase()}-${l}`));
-    if (clash.length) out.push(`Box ${clash.join(", ")} already exists at this site — pick another letter.`);
+    const labels = boxes.filter((b) => b.letter).map((b) => boxLabel(code, b.run, b.letter));
+    if (new Set(labels).size !== labels.length) out.push("Two boxes have the same label.");
+    const clash = labels.filter((l) => existingBoxLabels.some((e) => e.toUpperCase() === l));
+    if (clash.length) out.push(`Box ${clash.join(", ")} already exists in this log — pick another letter.`);
     const serials = boxes.map((b) => b.serialNumber.trim()).filter(Boolean);
     if (new Set(serials).size !== serials.length) out.push("Two boxes have the same serial number — check the photo.");
     if (boxes.some((b) => !b.lotNumber.trim())) out.push("A box has no lot number.");
@@ -228,9 +226,9 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
     if (boxes.some((b) => !b.units || b.units < 1)) out.push("A box has no vial count.");
     if (header.expectedBoxCount && header.expectedBoxCount !== boxes.length) out.push(`The paperwork says ${header.expectedBoxCount} boxes; you have ${boxes.length}.`);
     return out;
-  }, [boxes, existingBoxLabels, prefix, header.expectedBoxCount]);
+  }, [boxes, existingBoxLabels, code, header.expectedBoxCount]);
 
-  const canSave = !!locationId && !!prefix && boxes.length > 0 && !!product.substanceName.trim()
+  const canSave = !!locationId && !!code && boxes.length > 0 && !!product.substanceName.trim()
     && boxes.every((b) => b.letter.trim() && b.units > 0) && !saving;
 
   return (
@@ -290,13 +288,14 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
                 <select id="sp-site" className={input} value={locationId} onChange={(e) => {
                   const l = locations.find((x) => x.id === e.target.value);
                   setLocationId(e.target.value);
-                  if (l) setPrefix(l.name.match(/[a-zA-Z]/)?.[0]?.toUpperCase() ?? prefix);
+                  if (l) setCode(logCodeForSite(l.name));
                 }}>
                   {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
-              <div><label className={label} htmlFor="sp-prefix">Box label prefix</label>
-                <input id="sp-prefix" className={`${input} uppercase`} maxLength={3} value={prefix} onChange={(e) => setPrefix(e.target.value.toUpperCase())} /></div>
+              <div><label className={label} htmlFor="sp-code">Log</label>
+                <input id="sp-code" className={`${input} font-mono uppercase`} maxLength={2} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+                <span className="text-[11px] text-muted-foreground">M = Murray, L = Lehi</span></div>
               <div><label className={label} htmlFor="sp-received">Received</label>
                 <input id="sp-received" type="date" className={input} value={header.receivedDate} onChange={(e) => setHeader((p) => ({ ...p, receivedDate: e.target.value }))} /></div>
               <div><label className={label} htmlFor="sp-supplier">Supplier</label>
@@ -355,8 +354,8 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
                       <tr key={b.key}>
                         <td className="px-2 py-1.5">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">{prefix}-</span>
-                            <input aria-label="Box letter" className={`${input} w-14 font-mono uppercase`} maxLength={2} value={b.letter} onChange={(e) => setBox(b.key, { letter: e.target.value.toUpperCase() })} />
+                            <span className="font-mono text-xs text-muted-foreground">{code}{b.run}</span>
+                            <input aria-label="Box letter" className={`${input} w-14 font-mono uppercase`} maxLength={1} value={b.letter} onChange={(e) => setBox(b.key, { letter: e.target.value.toUpperCase() })} />
                           </div>
                           {b.boxNumber != null && <span className="text-[11px] text-muted-foreground">written on the box as {b.boxNumber}</span>}
                         </td>
@@ -364,7 +363,7 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
                         <td className="px-2 py-1.5"><input aria-label="Lot" className={`${input} w-28 font-mono`} value={b.lotNumber} onChange={(e) => setBox(b.key, { lotNumber: e.target.value })} /></td>
                         <td className="px-2 py-1.5"><input aria-label="Expiry" type="date" className={`${input} w-36`} value={b.expirationDate} onChange={(e) => setBox(b.key, { expirationDate: e.target.value, expirationIsMonth: false })} /></td>
                         <td className="px-2 py-1.5"><input aria-label="Serial number" className={`${input} w-44 font-mono`} value={b.serialNumber} onChange={(e) => setBox(b.key, { serialNumber: e.target.value })} /></td>
-                        <td className="px-2 py-1.5 whitespace-nowrap font-mono text-xs text-muted-foreground">{b.letter ? `${prefix}-${b.letter}1–${b.units}` : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap font-mono text-xs text-muted-foreground">{b.letter ? `${boxLabel(code, b.run, b.letter)}1–${b.units}` : "—"}</td>
                         <td className="px-2 py-1.5"><button aria-label="Remove box" onClick={() => setBoxes((p) => p.filter((x) => x.key !== b.key))} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
                       </tr>
                     ))}
@@ -390,7 +389,7 @@ export function ShipmentDialog({ locations, existingBoxLabels, saving, onClose, 
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button onClick={() => onSave({ files: files.map((f) => f.file), extracted, locationId, prefix, header, product, boxes })} disabled={!canSave}>
+            <Button onClick={() => onSave({ files: files.map((f) => f.file), extracted, locationId, code, header, product, boxes })} disabled={!canSave}>
               {saving ? <Loader2 className="animate-spin" /> : <PackageCheck />} Log shipment
             </Button>
           </div>

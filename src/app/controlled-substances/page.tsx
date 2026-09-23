@@ -15,6 +15,7 @@ import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
 import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-substances/shipment-dialog";
+import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
 import { deaRecordTypes } from "@/lib/data/schema";
@@ -56,24 +57,7 @@ const EVENT_LABEL: Record<CSEventType, string> = {
 /* ── bottle-ID scheme: <location prefix>-<box letter><bottle #>, e.g. L-A1 …
    L-A25. A "box" groups the bottles that arrived together; the box label is the
    bottle ID with the trailing number stripped (L-A1 → box L-A). ── */
-function boxOf(containerLabel?: string): string {
-  const l = (containerLabel ?? "").trim();
-  return l ? l.replace(/\d+$/, "") : "";
-}
-function firstAlpha(name: string): string {
-  const m = (name ?? "").match(/[a-zA-Z]/);
-  return (m?.[0] ?? "").toUpperCase();
-}
-/** Suggest the next unused box letter (A, B, …) for a location prefix. */
-function nextBoxLetter(prefix: string, existingBoxLabels: string[]): string {
-  const used = new Set(
-    existingBoxLabels
-      .filter((b) => b.toUpperCase().startsWith(`${prefix.toUpperCase()}-`))
-      .map((b) => b.slice(prefix.length + 1).toUpperCase()),
-  );
-  for (let c = 65; c <= 90; c++) { const ch = String.fromCharCode(c); if (!used.has(ch)) return ch; }
-  return "";
-}
+const boxOf = boxOfVial;
 // Events staff pick when adding to a bottle (receive is done via "Receive delivery").
 const ADD_EVENT_TYPES: CSEventType[] = ["transfer_to_safe", "assign_to_staff", "return_to_safe", "administer", "waste", "destroy", "count", "adjust"];
 const QTY_EVENTS: CSEventType[] = ["administer", "waste", "adjust"];
@@ -113,10 +97,11 @@ function ReceiveDialog({ locations, existingBoxLabels, onClose, onSave, saving }
   saving: boolean;
 }) {
   const initLoc = locations[0];
-  const initPrefix = firstAlpha(initLoc?.name ?? "");
+  const initCode = logCodeForSite(initLoc?.name);
+  const initNext = nextBoxLabels(existingBoxLabels, initCode, 1)[0];
   const [f, setF] = useState<ReceiveForm>({
     substanceName: "Ketamine HCl", scheduleClass: "III", strength: "", ndc: "", lotNumber: "", expirationDate: "",
-    locationPrefix: initPrefix, boxLetter: nextBoxLetter(initPrefix, existingBoxLabels), bottleCount: "10", startNumber: "1",
+    locationPrefix: initCode, boxRun: initNext?.run ?? 1, boxLetter: initNext?.letter ?? "A", bottleCount: "10", startNumber: "1",
     quantity: "", quantityUnit: "mL", supplierName: "", orderReference: "",
     locationId: initLoc?.id ?? "", receivedDate: todayInput(),
   });
@@ -124,18 +109,19 @@ function ReceiveDialog({ locations, existingBoxLabels, onClose, onSave, saving }
   const [extracting, setExtracting] = useState(false);
   const set = (k: keyof ReceiveForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
 
-  // Picking a clinic auto-fills its letter prefix and the next free box letter.
+  // Picking a clinic selects its campus log and the next free box in it.
   function selectLocation(id: string) {
     const name = locations.find((l) => l.id === id)?.name ?? "";
-    const prefix = firstAlpha(name) || f.locationPrefix;
-    setF((p) => ({ ...p, locationId: id, locationPrefix: prefix, boxLetter: nextBoxLetter(prefix, existingBoxLabels) }));
+    const c = logCodeForSite(name) || f.locationPrefix;
+    const next = nextBoxLabels(existingBoxLabels, c, 1)[0];
+    setF((p) => ({ ...p, locationId: id, locationPrefix: c, boxRun: next?.run ?? p.boxRun, boxLetter: next?.letter ?? p.boxLetter }));
   }
 
   const prefix = f.locationPrefix.trim().toUpperCase();
   const letter = f.boxLetter.trim().toUpperCase();
   const count = Math.max(0, Math.min(50, Math.floor(Number(f.bottleCount) || 0)));
   const start = Math.max(1, Math.floor(Number(f.startNumber) || 1));
-  const boxLabel = prefix && letter ? `${prefix}-${letter}` : "";
+  const boxLabel = prefix && letter ? csBoxLabel(prefix, f.boxRun, letter) : "";
   const firstId = boxLabel ? `${boxLabel}${start}` : "";
   const lastId = boxLabel && count > 0 ? `${boxLabel}${start + count - 1}` : "";
   const canSave = !!f.substanceName.trim() && !!f.quantity.trim() && Number(f.quantity) > 0 && !!prefix && !!letter && count >= 1;
@@ -200,17 +186,21 @@ function ReceiveDialog({ locations, existingBoxLabels, onClose, onSave, saving }
             <input className="input w-full" value={f.quantityUnit} onChange={set("quantityUnit")} placeholder="mL, mg, vials" />
           </div>
 
-          {/* Bottle-ID scheme: <clinic letter>-<box letter><n>, e.g. L-A1 … L-A25 */}
+          {/* Vial-ID scheme: <campus><run><box letter><n>, e.g. M1A1 … M1A10. The
+              run rolls over at Z (M1Z → M2A) so the log never runs out of labels. */}
           <div className="space-y-1.5 rounded-lg border border-border bg-secondary/20 p-3 sm:col-span-2">
             <p className="flex items-center gap-1.5 text-sm font-medium"><Boxes className="size-4 text-primary" /> Box &amp; bottle labels</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Clinic prefix</label>
-                <input className="input w-full uppercase" maxLength={3} value={f.locationPrefix} onChange={set("locationPrefix")} placeholder="L" />
+                <label className="text-xs text-muted-foreground">Log</label>
+                <input className="input w-full font-mono uppercase" maxLength={2} value={f.locationPrefix} onChange={set("locationPrefix")} placeholder="M" title="M = Murray, L = Lehi" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Box letter</label>
-                <input className="input w-full uppercase" maxLength={2} value={f.boxLetter} onChange={set("boxLetter")} placeholder="A" />
+                <label className="text-xs text-muted-foreground">Box</label>
+                <div className="flex gap-1">
+                  <input type="number" min={1} aria-label="Run" className="input w-14" value={f.boxRun} onChange={(e) => setF((p) => ({ ...p, boxRun: Math.max(1, Number(e.target.value) || 1) }))} />
+                  <input aria-label="Box letter" className="input w-full font-mono uppercase" maxLength={1} value={f.boxLetter} onChange={set("boxLetter")} placeholder="A" />
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground"># of bottles</label>
@@ -224,7 +214,7 @@ function ReceiveDialog({ locations, existingBoxLabels, onClose, onSave, saving }
             <p className="text-xs text-muted-foreground">
               {firstId && lastId
                 ? <>Creates <span className="font-mono font-medium text-foreground">{count}</span> bottles: <span className="font-mono font-medium text-foreground">{firstId}</span>{count > 1 && <> … <span className="font-mono font-medium text-foreground">{lastId}</span></>}. Label each physical bottle with its ID and hand them out in order.</>
-                : "Enter a clinic prefix and box letter to generate bottle IDs."}
+                : "Pick the log and a box letter to generate vial IDs."}
             </p>
           </div>
           <div className="space-y-1.5">
@@ -280,7 +270,7 @@ function ReceiveDialog({ locations, existingBoxLabels, onClose, onSave, saving }
 }
 interface ReceiveForm {
   substanceName: string; scheduleClass: Schedule; strength: string; ndc: string; lotNumber: string;
-  expirationDate: string; locationPrefix: string; boxLetter: string; bottleCount: string; startNumber: string;
+  expirationDate: string; locationPrefix: string; boxRun: number; boxLetter: string; bottleCount: string; startNumber: string;
   quantity: string; quantityUnit: string;
   supplierName: string; orderReference: string; locationId: string; receivedDate: string;
 }
@@ -766,9 +756,9 @@ export default function ControlledSubstancesPage() {
       const perQty = Number(d.quantity) || 0;
       const prefix = d.locationPrefix.trim().toUpperCase();
       const letter = d.boxLetter.trim().toUpperCase();
+      const label = csBoxLabel(prefix, d.boxRun, letter);
       const count = Math.max(1, Math.min(50, Math.floor(Number(d.bottleCount) || 1)));
       const start = Math.max(1, Math.floor(Number(d.startNumber) || 1));
-      const boxLabel = `${prefix}-${letter}`;
       const receivedDate = d.receivedDate ? dateInputToISO(d.receivedDate) : new Date().toISOString();
       const shared = {
         substanceName: d.substanceName.trim(), scheduleClass: d.scheduleClass, strength: d.strength.trim() || undefined,
@@ -781,7 +771,7 @@ export default function ControlledSubstancesPage() {
       await Promise.all(Array.from({ length: count }, (_, i) => start + i).map(async (n) => {
         const item = await createItem.mutateAsync({
           ...shared,
-          containerLabel: `${boxLabel}${n}`,
+          containerLabel: vialId(label, n),
           initialQuantity: perQty, currentQuantity: perQty, state: "in_primary_safe",
           hasDiscrepancy: false,
         });
@@ -792,10 +782,10 @@ export default function ControlledSubstancesPage() {
         });
       }));
       toast.success(count > 1
-        ? `Logged box ${boxLabel}: ${count} bottles (${boxLabel}${start}–${boxLabel}${start + count - 1})`
-        : `Logged bottle ${boxLabel}${start}`);
+        ? `Logged box ${label}: ${count} bottles (${vialId(label, start)}–${vialId(label, start + count - 1)})`
+        : `Logged bottle ${vialId(label, start)}`);
       setReceiving(false);
-      setSearch(boxLabel);
+      setSearch(label);
     } catch { toast.error("Couldn't log the box."); }
     finally { setSaving(false); }
   }
@@ -848,10 +838,10 @@ export default function ControlledSubstancesPage() {
 
       const perVial = Number(p.product.unitVolume) || 0;
       for (const b of p.boxes) {
-        const boxLabel = `${p.prefix}-${b.letter}`.toUpperCase();
+        const label = csBoxLabel(p.code, b.run, b.letter);
         const box = await createBox.mutateAsync({
           manifestId: manifest.id,
-          label: boxLabel,
+          label,
           boxNumber: b.boxNumber,
           substanceName: p.product.substanceName.trim() || null,
           ndc: p.product.ndc.trim() || null,
@@ -874,7 +864,7 @@ export default function ControlledSubstancesPage() {
             ndc: p.product.ndc.trim() || undefined,
             lotNumber: b.lotNumber.trim() || undefined,
             expirationDate: b.expirationDate ? dateInputToISO(b.expirationDate) : null,
-            containerLabel: `${boxLabel}${n}`,
+            containerLabel: vialId(label, n),
             strength: p.product.strengthPerUnit.trim() || undefined,
             quantityUnit: p.product.unitVolumeUom.trim() || "mL",
             initialQuantity: perVial, currentQuantity: perVial,
@@ -898,7 +888,7 @@ export default function ControlledSubstancesPage() {
 
       toast.success(`Logged ${p.boxes.length} box${p.boxes.length === 1 ? "" : "es"} — ${vialsLogged} vials${mismatch ? " (count doesn't match the paperwork — flagged)" : ""}.`);
       setReceivingShipment(false);
-      setSearch(`${p.prefix}-`);
+      setSearch(p.code);
     } catch (e) {
       toast.error(`Couldn't log the shipment: ${e instanceof Error ? e.message : "error"}`);
     } finally { setSaving(false); }
