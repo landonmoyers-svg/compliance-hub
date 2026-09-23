@@ -1,30 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>Compliance Hub</title>
+    <title>Lone Peak Compliance</title>
     <link>https://compliance-hub-lone-peak.vercel.app/appcast.xml</link>
-    <description>Automatic updates for the Compliance Hub desktop app.</description>
+    <description>Automatic updates for the Lone Peak Compliance desktop app.</description>
     <language>en</language>
     <item>
-      <title>Version 1.1</title>
-      <pubDate>Wed, 05 Aug 2026 12:28:28 -0600</pubDate>
-      <sparkle:version>2</sparkle:version>
-      <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
+      <title>Version 1.2</title>
+      <pubDate>Wed, 23 Sep 2026 17:25:51 -0600</pubDate>
+      <sparkle:version>3</sparkle:version>
+      <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[
-        <h2>Automatic updates</h2>
-        <ul>
-          <li>The app now checks for new versions and can install them in place — no more manual download &amp; reinstall.</li>
-          <li>Latest inventory tax tools (full Utah Pub&nbsp;20 class coverage) and all recent web features load automatically.</li>
-        </ul>
-      ]]></description>
+      <description><![CDATA[ <p>Lone Peak Compliance 1.2 is available.</p> ]]></description>
       <enclosure
-        url="https://compliance-hub-lone-peak.vercel.app/downloads/Compliance-Hub-1.1.zip"
-        sparkle:version="2"
-        sparkle:shortVersionString="1.1"
-        length="1108725"
+        url="https://compliance-hub-lone-peak.vercel.app/downloads/Lone-Peak-Compliance-1.2.zip"
+        sparkle:version="3"
+        sparkle:shortVersionString="1.2"
+        length="1272317"
         type="application/octet-stream"
-        sparkle:edSignature="+gitJd85zSu1LfV3AfhEROV99SDk/2l4ja2+brEvpMTSQ1tLucZ8uYKdfTX7bk6Nrk3NQPFMvJnuMBrP9829Cg==" />
+        sparkle:edSignature="1/WET/+gCS2QLqerpLAkwaATnwIT8c9nW3PNHOpTHry8jHsLYaWTcs88+99Jsx5FMuiTytjLQwKeWthmFE2cCA==" />
     </item>
   </channel>
 </rss>
