@@ -1787,6 +1787,9 @@ export const ControlledSubstanceItem = z.object({
   orderReference: z.string().optional(),      // PO / DEA 222 / CSOS reference
   supplierName: z.string().optional(),
   hasDiscrepancy: z.boolean().default(false),
+  /** The delivery and the sealed box this vial came out of, when known. */
+  manifestId: z.string().nullable().optional(),
+  boxId: z.string().nullable().optional(),
   notes: z.string().optional(),
 });
 export type ControlledSubstanceItem = z.infer<typeof ControlledSubstanceItem>;
@@ -2019,3 +2022,62 @@ export const EmergencyAudioLog = z.object({
   details: z.string().nullable().optional(),
 });
 export type EmergencyAudioLog = z.infer<typeof EmergencyAudioLog>;
+
+/* ------------------- controlled substances: shipments ------------------- */
+// A delivery arrives as ONE manifest (packing slip / invoice / DEA 222)
+// covering several sealed BOXES, each with a DSCSA label (GTIN, serial, lot,
+// expiry) and N vials inside. Those two levels sit above the vial-level
+// custody records in ControlledSubstanceItem.
+
+export const CsManifest = z.object({
+  ...base,
+  supplierName: z.string().nullable().optional(),
+  supplierDea: z.string().nullable().optional(),
+  customerDea: z.string().nullable().optional(),
+  shipToName: z.string().nullable().optional(),
+  shipToAddress: z.string().nullable().optional(),
+  poNumber: z.string().nullable().optional(),
+  orderNumber: z.string().nullable().optional(),
+  packingSlipNumber: z.string().nullable().optional(),
+  orderDate: z.string().nullable().optional(),
+  receivedDate: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  receivedByName: z.string().nullable().optional(),
+  receivedByUserId: z.string().nullable().optional(),
+  /** Photos/PDFs this was read from (storage paths). */
+  documentUrls: z.array(z.string()),
+  /** What the AI returned, kept verbatim next to what was actually saved. */
+  extracted: z.unknown().nullable().optional(),
+  aiConfidence: z.string().nullable().optional(),
+  expectedBoxCount: z.number().nullable().optional(),
+  expectedUnitCount: z.number().nullable().optional(),
+  discrepancy: z.boolean(),
+  discrepancyNote: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CsManifest = z.infer<typeof CsManifest>;
+
+export const CsBox = z.object({
+  ...base,
+  manifestId: z.string().nullable().optional(),
+  /** The practice's own box label, e.g. "M-A". */
+  label: z.string(),
+  /** As written on the box ("1" in "1 = A"). */
+  boxNumber: z.number().nullable().optional(),
+  substanceName: z.string().nullable().optional(),
+  ndc: z.string().nullable().optional(),
+  gtin: z.string().nullable().optional(),
+  serialNumber: z.string().nullable().optional(),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  /** The label gave a month ("2028/05"); the date is that month's last day. */
+  expirationIsMonth: z.boolean(),
+  unitCount: z.number(),
+  unitVolume: z.number().nullable().optional(),
+  unitVolumeUom: z.string().nullable().optional(),
+  strengthPerUnit: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  opened: z.boolean(),
+  notes: z.string().nullable().optional(),
+});
+export type CsBox = z.infer<typeof CsBox>;

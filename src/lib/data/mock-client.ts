@@ -157,5 +157,7 @@ export function createMockDataClient(): DataClient {
     emergencyResponderProfiles: new MemoryCollection(seed.emergencyResponderProfiles),
     emergencyLocationRoles: new MemoryCollection(seed.emergencyLocationRoles),
     emergencyAudioLog: new MemoryCollection(seed.emergencyAudioLog),
+    csManifests: new MemoryCollection(seed.csManifests),
+    csBoxes: new MemoryCollection(seed.csBoxes),
   };
 }

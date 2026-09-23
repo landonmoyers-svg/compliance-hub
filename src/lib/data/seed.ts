@@ -211,5 +211,7 @@ export function buildSeed(): SeedData {
     emergencyResponderProfiles: [],
     emergencyLocationRoles: [],
     emergencyAudioLog: [],
+    csManifests: [],
+    csBoxes: [],
   };
 }

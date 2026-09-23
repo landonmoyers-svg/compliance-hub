@@ -9,6 +9,8 @@
 
 import type {
   AssistanceRequest,
+  CsBox,
+  CsManifest,
   EmergencyAudioLog,
   EmergencyCode,
   EmergencyIncident,
@@ -161,4 +163,50 @@ export const emergencyAudioLogMap = mapper<EmergencyAudioLog>([
   ["clipCount", "clip_count"],
   ["deviceLabel", "device_label"],
   ["details", "details"],
+]);
+
+/* Controlled-substance shipments — same one-list-per-table pattern. */
+
+export const csManifestMap = mapper<CsManifest>([
+  ["supplierName", "supplier_name"],
+  ["supplierDea", "supplier_dea"],
+  ["customerDea", "customer_dea"],
+  ["shipToName", "ship_to_name"],
+  ["shipToAddress", "ship_to_address"],
+  ["poNumber", "po_number"],
+  ["orderNumber", "order_number"],
+  ["packingSlipNumber", "packing_slip_number"],
+  ["orderDate", "order_date"],
+  ["receivedDate", "received_date"],
+  ["locationId", "location_id"],
+  ["receivedByName", "received_by_name"],
+  ["receivedByUserId", "received_by_user_id"],
+  ["documentUrls", "document_urls", []],
+  ["extracted", "extracted"],
+  ["aiConfidence", "ai_confidence"],
+  ["expectedBoxCount", "expected_box_count"],
+  ["expectedUnitCount", "expected_unit_count"],
+  ["discrepancy", "discrepancy", false],
+  ["discrepancyNote", "discrepancy_note"],
+  ["notes", "notes"],
+]);
+
+export const csBoxMap = mapper<CsBox>([
+  ["manifestId", "manifest_id"],
+  ["label", "label"],
+  ["boxNumber", "box_number"],
+  ["substanceName", "substance_name"],
+  ["ndc", "ndc"],
+  ["gtin", "gtin"],
+  ["serialNumber", "serial_number"],
+  ["lotNumber", "lot_number"],
+  ["expirationDate", "expiration_date"],
+  ["expirationIsMonth", "expiration_is_month", false],
+  ["unitCount", "unit_count", 0],
+  ["unitVolume", "unit_volume"],
+  ["unitVolumeUom", "unit_volume_uom"],
+  ["strengthPerUnit", "strength_per_unit"],
+  ["locationId", "location_id"],
+  ["opened", "opened", false],
+  ["notes", "notes"],
 ]);

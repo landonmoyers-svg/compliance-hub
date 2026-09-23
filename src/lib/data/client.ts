@@ -8,6 +8,8 @@ import type {
   EmergencyResponse,
   EmergencySiteSettings,
   AuditLog,
+  CsBox,
+  CsManifest,
   Benefit,
   ChatMessage,
   SopRegulationLink,
@@ -187,6 +189,8 @@ export interface DataClient {
   emergencyResponderProfiles: Collection<EmergencyResponderProfile>;
   emergencyLocationRoles: Collection<EmergencyLocationRole>;
   emergencyAudioLog: Collection<EmergencyAudioLog>;
+  csManifests: Collection<CsManifest>;
+  csBoxes: Collection<CsBox>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

@@ -20,6 +20,8 @@ import {
   emergencyResponderProfileMap,
   emergencyResponseMap,
   emergencySiteSettingsMap,
+  csManifestMap,
+  csBoxMap,
 } from "./emergency-mappers";
 import type {
   AuditLog,
@@ -2282,6 +2284,8 @@ function csItemFrom(r: Record<string, unknown>): ControlledSubstanceItem {
     orderReference: r.order_reference as string | undefined,
     supplierName: r.supplier_name as string | undefined,
     hasDiscrepancy: (r.has_discrepancy as boolean) ?? false,
+    manifestId: r.manifest_id as string | undefined,
+    boxId: r.box_id as string | undefined,
     notes: r.notes as string | undefined,
   };
 }
@@ -2305,6 +2309,8 @@ function csItemTo(d: Partial<ControlledSubstanceItem>) {
     ...(d.orderReference !== undefined && { order_reference: d.orderReference }),
     ...(d.supplierName !== undefined && { supplier_name: d.supplierName }),
     ...(d.hasDiscrepancy !== undefined && { has_discrepancy: d.hasDiscrepancy }),
+    ...(d.manifestId !== undefined && { manifest_id: d.manifestId }),
+    ...(d.boxId !== undefined && { box_id: d.boxId }),
     ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
@@ -2596,5 +2602,7 @@ export function createSupabaseDataClient(): DataClient {
     emergencyResponderProfiles: makeCollection(supabase, "emergency_responder_profiles", emergencyResponderProfileMap.from, emergencyResponderProfileMap.to),
     emergencyLocationRoles: makeCollection(supabase, "emergency_location_roles", emergencyLocationRoleMap.from, emergencyLocationRoleMap.to),
     emergencyAudioLog:  makeCollection(supabase, "emergency_audio_log",  emergencyAudioLogMap.from,   emergencyAudioLogMap.to),
+    csManifests:        makeCollection(supabase, "cs_manifests",        csManifestMap.from,          csManifestMap.to),
+    csBoxes:            makeCollection(supabase, "cs_boxes",            csBoxMap.from,               csBoxMap.to),
   };
 }

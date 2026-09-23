@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldAlert, Plus, Search, X, Upload, AlertTriangle, ArrowLeft, Package, UserCheck, FlaskConical, Sparkles, CheckCircle2, Boxes, ClipboardCheck } from "lucide-react";
+import { ShieldAlert, Plus, Search, X, Upload, AlertTriangle, ArrowLeft, Package, UserCheck, FlaskConical, Sparkles, CheckCircle2, Boxes, ClipboardCheck, PackageCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection, useCreate, useUpdate } from "@/lib/data/hooks";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,8 +14,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { FileLink } from "@/components/shared/file-link";
 import { uploadFile } from "@/lib/storage";
+import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-substances/shipment-dialog";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
-import type { ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
+import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecord, DeaRecordType } from "@/lib/data/schema";
 import { deaRecordTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -696,11 +697,18 @@ export default function ControlledSubstancesPage() {
   const createItem = useCreate("controlledSubstanceItems");
   const updateItem = useUpdate("controlledSubstanceItems");
   const createEvent = useCreate("controlledSubstanceEvents");
+  const manifestsQ = useCollection("csManifests");
+  const boxesQ = useCollection("csBoxes");
+  const manifests = useMemo(() => [...(manifestsQ.data ?? [])].sort((a, b) => (b.receivedDate ?? b.createdDate).localeCompare(a.receivedDate ?? a.createdDate)), [manifestsQ.data]);
+  const boxes = useMemo(() => boxesQ.data ?? [], [boxesQ.data]);
+  const createManifest = useCreate("csManifests");
+  const createBox = useCreate("csBoxes");
   const updateEvent = useUpdate("controlledSubstanceEvents");
   const createCapa = useCreate("correctiveActions");
 
   const [search, setSearch] = useState("");
   const [receiving, setReceiving] = useState(false);
+  const [receivingShipment, setReceivingShipment] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [addingDea, setAddingDea] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -790,6 +798,110 @@ export default function ControlledSubstancesPage() {
       setSearch(boxLabel);
     } catch { toast.error("Couldn't log the box."); }
     finally { setSaving(false); }
+  }
+
+  /**
+   * Log a whole delivery: one manifest (its photos and paperwork), a record per
+   * sealed box (serial number, lot, expiry), and a tracked vial inside each box
+   * with its own chain of custody. Everything carries the manifest id, so the
+   * delivery can be seen as one thing afterwards.
+   */
+  async function receiveShipment(p: ShipmentPayload) {
+    setSaving(true);
+    try {
+      const documentUrls: string[] = [];
+      for (const f of p.files) {
+        try { documentUrls.push(await uploadFile(f, "controlled-substances")); }
+        catch { toast.error(`Couldn't upload ${f.name} — logging without it.`); }
+      }
+      const receivedDate = p.header.receivedDate ? dateInputToISO(p.header.receivedDate) : new Date().toISOString();
+      const vialsLogged = p.boxes.reduce((n, b) => n + b.units, 0);
+      const expectedUnits = p.header.expectedUnitCount ?? null;
+      const mismatch = (p.header.expectedBoxCount != null && p.header.expectedBoxCount !== p.boxes.length)
+        || (expectedUnits != null && expectedUnits !== vialsLogged);
+
+      const manifest = await createManifest.mutateAsync({
+        supplierName: p.header.supplierName.trim() || null,
+        supplierDea: p.header.supplierDea.trim() || null,
+        customerDea: p.header.customerDea.trim() || null,
+        shipToName: p.header.shipToName.trim() || null,
+        shipToAddress: p.header.shipToAddress.trim() || null,
+        poNumber: p.header.poNumber.trim() || null,
+        orderNumber: p.header.orderNumber.trim() || null,
+        packingSlipNumber: p.header.packingSlipNumber.trim() || null,
+        orderDate: p.header.orderDate || null,
+        receivedDate: p.header.receivedDate || null,
+        locationId: p.locationId || null,
+        receivedByName: profile?.fullName ?? null,
+        receivedByUserId: profile?.userId ?? null,
+        documentUrls,
+        extracted: p.extracted ?? null,
+        aiConfidence: p.extracted?.confidence ?? null,
+        expectedBoxCount: p.header.expectedBoxCount,
+        expectedUnitCount: expectedUnits,
+        discrepancy: mismatch,
+        discrepancyNote: mismatch
+          ? `Paperwork: ${p.header.expectedBoxCount ?? "?"} boxes / ${expectedUnits ?? "?"} vials. Logged: ${p.boxes.length} boxes / ${vialsLogged} vials.`
+          : null,
+        notes: p.header.notes.trim() || null,
+      });
+
+      const perVial = Number(p.product.unitVolume) || 0;
+      for (const b of p.boxes) {
+        const boxLabel = `${p.prefix}-${b.letter}`.toUpperCase();
+        const box = await createBox.mutateAsync({
+          manifestId: manifest.id,
+          label: boxLabel,
+          boxNumber: b.boxNumber,
+          substanceName: p.product.substanceName.trim() || null,
+          ndc: p.product.ndc.trim() || null,
+          gtin: b.gtin.trim() || null,
+          serialNumber: b.serialNumber.trim() || null,
+          lotNumber: b.lotNumber.trim() || null,
+          expirationDate: b.expirationDate || null,
+          expirationIsMonth: b.expirationIsMonth,
+          unitCount: b.units,
+          unitVolume: perVial || null,
+          unitVolumeUom: p.product.unitVolumeUom.trim() || null,
+          strengthPerUnit: p.product.strengthPerUnit.trim() || null,
+          locationId: p.locationId || null,
+          opened: false,
+        });
+        await Promise.all(Array.from({ length: b.units }, (_, i) => i + 1).map(async (n) => {
+          const item = await createItem.mutateAsync({
+            substanceName: p.product.substanceName.trim(),
+            scheduleClass: p.product.scheduleClass,
+            ndc: p.product.ndc.trim() || undefined,
+            lotNumber: b.lotNumber.trim() || undefined,
+            expirationDate: b.expirationDate ? dateInputToISO(b.expirationDate) : null,
+            containerLabel: `${boxLabel}${n}`,
+            strength: p.product.strengthPerUnit.trim() || undefined,
+            quantityUnit: p.product.unitVolumeUom.trim() || "mL",
+            initialQuantity: perVial, currentQuantity: perVial,
+            state: "in_primary_safe",
+            locationId: p.locationId || null,
+            receivedDate,
+            orderReference: (p.header.poNumber || p.header.packingSlipNumber).trim() || undefined,
+            supplierName: p.header.supplierName.trim() || undefined,
+            hasDiscrepancy: false,
+            manifestId: manifest.id,
+            boxId: box.id,
+          });
+          await createEvent.mutateAsync({
+            itemId: item.id, eventType: "receive", eventDate: receivedDate,
+            quantity: perVial, balanceAfter: perVial,
+            performedByName: profile?.fullName || undefined, performedByUserId: profile?.userId || null,
+            documentUrl: documentUrls[0] ?? null, discrepancy: false,
+          });
+        }));
+      }
+
+      toast.success(`Logged ${p.boxes.length} box${p.boxes.length === 1 ? "" : "es"} — ${vialsLogged} vials${mismatch ? " (count doesn't match the paperwork — flagged)" : ""}.`);
+      setReceivingShipment(false);
+      setSearch(`${p.prefix}-`);
+    } catch (e) {
+      toast.error(`Couldn't log the shipment: ${e instanceof Error ? e.message : "error"}`);
+    } finally { setSaving(false); }
   }
 
   // Bulk hand-off: move selected in-stock bottles into a provider's custody,
@@ -1040,16 +1152,18 @@ export default function ControlledSubstancesPage() {
   /* ── bottle list ── */
   return (
     <div className="space-y-6">
+      {receivingShipment && <ShipmentDialog locations={locations} existingBoxLabels={existingBoxLabels} saving={saving} onClose={() => setReceivingShipment(false)} onSave={receiveShipment} />}
       {receiving && <ReceiveDialog locations={locations} existingBoxLabels={existingBoxLabels} onClose={() => setReceiving(false)} onSave={receiveBox} saving={saving} />}
       {checkingOut && <CheckoutDialog bottles={availableBottles} staff={staff} onClose={() => setCheckingOut(false)} onSave={checkoutBottles} saving={saving} />}
       {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
       <PageHeader
         title="Controlled Substances"
-        description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Receive a box to mint bottle IDs (e.g. L-A1–L-A25), check them out to providers, and track every dose against its bottle."
+        description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Photograph a delivery's paperwork and boxes to log the whole shipment at once, check bottles out to providers, and track every dose against its bottle."
         actions={<div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAddingDea(true)}><Plus className="size-4" /> DEA record</Button>
           <Button variant="outline" onClick={() => setCheckingOut(true)} disabled={availableBottles.length === 0}><ClipboardCheck className="size-4" /> Check out to provider</Button>
-          <Button onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive box</Button>
+          <Button onClick={() => setReceivingShipment(true)}><PackageCheck className="size-4" /> Receive shipment</Button>
+          <Button variant="outline" onClick={() => setReceiving(true)}><Plus className="size-4" /> Receive one box</Button>
         </div>}
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1058,6 +1172,8 @@ export default function ControlledSubstancesPage() {
         <StatCard label="Discrepancies" value={stats.discrepancies} icon={AlertTriangle} tone={stats.discrepancies ? "destructive" : "success"} loading={loading} />
         <StatCard label="Expired on hand" value={stats.expiring} icon={ShieldAlert} tone={stats.expiring ? "warning" : "default"} loading={loading} />
       </div>
+      <ShipmentsPanel manifests={manifests} boxes={boxes} items={items} locations={locations} onSearchBox={setSearch} />
+
       <Card>
         <CardHeader>
           <div className="relative max-w-sm">
@@ -1160,5 +1276,92 @@ export default function ControlledSubstancesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/* ───────────────────────── shipments (manifests) ───────────────────────── */
+
+/**
+ * Deliveries, newest first: the paperwork, the boxes it brought, and how much
+ * of each box is left. This is what ties boxes received together back to the
+ * one manifest they arrived on.
+ */
+function ShipmentsPanel({ manifests, boxes, items, locations, onSearchBox }: {
+  manifests: CsManifest[];
+  boxes: CsBox[];
+  items: ControlledSubstanceItem[];
+  locations: { id: string; name: string }[];
+  onSearchBox: (q: string) => void;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  if (manifests.length === 0) return null;
+  const siteName = (id?: string | null) => locations.find((l) => l.id === id)?.name ?? "—";
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><PackageCheck className="size-4 text-primary" /> Deliveries</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        {manifests.slice(0, 10).map((m) => {
+          const mBoxes = boxes.filter((b) => b.manifestId === m.id).sort((a, b) => (a.boxNumber ?? 0) - (b.boxNumber ?? 0));
+          const vials = items.filter((i) => i.manifestId === m.id);
+          const remaining = vials.filter((i) => !CLOSED_STATES.includes(i.state)).length;
+          const isOpen = openId === m.id;
+          return (
+            <div key={m.id} className="rounded-lg border border-border">
+              <button className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left text-sm" onClick={() => setOpenId(isOpen ? null : m.id)} aria-expanded={isOpen}>
+                <span className="font-medium">{m.supplierName ?? "Delivery"}</span>
+                {m.packingSlipNumber && <span className="font-mono text-xs text-muted-foreground">#{m.packingSlipNumber}</span>}
+                <span className="text-muted-foreground">{siteName(m.locationId)}</span>
+                <Badge variant="secondary">{mBoxes.length} box{mBoxes.length === 1 ? "" : "es"}</Badge>
+                <Badge variant={remaining ? "outline" : "secondary"}>{remaining} of {vials.length} vials left</Badge>
+                {m.discrepancy && <Badge variant="destructive"><AlertTriangle className="size-3" /> count mismatch</Badge>}
+                <span className="ml-auto text-xs text-muted-foreground">{m.receivedDate ? formatDate(m.receivedDate) : formatDate(m.createdDate)}</span>
+              </button>
+              {isOpen && (
+                <div className="space-y-3 border-t border-border p-3 text-sm">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                    {m.poNumber && <span>PO {m.poNumber}</span>}
+                    {m.orderNumber && <span>Order {m.orderNumber}</span>}
+                    {m.supplierDea && <span>Supplier DEA {m.supplierDea}</span>}
+                    {m.customerDea && <span>Our DEA {m.customerDea}</span>}
+                    {m.receivedByName && <span>Received by {m.receivedByName}</span>}
+                  </div>
+                  {m.discrepancyNote && <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs">{m.discrepancyNote}</p>}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-left text-muted-foreground">
+                        <tr><th className="py-1 pr-3">Box</th><th className="py-1 pr-3">Lot</th><th className="py-1 pr-3">Expiry</th><th className="py-1 pr-3">Serial</th><th className="py-1 pr-3">Vials left</th><th /></tr>
+                      </thead>
+                      <tbody>
+                        {mBoxes.map((b) => {
+                          const inBox = items.filter((i) => i.boxId === b.id);
+                          const left = inBox.filter((i) => !CLOSED_STATES.includes(i.state)).length;
+                          return (
+                            <tr key={b.id} className="border-t border-border/50">
+                              <td className="py-1.5 pr-3 font-mono font-medium">{b.label}</td>
+                              <td className="py-1.5 pr-3 font-mono">{b.lotNumber ?? "—"}</td>
+                              <td className="py-1.5 pr-3">{b.expirationDate ? formatDate(b.expirationDate) : <span className="text-warning">not recorded</span>}</td>
+                              <td className="py-1.5 pr-3 font-mono text-muted-foreground">{b.serialNumber ?? "—"}</td>
+                              <td className="py-1.5 pr-3">{left} of {inBox.length || b.unitCount}</td>
+                              <td className="py-1.5"><button className="text-primary hover:underline" onClick={() => onSearchBox(b.label)}>Show vials</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {m.documentUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {m.documentUrls.map((u, i) => <FileLink key={u} path={u} label={`Paperwork ${i + 1}`} />)}
+                    </div>
+                  )}
+                  {m.notes && <p className="text-xs text-muted-foreground">Noted on the slip: {m.notes}</p>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
