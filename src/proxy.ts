@@ -54,8 +54,12 @@ export const config = {
   matcher: [
     // Match all routes except static files, Next.js internals, _next, the
     // public desktop-update feed/artifacts (Sparkle fetches these unauthenticated),
-    // and the PWA files: browsers refuse a service worker served via a redirect,
-    // so gating /sw.js silently broke install + emergency push notifications.
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|appcast\\.xml|downloads/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|xml|zip)$).*)",
+    // the PWA files — browsers refuse a service worker served via a redirect, so
+    // gating /sw.js silently broke install + emergency push notifications — and
+    // /tessdata, the offline text-recognition language data. That last one is
+    // public dictionary data with nothing of the practice's in it, and it is
+    // fetched by a worker: a redirect to the login page comes back as a corrupt
+    // download rather than an error anyone could act on.
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|appcast\\.xml|downloads/|tessdata/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|xml|zip)$).*)",
   ],
 };
