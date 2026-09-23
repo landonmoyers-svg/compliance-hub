@@ -6,11 +6,11 @@ import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Compliance Hub",
+  title: "Lone Peak Compliance",
   description:
     "Healthcare compliance & practice-management platform — credentials, OSHA, HIPAA, HR, and training in one place.",
-  applicationName: "Compliance Hub",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Compliance Hub" },
+  applicationName: "Lone Peak Compliance",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Lone Peak Compliance" },
   formatDetection: { telephone: false },
 };
 

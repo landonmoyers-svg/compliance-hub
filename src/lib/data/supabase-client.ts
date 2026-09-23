@@ -10,7 +10,17 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Collection, DataClient } from "./client";
+import type { Collection, DataClient, RestoreResult } from "./client";
+import {
+  assistanceRequestMap,
+  emergencyAudioLogMap,
+  emergencyCodeMap,
+  emergencyIncidentMap,
+  emergencyLocationRoleMap,
+  emergencyResponderProfileMap,
+  emergencyResponseMap,
+  emergencySiteSettingsMap,
+} from "./emergency-mappers";
 import type {
   AuditLog,
   Benefit,
@@ -69,10 +79,17 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  MedicalSupplyLot,
+  DrugRep,
+  MedSample,
+  MedSampleLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
   TrainingAttempt,
+  LawAlert,
+  LawObligation,
+  TrainingImport,
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
@@ -152,6 +169,24 @@ function makeCollection<T extends { id: string }>(
     async remove(id) {
       const { error } = await supabase.from(table).delete().eq("id", id);
       if (error) throw new Error(error.message);
+    },
+
+    async restore(records) {
+      const result: RestoreResult = { inserted: 0, failed: [] };
+      const rows = records.map((r) => ({ ...toRow(r as Partial<T>), id: r.id, created_date: (r as unknown as { createdDate?: string }).createdDate }));
+      // Batches for speed; if a batch fails, retry its rows one by one so one
+      // bad record doesn't block the rest, and every failure is named.
+      for (let i = 0; i < rows.length; i += 200) {
+        const batch = rows.slice(i, i + 200);
+        const { error } = await supabase.from(table).insert(batch);
+        if (!error) { result.inserted += batch.length; continue; }
+        for (const row of batch) {
+          const { error: e } = await supabase.from(table).insert(row);
+          if (e) result.failed.push({ id: row.id, error: e.message });
+          else result.inserted += 1;
+        }
+      }
+      return result;
     },
   };
 }
@@ -317,6 +352,11 @@ function trainingModuleFrom(r: Record<string, unknown>): TrainingModule {
     frequencyMonths: r.frequency_months as number | undefined,
     passingScore: r.passing_score as number,
     active: r.active as boolean,
+    delivery: ((r.delivery as string) ?? "in_app") as TrainingModule["delivery"],
+    provider: (r.provider as string | null) ?? undefined,
+    externalUrl: (r.external_url as string | null) ?? undefined,
+    providerCourseCode: (r.provider_course_code as string | null) ?? undefined,
+    evidenceRequired: (r.evidence_required as boolean | null) ?? true,
   };
 }
 function trainingModuleTo(d: Partial<TrainingModule>) {
@@ -327,6 +367,11 @@ function trainingModuleTo(d: Partial<TrainingModule>) {
     ...(d.frequencyMonths !== undefined && { frequency_months: d.frequencyMonths }),
     ...(d.passingScore !== undefined && { passing_score: d.passingScore }),
     ...(d.active !== undefined && { active: d.active }),
+    ...(d.delivery !== undefined && { delivery: d.delivery }),
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.externalUrl !== undefined && { external_url: d.externalUrl }),
+    ...(d.providerCourseCode !== undefined && { provider_course_code: d.providerCourseCode }),
+    ...(d.evidenceRequired !== undefined && { evidence_required: d.evidenceRequired }),
   };
 }
 
@@ -341,6 +386,14 @@ function trainingAssignmentFrom(r: Record<string, unknown>): TrainingAssignment 
     dueDate: r.due_date as string | undefined,
     completedAt: toISO(r.completed_at as string),
     score: r.score as number | undefined,
+    completionSource: (r.completion_source as TrainingAssignment["completionSource"]) ?? undefined,
+    verificationStatus: (r.verification_status as TrainingAssignment["verificationStatus"]) ?? undefined,
+    certificateUrl: (r.certificate_url as string | null) ?? undefined,
+    externalCompletedAt: toISO(r.external_completed_at as string),
+    verifiedAt: toISO(r.verified_at as string),
+    verifiedByName: (r.verified_by_name as string | null) ?? undefined,
+    importBatchId: (r.import_batch_id as string | null) ?? undefined,
+    reconciliationNote: (r.reconciliation_note as string | null) ?? undefined,
   };
 }
 function trainingAssignmentTo(d: Partial<TrainingAssignment>) {
@@ -353,6 +406,150 @@ function trainingAssignmentTo(d: Partial<TrainingAssignment>) {
     ...(d.dueDate !== undefined && { due_date: d.dueDate }),
     ...(d.completedAt !== undefined && { completed_at: d.completedAt }),
     ...(d.score !== undefined && { score: d.score }),
+    ...(d.completionSource !== undefined && { completion_source: d.completionSource }),
+    ...(d.verificationStatus !== undefined && { verification_status: d.verificationStatus }),
+    ...(d.certificateUrl !== undefined && { certificate_url: d.certificateUrl }),
+    ...(d.externalCompletedAt !== undefined && { external_completed_at: d.externalCompletedAt }),
+    ...(d.verifiedAt !== undefined && { verified_at: d.verifiedAt }),
+    ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
+    ...(d.importBatchId !== undefined && { import_batch_id: d.importBatchId }),
+    ...(d.reconciliationNote !== undefined && { reconciliation_note: d.reconciliationNote }),
+  };
+}
+
+function lawAlertFrom(r: Record<string, unknown>): LawAlert {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    source: (r.source as string) ?? "federal_register",
+    documentNumber: (r.document_number as string | null) ?? undefined,
+    docType: (r.doc_type as string | null) ?? undefined,
+    title: r.title as string,
+    abstract: (r.abstract as string | null) ?? undefined,
+    agencies: (r.agencies as string[]) ?? [],
+    publicationDate: (r.publication_date as string | null) ?? undefined,
+    effectiveDate: (r.effective_date as string | null) ?? undefined,
+    commentsCloseDate: (r.comments_close_date as string | null) ?? undefined,
+    htmlUrl: (r.html_url as string | null) ?? undefined,
+    pdfUrl: (r.pdf_url as string | null) ?? undefined,
+    matchedTerms: (r.matched_terms as string[]) ?? [],
+    matchedObligationId: (r.matched_obligation_id as string | null) ?? undefined,
+    status: ((r.status as string) ?? "new") as LawAlert["status"],
+    reviewedByName: (r.reviewed_by_name as string | null) ?? undefined,
+    reviewedAt: toISO(r.reviewed_at as string),
+    reviewNote: (r.review_note as string | null) ?? undefined,
+  };
+}
+function lawAlertTo(d: Partial<LawAlert>) {
+  return {
+    ...(d.source !== undefined && { source: d.source }),
+    ...(d.documentNumber !== undefined && { document_number: d.documentNumber }),
+    ...(d.docType !== undefined && { doc_type: d.docType }),
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.abstract !== undefined && { abstract: d.abstract }),
+    ...(d.agencies !== undefined && { agencies: d.agencies }),
+    ...(d.publicationDate !== undefined && { publication_date: d.publicationDate }),
+    ...(d.effectiveDate !== undefined && { effective_date: d.effectiveDate }),
+    ...(d.commentsCloseDate !== undefined && { comments_close_date: d.commentsCloseDate }),
+    ...(d.htmlUrl !== undefined && { html_url: d.htmlUrl }),
+    ...(d.pdfUrl !== undefined && { pdf_url: d.pdfUrl }),
+    ...(d.matchedTerms !== undefined && { matched_terms: d.matchedTerms }),
+    ...(d.matchedObligationId !== undefined && { matched_obligation_id: d.matchedObligationId }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.reviewedByName !== undefined && { reviewed_by_name: d.reviewedByName }),
+    ...(d.reviewedAt !== undefined && { reviewed_at: d.reviewedAt }),
+    ...(d.reviewNote !== undefined && { review_note: d.reviewNote }),
+  };
+}
+
+function lawObligationFrom(r: Record<string, unknown>): LawObligation {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    title: r.title as string,
+    jurisdiction: (r.jurisdiction as string) ?? "federal",
+    topic: ((r.topic as string) ?? "other") as LawObligation["topic"],
+    authorityBody: (r.authority_body as string | null) ?? undefined,
+    citationLabel: (r.citation_label as string | null) ?? undefined,
+    officialUrl: (r.official_url as string | null) ?? undefined,
+    appliesAll: (r.applies_all as boolean) ?? false,
+    minEmployees: (r.min_employees as number | null) ?? undefined,
+    maxEmployees: (r.max_employees as number | null) ?? undefined,
+    countBasis: (r.count_basis as string | null) ?? undefined,
+    conditions: (r.conditions as string[]) ?? [],
+    summary: (r.summary as string | null) ?? undefined,
+    employerDuties: (r.employer_duties as string[]) ?? [],
+    deadlineNote: (r.deadline_note as string | null) ?? undefined,
+    penaltyNote: (r.penalty_note as string | null) ?? undefined,
+    sourceQuote: (r.source_quote as string | null) ?? undefined,
+    verifiedAt: toISO(r.verified_at as string),
+    verifiedByName: (r.verified_by_name as string | null) ?? undefined,
+    reviewStatus: ((r.review_status as string) ?? "needs_review") as LawObligation["reviewStatus"],
+    nextReviewDate: (r.next_review_date as string | null) ?? undefined,
+    linkedDocumentId: (r.linked_document_id as string | null) ?? undefined,
+    linkedTrainingModuleId: (r.linked_training_module_id as string | null) ?? undefined,
+    linkedFormTemplateId: (r.linked_form_template_id as string | null) ?? undefined,
+    regulatorySourceId: (r.regulatory_source_id as string | null) ?? undefined,
+    notes: (r.notes as string | null) ?? undefined,
+    active: (r.active as boolean) ?? true,
+  };
+}
+function lawObligationTo(d: Partial<LawObligation>) {
+  return {
+    ...(d.title !== undefined && { title: d.title }),
+    ...(d.jurisdiction !== undefined && { jurisdiction: d.jurisdiction }),
+    ...(d.topic !== undefined && { topic: d.topic }),
+    ...(d.authorityBody !== undefined && { authority_body: d.authorityBody }),
+    ...(d.citationLabel !== undefined && { citation_label: d.citationLabel }),
+    ...(d.officialUrl !== undefined && { official_url: d.officialUrl }),
+    ...(d.appliesAll !== undefined && { applies_all: d.appliesAll }),
+    ...(d.minEmployees !== undefined && { min_employees: d.minEmployees }),
+    ...(d.maxEmployees !== undefined && { max_employees: d.maxEmployees }),
+    ...(d.countBasis !== undefined && { count_basis: d.countBasis }),
+    ...(d.conditions !== undefined && { conditions: d.conditions }),
+    ...(d.summary !== undefined && { summary: d.summary }),
+    ...(d.employerDuties !== undefined && { employer_duties: d.employerDuties }),
+    ...(d.deadlineNote !== undefined && { deadline_note: d.deadlineNote }),
+    ...(d.penaltyNote !== undefined && { penalty_note: d.penaltyNote }),
+    ...(d.sourceQuote !== undefined && { source_quote: d.sourceQuote }),
+    ...(d.verifiedAt !== undefined && { verified_at: d.verifiedAt }),
+    ...(d.verifiedByName !== undefined && { verified_by_name: d.verifiedByName }),
+    ...(d.reviewStatus !== undefined && { review_status: d.reviewStatus }),
+    ...(d.nextReviewDate !== undefined && { next_review_date: d.nextReviewDate }),
+    ...(d.linkedDocumentId !== undefined && { linked_document_id: d.linkedDocumentId }),
+    ...(d.linkedTrainingModuleId !== undefined && { linked_training_module_id: d.linkedTrainingModuleId }),
+    ...(d.linkedFormTemplateId !== undefined && { linked_form_template_id: d.linkedFormTemplateId }),
+    ...(d.regulatorySourceId !== undefined && { regulatory_source_id: d.regulatorySourceId }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.active !== undefined && { active: d.active }),
+  };
+}
+
+function trainingImportFrom(r: Record<string, unknown>): TrainingImport {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    provider: (r.provider as string) ?? "Mineral",
+    fileName: (r.file_name as string | null) ?? undefined,
+    importedByName: (r.imported_by_name as string | null) ?? undefined,
+    periodLabel: (r.period_label as string | null) ?? undefined,
+    rowCount: (r.row_count as number) ?? 0,
+    matchedCount: (r.matched_count as number) ?? 0,
+    verifiedCount: (r.verified_count as number) ?? 0,
+    discrepancyCount: (r.discrepancy_count as number) ?? 0,
+    unmatched: (r.unmatched as TrainingImport["unmatched"]) ?? [],
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function trainingImportTo(d: Partial<TrainingImport>) {
+  return {
+    ...(d.provider !== undefined && { provider: d.provider }),
+    ...(d.fileName !== undefined && { file_name: d.fileName }),
+    ...(d.importedByName !== undefined && { imported_by_name: d.importedByName }),
+    ...(d.periodLabel !== undefined && { period_label: d.periodLabel }),
+    ...(d.rowCount !== undefined && { row_count: d.rowCount }),
+    ...(d.matchedCount !== undefined && { matched_count: d.matchedCount }),
+    ...(d.verifiedCount !== undefined && { verified_count: d.verifiedCount }),
+    ...(d.discrepancyCount !== undefined && { discrepancy_count: d.discrepancyCount }),
+    ...(d.unmatched !== undefined && { unmatched: d.unmatched }),
+    ...(d.notes !== undefined && { notes: d.notes }),
   };
 }
 
@@ -530,6 +727,12 @@ function medSupplyFrom(r: Record<string, unknown>): MedicalSupply {
     aiIdentified: (r.ai_identified as boolean | null) ?? false,
     aiConfidence: r.ai_confidence as string | undefined,
     notes: r.notes as string | undefined,
+    orderUrl: r.order_url as string | undefined,
+    leadTimeDays: r.lead_time_days as number | undefined,
+    targetCoverDays: r.target_cover_days as number | undefined,
+    packSize: r.pack_size as number | undefined,
+    lastOrderedAt: r.last_ordered_at as string | undefined,
+    pendingOrderQty: r.pending_order_qty as number | undefined,
   };
 }
 function medSupplyTo(d: Partial<MedicalSupply>) {
@@ -553,6 +756,140 @@ function medSupplyTo(d: Partial<MedicalSupply>) {
     ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
     ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
     ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.orderUrl !== undefined && { order_url: d.orderUrl }),
+    ...(d.leadTimeDays !== undefined && { lead_time_days: d.leadTimeDays }),
+    ...(d.targetCoverDays !== undefined && { target_cover_days: d.targetCoverDays }),
+    ...(d.packSize !== undefined && { pack_size: d.packSize }),
+    ...(d.lastOrderedAt !== undefined && { last_ordered_at: d.lastOrderedAt }),
+    ...(d.pendingOrderQty !== undefined && { pending_order_qty: d.pendingOrderQty }),
+  };
+}
+
+function drugRepFrom(r: Record<string, unknown>): DrugRep {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    company: r.company as string | undefined,
+    phone: r.phone as string | undefined,
+    email: r.email as string | undefined,
+    territory: r.territory as string | undefined,
+    lastContactDate: r.last_contact_date as string | undefined,
+    active: (r.active as boolean | null) ?? true,
+    notes: r.notes as string | undefined,
+  };
+}
+function drugRepTo(d: Partial<DrugRep>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.company !== undefined && { company: d.company }),
+    ...(d.phone !== undefined && { phone: d.phone }),
+    ...(d.email !== undefined && { email: d.email }),
+    ...(d.territory !== undefined && { territory: d.territory }),
+    ...(d.lastContactDate !== undefined && { last_contact_date: d.lastContactDate }),
+    ...(d.active !== undefined && { active: d.active }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function medSampleFrom(r: Record<string, unknown>): MedSample {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    name: r.name as string,
+    strength: r.strength as string | undefined,
+    form: r.form as MedSample["form"],
+    manufacturer: r.manufacturer as string | undefined,
+    ndc: r.ndc as string | undefined,
+    locationId: r.location_id as string | undefined,
+    room: r.room as string | undefined,
+    quantityOnHand: (r.quantity_on_hand as number | null) ?? 0,
+    unit: r.unit as string,
+    parLevel: (r.par_level as number | null) ?? 0,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    repId: r.rep_id as string | undefined,
+    imageUrl: r.image_url as string | undefined,
+    capturedAt: r.captured_at as string | undefined,
+    capturedLat: r.captured_lat as number | undefined,
+    capturedLng: r.captured_lng as number | undefined,
+    aiIdentified: (r.ai_identified as boolean | null) ?? false,
+    aiConfidence: r.ai_confidence as string | undefined,
+    active: (r.active as boolean | null) ?? true,
+    notes: r.notes as string | undefined,
+  };
+}
+function medSampleTo(d: Partial<MedSample>) {
+  return {
+    ...(d.name !== undefined && { name: d.name }),
+    ...(d.strength !== undefined && { strength: d.strength }),
+    ...(d.form !== undefined && { form: d.form }),
+    ...(d.manufacturer !== undefined && { manufacturer: d.manufacturer }),
+    ...(d.ndc !== undefined && { ndc: d.ndc }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.room !== undefined && { room: d.room }),
+    ...(d.quantityOnHand !== undefined && { quantity_on_hand: d.quantityOnHand }),
+    ...(d.unit !== undefined && { unit: d.unit }),
+    ...(d.parLevel !== undefined && { par_level: d.parLevel }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.repId !== undefined && { rep_id: d.repId }),
+    ...(d.imageUrl !== undefined && { image_url: d.imageUrl }),
+    ...(d.capturedAt !== undefined && { captured_at: d.capturedAt }),
+    ...(d.capturedLat !== undefined && { captured_lat: d.capturedLat }),
+    ...(d.capturedLng !== undefined && { captured_lng: d.capturedLng }),
+    ...(d.aiIdentified !== undefined && { ai_identified: d.aiIdentified }),
+    ...(d.aiConfidence !== undefined && { ai_confidence: d.aiConfidence }),
+    ...(d.active !== undefined && { active: d.active }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
+function medSampleLogFrom(r: Record<string, unknown>): MedSampleLog {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    sampleId: r.sample_id as string,
+    action: r.action as MedSampleLog["action"],
+    quantityDelta: (r.quantity_delta as number | null) ?? 0,
+    balanceAfter: r.balance_after as number | undefined,
+    occurredAt: r.occurred_at as string | undefined,
+    lotNumber: r.lot_number as string | undefined,
+    byName: r.by_name as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function medSampleLogTo(d: Partial<MedSampleLog>) {
+  return {
+    ...(d.sampleId !== undefined && { sample_id: d.sampleId }),
+    ...(d.action !== undefined && { action: d.action }),
+    ...(d.quantityDelta !== undefined && { quantity_delta: d.quantityDelta }),
+    ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.occurredAt !== undefined && { occurred_at: d.occurredAt }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.byName !== undefined && { by_name: d.byName }),
+    ...(d.note !== undefined && { note: d.note }),
+  };
+}
+
+function medSupplyLotFrom(r: Record<string, unknown>): MedicalSupplyLot {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    supplyId: r.supply_id as string,
+    lotNumber: r.lot_number as string | undefined,
+    expirationDate: r.expiration_date as string | undefined,
+    quantityReceived: (r.quantity_received as number | null) ?? 0,
+    quantityRemaining: (r.quantity_remaining as number | null) ?? 0,
+    receivedAt: r.received_at as string | undefined,
+    note: r.note as string | undefined,
+  };
+}
+function medSupplyLotTo(d: Partial<MedicalSupplyLot>) {
+  return {
+    ...(d.supplyId !== undefined && { supply_id: d.supplyId }),
+    ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
+    ...(d.expirationDate !== undefined && { expiration_date: d.expirationDate }),
+    ...(d.quantityReceived !== undefined && { quantity_received: d.quantityReceived }),
+    ...(d.quantityRemaining !== undefined && { quantity_remaining: d.quantityRemaining }),
+    ...(d.receivedAt !== undefined && { received_at: d.receivedAt }),
+    ...(d.note !== undefined && { note: d.note }),
   };
 }
 
@@ -563,6 +900,8 @@ function medSupplyLogFrom(r: Record<string, unknown>): MedicalSupplyLog {
     action: r.action as MedicalSupplyLog["action"],
     quantityDelta: (r.quantity_delta as number | null) ?? 0,
     balanceAfter: r.balance_after as number | undefined,
+    occurredAt: r.occurred_at as string | undefined,
+    lotId: r.lot_id as string | undefined,
     lotNumber: r.lot_number as string | undefined,
     byName: r.by_name as string | undefined,
     note: r.note as string | undefined,
@@ -574,6 +913,8 @@ function medSupplyLogTo(d: Partial<MedicalSupplyLog>) {
     ...(d.action !== undefined && { action: d.action }),
     ...(d.quantityDelta !== undefined && { quantity_delta: d.quantityDelta }),
     ...(d.balanceAfter !== undefined && { balance_after: d.balanceAfter }),
+    ...(d.occurredAt !== undefined && { occurred_at: d.occurredAt }),
+    ...(d.lotId !== undefined && { lot_id: d.lotId }),
     ...(d.lotNumber !== undefined && { lot_number: d.lotNumber }),
     ...(d.byName !== undefined && { by_name: d.byName }),
     ...(d.note !== undefined && { note: d.note }),
@@ -2182,12 +2523,19 @@ export function createSupabaseDataClient(): DataClient {
     documents:          makeCollection(supabase, "documents",           documentFrom,           documentTo),
     trainingModules:    makeCollection(supabase, "training_modules",    trainingModuleFrom,     trainingModuleTo),
     trainingAssignments:makeCollection(supabase, "training_assignments",trainingAssignmentFrom, trainingAssignmentTo),
+    trainingImports:    makeCollection(supabase, "training_imports",    trainingImportFrom,     trainingImportTo),
+    lawObligations:     makeCollection(supabase, "law_obligations",     lawObligationFrom,      lawObligationTo),
+    lawAlerts:          makeCollection(supabase, "law_alerts",          lawAlertFrom,           lawAlertTo),
     oshaRecords:        makeCollection(supabase, "osha_records",        oshaFrom,               oshaTo),
     sdsRecords:         makeCollection(supabase, "sds_records",         sdsFrom,                sdsTo),
     supplyItems:        makeCollection(supabase, "supply_items",         supplyItemFrom,         supplyItemTo),
     supplyMovements:    makeCollection(supabase, "supply_movements",     supplyMovementFrom,     supplyMovementTo),
     medicalSupplies:    makeCollection(supabase, "medical_supplies",     medSupplyFrom,          medSupplyTo),
     medicalSupplyLogs:  makeCollection(supabase, "medical_supply_logs",  medSupplyLogFrom,       medSupplyLogTo),
+    medicalSupplyLots:  makeCollection(supabase, "medical_supply_lots",  medSupplyLotFrom,       medSupplyLotTo),
+    drugReps:           makeCollection(supabase, "drug_reps",            drugRepFrom,            drugRepTo),
+    medSamples:         makeCollection(supabase, "med_samples",          medSampleFrom,          medSampleTo),
+    medSampleLogs:      makeCollection(supabase, "med_sample_logs",      medSampleLogFrom,       medSampleLogTo),
     riskCases:          makeCollection(supabase, "risk_cases",          riskFrom,               riskTo),
     incidents:          makeCollection(supabase, "incidents",           incidentFrom,           incidentTo),
     correctiveActions:  makeCollection(supabase, "corrective_actions",  correctiveActionFrom,   correctiveActionTo),
@@ -2240,5 +2588,13 @@ export function createSupabaseDataClient(): DataClient {
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),
     chatMessages:       makeCollection(supabase, "chat_messages",       chatMessageFrom,        chatMessageTo),
     sopRegulationLinks: makeCollection(supabase, "sop_regulation_links", sopRegLinkFrom,         sopRegLinkTo),
+    emergencyCodes:     makeCollection(supabase, "emergency_codes",      emergencyCodeMap.from,       emergencyCodeMap.to),
+    emergencySiteSettings: makeCollection(supabase, "emergency_site_settings", emergencySiteSettingsMap.from, emergencySiteSettingsMap.to),
+    emergencyIncidents: makeCollection(supabase, "emergency_incidents",  emergencyIncidentMap.from,   emergencyIncidentMap.to),
+    emergencyResponses: makeCollection(supabase, "emergency_responses",  emergencyResponseMap.from,   emergencyResponseMap.to),
+    assistanceRequests: makeCollection(supabase, "assistance_requests",  assistanceRequestMap.from,   assistanceRequestMap.to),
+    emergencyResponderProfiles: makeCollection(supabase, "emergency_responder_profiles", emergencyResponderProfileMap.from, emergencyResponderProfileMap.to),
+    emergencyLocationRoles: makeCollection(supabase, "emergency_location_roles", emergencyLocationRoleMap.from, emergencyLocationRoleMap.to),
+    emergencyAudioLog:  makeCollection(supabase, "emergency_audio_log",  emergencyAudioLogMap.from,   emergencyAudioLogMap.to),
   };
 }

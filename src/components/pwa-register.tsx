@@ -86,7 +86,7 @@ export function PwaRegister() {
     <div className="fixed inset-x-3 bottom-3 z-[80] rounded-xl border border-border bg-card p-3 text-sm shadow-xl lg:hidden">
       <div className="flex items-start gap-2">
         <p className="flex-1 text-muted-foreground">
-          Install Compliance Hub: tap <Share className="inline size-3.5 align-text-bottom text-foreground" />{" "}
+          Install Lone Peak Compliance: tap <Share className="inline size-3.5 align-text-bottom text-foreground" />{" "}
           <span className="font-medium text-foreground">Share</span>, then{" "}
           <span className="font-medium text-foreground">Add to Home Screen</span>.
         </p>

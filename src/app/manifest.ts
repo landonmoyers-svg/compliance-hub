@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Compliance Hub",
-    short_name: "Compliance",
+    name: "Lone Peak Compliance",
+    short_name: "Lone Peak",
     description:
       "Healthcare compliance & practice management — credentials, OSHA, HIPAA, HR, training, and inventory in one place.",
     start_url: "/",

@@ -57,6 +57,16 @@ class MemoryCollection<T extends { id: string; createdDate: string }>
     return delay(clone(this.items[idx]));
   }
 
+  restore(records: T[]) {
+    const failed: { id: string; error: string }[] = [];
+    let inserted = 0;
+    for (const r of records) {
+      if (this.items.some((i) => i.id === r.id)) failed.push({ id: r.id, error: "already exists" });
+      else { this.items.push(clone(r)); inserted += 1; }
+    }
+    return delay({ inserted, failed });
+  }
+
   remove(id: string): Promise<void> {
     this.items = this.items.filter((i) => i.id !== id);
     return delay(undefined);
@@ -74,12 +84,19 @@ export function createMockDataClient(): DataClient {
     documents: new MemoryCollection(seed.documents),
     trainingModules: new MemoryCollection(seed.trainingModules),
     trainingAssignments: new MemoryCollection(seed.trainingAssignments),
+    trainingImports: new MemoryCollection(seed.trainingImports),
+    lawObligations: new MemoryCollection(seed.lawObligations),
+    lawAlerts: new MemoryCollection(seed.lawAlerts),
     oshaRecords: new MemoryCollection(seed.oshaRecords),
     sdsRecords: new MemoryCollection(seed.sdsRecords),
     supplyItems: new MemoryCollection(seed.supplyItems),
     supplyMovements: new MemoryCollection(seed.supplyMovements),
     medicalSupplies: new MemoryCollection(seed.medicalSupplies),
     medicalSupplyLogs: new MemoryCollection(seed.medicalSupplyLogs),
+    medicalSupplyLots: new MemoryCollection(seed.medicalSupplyLots),
+    drugReps: new MemoryCollection(seed.drugReps),
+    medSamples: new MemoryCollection(seed.medSamples),
+    medSampleLogs: new MemoryCollection(seed.medSampleLogs),
     riskCases: new MemoryCollection(seed.riskCases),
     incidents: new MemoryCollection(seed.incidents),
     correctiveActions: new MemoryCollection(seed.correctiveActions),
@@ -132,5 +149,13 @@ export function createMockDataClient(): DataClient {
     organizationSettings: new MemoryCollection(seed.organizationSettings),
     chatMessages: new MemoryCollection(seed.chatMessages),
     sopRegulationLinks: new MemoryCollection(seed.sopRegulationLinks),
+    emergencyCodes: new MemoryCollection(seed.emergencyCodes),
+    emergencySiteSettings: new MemoryCollection(seed.emergencySiteSettings),
+    emergencyIncidents: new MemoryCollection(seed.emergencyIncidents),
+    emergencyResponses: new MemoryCollection(seed.emergencyResponses),
+    assistanceRequests: new MemoryCollection(seed.assistanceRequests),
+    emergencyResponderProfiles: new MemoryCollection(seed.emergencyResponderProfiles),
+    emergencyLocationRoles: new MemoryCollection(seed.emergencyLocationRoles),
+    emergencyAudioLog: new MemoryCollection(seed.emergencyAudioLog),
   };
 }

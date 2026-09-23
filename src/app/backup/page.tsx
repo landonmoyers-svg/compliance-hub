@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/shared/states";
 import { formatDate, daysUntil } from "@/lib/dates";
 import { toast } from "sonner";
+import { RestorePanel } from "@/components/backup/restore-panel";
 
 const BACKUP_DUE_DAYS = 7; // best practice: at least weekly
 
@@ -120,10 +121,12 @@ export default function BackupPage() {
           <Button onClick={runBackup} disabled={running}><Download className="size-4" /> {running ? (progress || "Working…") : "Download full backup (ZIP)"}</Button>
           <div className="rounded-lg border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
             <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground"><ShieldCheck className="size-3.5" /> Backup best practice & law</p>
-            HIPAA requires a data backup and contingency plan (45 CFR 164.308(a)(7)). Follow the <span className="font-medium">3-2-1 rule</span> — 3 copies, 2 media types, 1 offsite — back up at least <span className="font-medium">weekly</span>, keep records <span className="font-medium">6 years</span>, and <span className="font-medium">test a restore</span> periodically. Your database is also backed up automatically by Supabase; this export is your portable, offsite copy. Uploaded file attachments live in Supabase Storage and are referenced by path in the export.
+            HIPAA requires a data backup and contingency plan (45 CFR 164.308(a)(7)). Follow the <span className="font-medium">3-2-1 rule</span> — 3 copies, 2 media types, 1 offsite — back up at least <span className="font-medium">weekly</span>, keep records <span className="font-medium">6 years</span>, and <span className="font-medium">test a restore</span> periodically (use Check or restore below). Your database is also backed up automatically by Supabase; this export is your portable, offsite copy. Uploaded file attachments live in Supabase Storage and are referenced by path in the export.
           </div>
         </CardContent>
       </Card>
+
+      <RestorePanel />
 
       {(backupsQ.data ?? []).length > 0 && (
         <Card>
@@ -175,9 +178,9 @@ RETENTION & HANDLING
 
 function indexHtml(stamp: string, total: number, counts: Record<string, number>): string {
   const rows = Object.entries(counts).map(([k, v]) => `<tr><td>${k}</td><td style="text-align:right">${v < 0 ? "—" : v}</td></tr>`).join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Compliance Hub Backup ${stamp}</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Lone Peak Compliance Backup ${stamp}</title>
 <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;color:#111}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:16px}td,th{border-bottom:1px solid #eee;padding:6px 8px;font-size:14px}th{text-align:left}.muted{color:#666;font-size:13px}</style></head>
-<body><h1>Compliance Hub — Data Backup</h1>
+<body><h1>Lone Peak Compliance — Data Backup</h1>
 <p class="muted">Generated ${stamp} · ${total} total records. Open the CSV files in the <code>data/</code> folder, or <code>backup.json</code>, to view the data.</p>
 <table><thead><tr><th>Dataset</th><th style="text-align:right">Records</th></tr></thead><tbody>${rows}</tbody></table>
 <p class="muted">Retain for at least 6 years (HIPAA). Store securely offsite.</p></body></html>`;

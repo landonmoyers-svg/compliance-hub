@@ -55,9 +55,13 @@ type RegulatoryRule = {
 };
 
 const REGULATORY_RULES: RegulatoryRule[] = [
-  { id: "osha-300a-open", month: 2, day: 1, label: "OSHA 300A posting opens" },
-  { id: "osha-300a-close", month: 4, day: 30, label: "OSHA 300A posting closes" },
-  { id: "osha-ita", month: 3, day: 2, label: "OSHA ITA electronic injury data submission due" },
+  // OSHA recordkeeping: NAICS 6211/6213/6214 are on the partial-exemption list
+  // (29 CFR 1904, Subpart B, App. A), which lifts the 300/300A/301 duty. These
+  // stay on the calendar because the exemption turns on the establishment NAICS —
+  // confirm ours before ignoring them. Severe-injury reporting applies either way.
+  { id: "osha-300a-open", month: 2, day: 1, label: "OSHA 300A posting opens (unless NAICS-exempt)" },
+  { id: "osha-300a-close", month: 4, day: 30, label: "OSHA 300A posting closes (unless NAICS-exempt)" },
+  { id: "osha-ita", month: 3, day: 2, label: "OSHA ITA electronic injury data submission due (unless NAICS-exempt)" },
   { id: "hipaa-training", month: 1, day: 31, label: "Annual HIPAA workforce training due" },
   { id: "bbp-training", month: 3, day: 31, label: "Annual OSHA / Bloodborne Pathogens training due" },
   { id: "compliance-review", month: 12, day: 31, label: "Annual compliance program review due" },
@@ -80,6 +84,15 @@ const REGULATORY_RULES: RegulatoryRule[] = [
   { id: "spravato-rems", month: 1, day: 20, label: "SPRAVATO REMS certification renewal (annual)" },
   { id: "oig-screen", month: 1, day: 10, label: "OIG/LEIE + SAM exclusion re-screening (recommended monthly)" },
   { id: "dea-telemed-recheck", month: 12, day: 1, label: "Recheck DEA telemedicine prescribing rule (flexibility expires 12/31/26)" },
+  // Employment & benefits filings. Dates verified against IRS and DOL guidance
+  // on 2026-09-02; each is qualified by who it actually applies to, because at
+  // our headcount several of these are "not yet" rather than "never".
+  { id: "aca-1095c-furnish", month: 1, day: 31, label: "ACA: furnish Form 1095-C to full-time employees (applicable large employers, 50+ FTE)" },
+  { id: "aca-1094c-paper", month: 2, day: 28, label: "ACA: file Forms 1094-C/1095-C with the IRS on paper (ALEs)" },
+  { id: "aca-1094c-efile", month: 3, day: 31, label: "ACA: e-file Forms 1094-C/1095-C with the IRS (ALEs)" },
+  { id: "form-5500", month: 7, day: 31, label: "Form 5500 due for calendar-year ERISA plans (Form 5558 extends to Oct 15)" },
+  { id: "form-5500-ext", month: 10, day: 15, label: "Form 5500 extended deadline (if Form 5558 was filed)" },
+  { id: "sar", month: 9, day: 30, label: "Summary Annual Report to participants (calendar-year ERISA plans)" },
   // Data backup & contingency (HIPAA 45 CFR 164.308(a)(7)).
   { id: "backup-restore-h1", month: 1, day: 31, label: "Backup restore test (H1) — verify offsite backups restore" },
   { id: "backup-restore-h2", month: 7, day: 31, label: "Backup restore test (H2) — verify offsite backups restore" },

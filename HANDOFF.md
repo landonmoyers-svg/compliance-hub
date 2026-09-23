@@ -1,6 +1,6 @@
 # Compliance Hub — Handoff (start here)
 
-**Last updated:** 2026-09-15 · **Written for:** any Claude chat (local or cloud) picking this project up cold.
+**Last updated:** 2026-09-21 · **Written for:** any Claude chat (local or cloud) picking this project up cold.
 **Contains no secrets.** Credentials, API keys and passwords are never written here — Landon enters those himself.
 
 If you read only one section, read **§0**. Everything else is reference.
@@ -21,6 +21,8 @@ If you read only one section, read **§0**. Everything else is reference.
 Commits on the feature branch, oldest first: `f0f36bc` external training (Mineral) · `63b9dab` fixes to it · `4d13cc9` employment-law register · `57dda39` `npm run typecheck` script · `06298ee` regulatory change feed · `db0963f` med samples · `8689ad7` usage-pace engine for medical supplies · `030828d` this handoff · `52d69dd` multi-tenancy migrations captured into the repo · `754a7da` supplies lot-level expiry, use-first and ordering. The branch is pushed to GitHub (it existed only on one Mac until 2026-09-15).
 
 **The production database is ahead of production code.** These migrations are applied to prod, but the code that uses them is only on the feature branch: `external_training_and_verification`, `training_certificate_can_view_object`, `law_obligations`, `seed_law_obligations`, `law_alerts`, `med_samples_module`, `med_samples_can_view_object`, `medical_supply_logs_occurred_at`, `medical_supply_lots_and_ordering`. All are additive, so production is not broken — but do not assume `main` reflects the schema.
+
+**NEW 2026-09-21 — Emergency Alert (LP Alert rebuilt in the Hub) is on branch `feature/emergency-alert`** (cut from the feature branch above, commit `91640fe`+). Not merged, not deployed. Its migrations **0026–0028 ARE applied to prod** and LP Alert's data is imported. See **§8a**. LP Alert on Base44 stays the live emergency system until Landon switches over.
 
 **Pending decision (Landon's):** merge the whole feature branch into `main`, or cherry-pick only some. Do not merge it without asking.
 
@@ -202,6 +204,11 @@ Earlier history (June–August) is summarised; recent work is detailed.
 **Needs a look from Landon**
 - The new Medical Supplies page has not been seen rendered in a browser (see §8). Once the branch is deployed somewhere he's signed in, walk through it.
 
+- **Emergency Alert go-live** (§8a): logins for staff, env vars, a live drill, then retire LP Alert on Base44.
+- Fixed on `feature/emergency-alert` (`f1a70ac`), reaches prod on merge: `src/proxy.ts` redirected `/sw.js` to login, so the PWA service worker never registered on production (no install, no push); next 16.3.0→16.3.5 + `npm audit fix` → 0 vulnerabilities.
+
+- **Desktop app = the NATIVE Mac app** (Swift/WKWebView + Sparkle, signed Team XVN4NXD6CJ), source `~/Desktop/General/Apple Developer/Compliance Hub` (own git repo), installed at /Applications, updates from `public/appcast.xml`. The Electron shell in `desktop/` is NOT what's installed. 2026-09-22: native app got mic/location permissions, native notification bridge (`hubNative`), no App Nap (`d276e91`); `release.sh` fixed (moved folder; publishes appcast via a worktree of main). **Release 1.2 is blocked: notarytool profile `compliance-hub-notary` returns 401 — Landon must make a new app-specific password at appleid.apple.com and re-run `xcrun notarytool store-credentials compliance-hub-notary --apple-id <his Apple ID> --team-id XVN4NXD6CJ`, then `./release.sh 1.2`.**
+
 **Offered, not started**
 - Import the two provider credential spreadsheets in `~/Downloads/untitled folder 4/` (`LPP_Provider_License_Certification_Tracker_2026-09-02.xlsx`, `LPP RESOURCES 2026(PROVIDER INFO).xlsx`) into Credentials — reconcile, flag conflicts, don't overwrite.
 - Attach de-identified evidence to the ketamine audit findings.
@@ -209,7 +216,7 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 **Known gaps**
 - Starter-content seeding for new tenants; org switcher; per-org notification scan.
-- Backup **restore** (spec exists in the audit notes; export works, restore not built).
+- Backup restore: BUILT 2026-09-22 on `feature/emergency-alert` (`0ba7c05`) — /backup → Check or restore (compare, then insert-only restore of missing records). Not yet exercised against a real backup file.
 - Supabase Auth URL configuration should point at the `lone-peak` origin.
 - Rotate the Anthropic API key (it was exposed in a chat earlier).
 - The previous version of this file committed a **staging** test password and 2FA secret to git history. Staging holds no real data and is paused, but reset those accounts if the repo is ever shared.
@@ -217,7 +224,23 @@ Earlier history (June–August) is summarised; recent work is detailed.
 
 ---
 
-## 8. Most recent feature: supplies expiry + ordering (built 2026-09-15, `754a7da`)
+## 8a. Emergency Alert — LP Alert rebuilt inside the Hub (2026-09-21, branch `feature/emergency-alert`)
+
+**What it is.** LP Alert was a Base44 app (id `691ca157a2fc9cda0b3675b4`): staff trigger Code Blue/Red/Silver/Gray, everyone gets an alarm, responders claim roles, admins resolve. Rebuilt as the **Emergency** top tab: `/emergency` (everyone), `/emergency/history` and `/emergency/setup` (admin). `EmergencyLayer` in the app shell gives every signed-in page the full-screen alarm, top strip, chimes, and hosts audio.
+
+**Data.** Tables `emergency_codes`, `emergency_site_settings`, `emergency_incidents`, `emergency_responses`, `assistance_requests`, `emergency_responder_profiles`, `emergency_location_roles`, `emergency_audio_log`, `push_subscriptions` (0026). Mappers are generated from one field list in `src/lib/data/emergency-mappers.ts` (parity-safe). Responder profiles/roles are **anchored on employees** (0027) so admins set people up before they have logins; a trigger copies `employees.user_id` onto them when a login is linked (0028). Incidents are org-wide (no location scoping — Murray sites cross-respond). RLS verified as a staff user 2026-09-21.
+
+**Rules** (`src/lib/emergency-alert/rules.ts`, 33 tests): LP Alert hard-coded site names; now mutual aid / shared exposure / AED source / refuge come from `emergency_site_settings` (Lone Peak's imported from LP Alert).
+
+**Audio — Landon's decision: keep recording, but save ONLY on admin devices, never the Hub's servers (no BAA; audio captures patients).** Transport decided = direct stream: the triggering phone records 30 s clips to an IndexedDB outbox and streams live over WebRTC to admin devices; signalling on private Realtime channel `org:<org>:audio` (policies on `realtime.messages`, 0026). Receivers present a ticket from `/api/emergency/audio-ticket` (HMAC with `AUDIO_TICKET_SECRET`, falls back to the service-role key); the phone verifies it server-side before connecting. A clip leaves the phone only after an admin device acks it's saved. DB holds clip metadata + audit log only. Known limits: phones stop recording when locked/backgrounded (same as LP Alert). ICE servers come from `/api/emergency/ice`: STUN only until `TURN_URLS`/`TURN_USERNAME`/`TURN_CREDENTIAL` are set — without a relay some cellular networks can't connect, and clips then wait on the phone.
+
+**Notifications.** In-app alarm + tab flash + OS notification work now. `/api/emergency/notify` posts Teams cards (needs `TEAMS_WEBHOOK_URL`, `TEAMS_ASSISTANCE_WEBHOOK_URL`) and web push (needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`; generate with `npx web-push generate-vapid-keys`). SMS/email from LP Alert not ported (no provider yet). Teams channel links per org are in `teams.ts`.
+
+**Import.** `scripts/lp-alert-import.py <csv folder>` (CSVs live in `~/Documents/Claude Code/lp-alert-data/`, outside git — staff phones). Imported: 4 codes, 4 site settings (+ Murray lat/lng), 10 responder profiles, 7 site roles, 5 incidents, 4 responses, 1 assistance request. 13 LP Alert responses pointed at already-deleted incidents and were skipped. Remote trigger street addresses dropped (history is staff-visible).
+
+**Before switching over from LP Alert:** (1) staff need Hub logins — only 4 exist; invites are paused on email DNS; (2) set the env vars above in Vercel; (3) Landon reviews the pages in a browser (not yet seen rendered); (4) move LP Alert's 24 audio clips (3 incidents) out of Base44 to an admin computer, then delete them there — Landon's call; (5) run a drill with 2+ devices to prove the audio link.
+
+## 8. Earlier feature: supplies expiry + ordering (built 2026-09-15, `754a7da`)
 
 **Landon's request:** track expiration dates alongside the rate supplies are used, help prioritise using things before they expire, recommend how much to order when running low, and a button that opens the vendor page where that product is ordered.
 

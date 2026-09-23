@@ -6,7 +6,7 @@
 // auth work exactly as in a browser. External links open in the system browser;
 // navigation is confined to the app + Supabase origins.
 
-const { app, BrowserWindow, shell, Menu, dialog } = require("electron");
+const { app, BrowserWindow, shell, Menu, dialog, session, systemPreferences } = require("electron");
 const { autoUpdater } = require("electron-updater");
 
 const APP_URL = process.env.COMPLIANCE_HUB_URL || "https://compliance-hub-lone-peak.vercel.app";
@@ -30,7 +30,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 680,
-    title: "Compliance Hub",
+    title: "Lone Peak Compliance",
     backgroundColor: "#121212", // matches the app's dark base; avoids white flash
     autoHideMenuBar: false,
     webPreferences: {
@@ -90,6 +90,29 @@ function buildMenu() {
   return Menu.buildFromTemplate(template);
 }
 
+// Emergency Alert needs the microphone (recording an incident you call),
+// notifications (the alarm) and location (on-site vs remote). Grant exactly
+// those, and only to the app's own origin; everything else is refused.
+const GRANTED = new Set(["media", "notifications", "geolocation"]);
+function installPermissionHandlers() {
+  const ses = session.defaultSession;
+  ses.setPermissionRequestHandler(async (wc, permission, callback, details) => {
+    const fromApp = isAllowed(details.requestingUrl || wc.getURL());
+    if (!fromApp || !GRANTED.has(permission)) return callback(false);
+    if (permission === "media") {
+      const types = details.mediaTypes || [];
+      if (types.includes("video")) return callback(false); // audio only
+      if (process.platform === "darwin") {
+        // Triggers macOS's own microphone prompt the first time.
+        const ok = await systemPreferences.askForMediaAccess("microphone").catch(() => false);
+        return callback(ok);
+      }
+    }
+    callback(true);
+  });
+  ses.setPermissionCheckHandler((wc, permission, origin) => isAllowed(origin) && GRANTED.has(permission));
+}
+
 function checkForUpdates(interactive) {
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
     if (interactive) {
@@ -107,6 +130,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    installPermissionHandlers();
     Menu.setApplicationMenu(buildMenu());
     createWindow();
     checkForUpdates(false); // no-op for unsigned local builds without a published release

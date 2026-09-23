@@ -80,10 +80,10 @@ export function buildSeed(): SeedData {
       { id: "doc-6", createdDate: days(-100), title: "Workplace Violence Prevention Policy", documentType: "policy", complianceArea: "safety", status: "active", accessLevel: "all_staff", version: "1.0", reviewDate: days(-2), requiresAcknowledgment: true },
     ],
     trainingModules: [
-      { id: "tm-1", createdDate: days(-365), title: "HIPAA Privacy & Security", trainingType: "compliance", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-2", createdDate: days(-365), title: "OSHA Bloodborne Pathogens", trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-3", createdDate: days(-200), title: "Workplace Violence Prevention", trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
-      { id: "tm-4", createdDate: days(-120), title: "Controlled Substance Diversion Prevention", trainingType: "compliance", frequencyMonths: 12, passingScore: 85, active: true },
+      { id: "tm-1", createdDate: days(-365), title: "HIPAA Privacy & Security", delivery: "in_app", evidenceRequired: false, trainingType: "compliance", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-2", createdDate: days(-365), title: "OSHA Bloodborne Pathogens", delivery: "in_app", evidenceRequired: false, trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-3", createdDate: days(-200), title: "Workplace Violence Prevention", delivery: "in_app", evidenceRequired: false, trainingType: "safety", frequencyMonths: 12, passingScore: 80, active: true },
+      { id: "tm-4", createdDate: days(-120), title: "Controlled Substance Diversion Prevention", delivery: "in_app", evidenceRequired: false, trainingType: "compliance", frequencyMonths: 12, passingScore: 85, active: true },
     ],
     trainingAssignments: [
       { id: "ta-1", createdDate: days(-60), trainingModuleId: "tm-1", moduleTitle: "HIPAA Privacy & Security", assignedToUserId: "user-2", assignedToName: "Jordan Reyes", status: "completed", dueDate: days(-30), completedAt: days(-35), score: 92 },
@@ -95,6 +95,9 @@ export function buildSeed(): SeedData {
       { id: "ta-7", createdDate: days(-20), trainingModuleId: "tm-3", moduleTitle: "Workplace Violence Prevention", assignedToUserId: "user-4", assignedToName: "Riley Chen", status: "assigned", dueDate: days(21) },
       { id: "ta-8", createdDate: days(-20), trainingModuleId: "tm-2", moduleTitle: "OSHA Bloodborne Pathogens", assignedToUserId: "user-3", assignedToName: "Sam Patel", status: "completed", dueDate: days(-5), completedAt: days(-6), score: 95 },
     ],
+    trainingImports: [],
+    lawObligations: [],
+    lawAlerts: [],
     oshaRecords: [
       { id: "osha-1", createdDate: days(-120), recordTitle: "Needlestick — exam room 2", recordType: "injury", eventDate: days(-118), status: "closed", recordabilityStatus: "recordable" },
       { id: "osha-2", createdDate: days(-60), recordTitle: "Annual HazCom training", recordType: "training", eventDate: days(-58), status: "closed", recordabilityStatus: "non_recordable" },
@@ -117,6 +120,10 @@ export function buildSeed(): SeedData {
       { id: "medsupply-1", createdDate: days(-30), name: "Example — Nitrile Exam Gloves (M)", category: "ppe", unit: "box", quantityOnHand: 8, parLevel: 6, reorderQuantity: 20, room: "Supply Closet A", aiIdentified: false },
     ],
     medicalSupplyLogs: [],
+    medicalSupplyLots: [],
+    drugReps: [],
+    medSamples: [],
+    medSampleLogs: [],
     riskCases: [
       { id: "risk-1", createdDate: days(-40), caseTitle: "Patient PHI emailed unencrypted", caseType: "hipaa", severity: "high", status: "investigating", accessLevel: "restricted", reportedByName: "Riley Chen", incidentDate: days(-42) },
       { id: "risk-2", createdDate: days(-25), caseTitle: "Slip-and-fall near entrance", caseType: "safety", severity: "medium", status: "open", accessLevel: "standard", reportedByName: "Morgan Diaz", incidentDate: days(-26) },
@@ -196,5 +203,13 @@ export function buildSeed(): SeedData {
     organizationSettings: [],
     chatMessages: [],
     sopRegulationLinks: [],
+    emergencyCodes: [],
+    emergencySiteSettings: [],
+    emergencyIncidents: [],
+    emergencyResponses: [],
+    assistanceRequests: [],
+    emergencyResponderProfiles: [],
+    emergencyLocationRoles: [],
+    emergencyAudioLog: [],
   };
 }

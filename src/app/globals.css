@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
-  Compliance Hub design tokens. HSL triplets are semantic and adapt between
+  Lone Peak Compliance design tokens. HSL triplets are semantic and adapt between
   light (default :root) and dark ([data-theme="dark"]) appearances; a small
   ThemeProvider resolves the System/Light/Dark preference and sets data-theme
   on <html>. @theme inline maps the vars to Tailwind color utilities.
@@ -326,4 +326,17 @@ table.rtable tbody tr {
   border-radius: var(--radius);
   background: hsl(var(--card));
   padding: 0.75rem 1rem;
+}
+
+/* Emergency Alert — full-screen alarm backdrop (see components/emergency-alert). */
+@keyframes emergency-flash {
+  0%, 100% { background-color: hsl(var(--destructive) / 0.85); }
+  50% { background-color: hsl(var(--destructive) / 0.97); }
+}
+.emergency-flash {
+  animation: emergency-flash 1s infinite;
+  backdrop-filter: blur(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .emergency-flash { animation: none; background-color: hsl(var(--destructive) / 0.92); }
 }

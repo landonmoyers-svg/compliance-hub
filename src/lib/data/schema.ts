@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_ORG_NAME } from "@/lib/org";
 
 /**
- * Entity schemas (Zod) + inferred TS types for the Compliance Hub.
+ * Entity schemas (Zod) + inferred TS types for the Lone Peak Compliance.
  *
  * This is the typed core consumed by the foundation + flagship dashboards.
  * It is intentionally structured so the remaining entities from the 65-entity
@@ -182,8 +182,30 @@ export const TrainingModule = z.object({
   frequencyMonths: z.number().nullable().optional(),
   passingScore: z.number().default(80),
   active: z.boolean().default(true),
+  /**
+   * Where the course actually plays. "in_app" = quiz or attestation inside the
+   * Hub; "external" = delivered by a vendor platform (Mineral today) and only
+   * evidenced here.
+   */
+  delivery: z.enum(["in_app", "external"]).default("in_app"),
+  /** Vendor delivering an external module, e.g. "Mineral". */
+  provider: z.string().nullable().optional(),
+  /** Deep link staff are sent to; blank falls back to the provider default. */
+  externalUrl: z.string().nullable().optional(),
+  /** Course title/code as the vendor's report spells it (used to match imports). */
+  providerCourseCode: z.string().nullable().optional(),
+  /** Require a certificate upload when attesting to an external completion. */
+  evidenceRequired: z.boolean().default(true),
 });
 export type TrainingModule = z.infer<typeof TrainingModule>;
+
+export const completionSources = ["quiz", "attestation", "external_attested", "import"] as const;
+export const CompletionSource = z.enum(completionSources);
+export type CompletionSource = z.infer<typeof CompletionSource>;
+
+export const verificationStatuses = ["provisional", "verified", "discrepancy"] as const;
+export const VerificationStatus = z.enum(verificationStatuses);
+export type VerificationStatus = z.infer<typeof VerificationStatus>;
 
 export const assignmentStatuses = [
   "assigned",
@@ -202,8 +224,142 @@ export const TrainingAssignment = z.object({
   dueDate: z.string().nullable().optional(),
   completedAt: z.string().nullable().optional(),
   score: z.number().nullable().optional(),
+  /** How the completion was recorded. Null on assignments not yet completed. */
+  completionSource: CompletionSource.nullable().optional(),
+  /**
+   * Evidence strength for a vendor-delivered completion:
+   * provisional = the employee said so; verified = the vendor's own report says
+   * so; discrepancy = the report contradicts the attestation.
+   */
+  verificationStatus: VerificationStatus.nullable().optional(),
+  /** Storage path of the vendor completion certificate. */
+  certificateUrl: z.string().nullable().optional(),
+  /** Completion date as stated by the employee / vendor certificate. */
+  externalCompletedAt: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
+  verifiedByName: z.string().nullable().optional(),
+  /** The import batch that verified this row. */
+  importBatchId: z.string().nullable().optional(),
+  reconciliationNote: z.string().nullable().optional(),
 });
 export type TrainingAssignment = z.infer<typeof TrainingAssignment>;
+
+/* ---------------------- employment-law obligations ------------------- */
+
+export const lawTopics = [
+  "discrimination", "leave", "wage_hour", "hiring", "termination",
+  "benefits", "safety", "recordkeeping", "posting", "privacy", "tax", "other",
+] as const;
+export type LawTopic = (typeof lawTopics)[number];
+
+export const lawReviewStatuses = ["verified", "needs_review", "superseded"] as const;
+
+/**
+ * One employment-law obligation, keyed to the facts that switch it on
+ * (headcount, state, plan status) and carrying the primary authority it was
+ * written from — so a claim can be traced to the statute, not to a summary.
+ */
+export const LawObligation = z.object({
+  ...base,
+  title: z.string(),
+  /** "federal" or a state code, e.g. "UT". */
+  jurisdiction: z.string().default("federal"),
+  topic: z.enum(lawTopics).default("other"),
+  authorityBody: z.string().nullable().optional(),
+  citationLabel: z.string().nullable().optional(),
+  officialUrl: z.string().nullable().optional(),
+
+  /** True when the duty applies regardless of headcount. */
+  appliesAll: z.boolean().default(false),
+  minEmployees: z.number().nullable().optional(),
+  maxEmployees: z.number().nullable().optional(),
+  /** How the law itself counts employees. */
+  countBasis: z.string().nullable().optional(),
+  /** Extra facts that gate the duty: group_health_plan, federal_contractor, … */
+  conditions: z.array(z.string()).default([]),
+
+  summary: z.string().nullable().optional(),
+  employerDuties: z.array(z.string()).default([]),
+  deadlineNote: z.string().nullable().optional(),
+  penaltyNote: z.string().nullable().optional(),
+
+  /** Verbatim text from the cited source this row was written from. */
+  sourceQuote: z.string().nullable().optional(),
+  verifiedAt: z.string().nullable().optional(),
+  verifiedByName: z.string().nullable().optional(),
+  reviewStatus: z.enum(lawReviewStatuses).default("needs_review"),
+  nextReviewDate: z.string().nullable().optional(),
+
+  /** What in the Hub already discharges this duty. */
+  linkedDocumentId: z.string().nullable().optional(),
+  linkedTrainingModuleId: z.string().nullable().optional(),
+  linkedFormTemplateId: z.string().nullable().optional(),
+  regulatorySourceId: z.string().nullable().optional(),
+
+  notes: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+});
+export type LawObligation = z.infer<typeof LawObligation>;
+
+export const lawAlertStatuses = ["new", "reviewed", "actioned", "dismissed"] as const;
+
+/**
+ * A published regulatory change matched against the obligation register — one
+ * row per government document, deduped on the publisher's document number.
+ */
+export const LawAlert = z.object({
+  ...base,
+  source: z.string().default("federal_register"),
+  documentNumber: z.string().nullable().optional(),
+  docType: z.string().nullable().optional(),
+  title: z.string(),
+  abstract: z.string().nullable().optional(),
+  agencies: z.array(z.string()).default([]),
+  publicationDate: z.string().nullable().optional(),
+  effectiveDate: z.string().nullable().optional(),
+  commentsCloseDate: z.string().nullable().optional(),
+  htmlUrl: z.string().nullable().optional(),
+  pdfUrl: z.string().nullable().optional(),
+  matchedTerms: z.array(z.string()).default([]),
+  matchedObligationId: z.string().nullable().optional(),
+  status: z.enum(lawAlertStatuses).default("new"),
+  reviewedByName: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
+  reviewNote: z.string().nullable().optional(),
+});
+export type LawAlert = z.infer<typeof LawAlert>;
+
+/* --------------------- vendor completion imports -------------------- */
+
+export const TrainingImportRow = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  course: z.string().optional(),
+  completedAt: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type TrainingImportRow = z.infer<typeof TrainingImportRow>;
+
+/**
+ * One vendor completion-report import. Kept so a verified completion can always
+ * answer "which report, imported by whom, on what day, said so?".
+ */
+export const TrainingImport = z.object({
+  ...base,
+  provider: z.string().default("Mineral"),
+  fileName: z.string().nullable().optional(),
+  importedByName: z.string().nullable().optional(),
+  /** Free-text period the report covers, e.g. "Aug 2026". */
+  periodLabel: z.string().nullable().optional(),
+  rowCount: z.number().default(0),
+  matchedCount: z.number().default(0),
+  verifiedCount: z.number().default(0),
+  discrepancyCount: z.number().default(0),
+  /** Report rows that matched no assignment — the follow-up list. */
+  unmatched: z.array(TrainingImportRow).default([]),
+  notes: z.string().nullable().optional(),
+});
+export type TrainingImport = z.infer<typeof TrainingImport>;
 
 /* ------------------------------ OSHA ------------------------------- */
 
@@ -875,10 +1031,40 @@ export const MedicalSupply = z.object({
   aiIdentified: z.boolean().default(false),
   aiConfidence: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Ordering. All optional (no .default) — a default here would make every
+  // existing construction site of MedicalSupply fail to typecheck.
+  /** The vendor's product page for this exact item. http(s) only. */
+  orderUrl: z.string().nullable().optional(),
+  /** Days from placing an order to having it on the shelf. Defaults to 7 in code. */
+  leadTimeDays: z.number().nullable().optional(),
+  /** Days of use an order should cover once it arrives. Defaults to 30 in code. */
+  targetCoverDays: z.number().nullable().optional(),
+  /** Units per orderable pack — recommendations round up to whole packs. */
+  packSize: z.number().nullable().optional(),
+  lastOrderedAt: z.string().nullable().optional(),
+  pendingOrderQty: z.number().nullable().optional(),
 });
 export type MedicalSupply = z.infer<typeof MedicalSupply>;
 
-export const consumableActions = ["received", "used", "adjusted", "discarded"] as const;
+/**
+ * One delivered batch of a supply. Stock lives here: the supply's on-hand, lot
+ * number and expiry are kept in sync from its lots by a database trigger, so a
+ * closet holding three lots with three expiry dates is represented truthfully.
+ */
+export const MedicalSupplyLot = z.object({
+  ...base,
+  supplyId: z.string(),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  quantityReceived: z.number().default(0),
+  quantityRemaining: z.number().default(0),
+  receivedAt: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type MedicalSupplyLot = z.infer<typeof MedicalSupplyLot>;
+
+// "expired" is split out from "discarded" so waste-to-expiry can be reported on its own.
+export const consumableActions = ["received", "used", "adjusted", "discarded", "expired"] as const;
 
 export const MedicalSupplyLog = z.object({
   ...base,
@@ -886,10 +1072,92 @@ export const MedicalSupplyLog = z.object({
   action: z.enum(consumableActions).default("used"),
   quantityDelta: z.number().default(0),        // +received / -used
   balanceAfter: z.number().nullable().optional(),
+  /** When it actually happened — not when it was typed in. Usage pace measures
+   *  against this, so a Friday catch-up still lands in the right week. */
+  occurredAt: z.string().nullable().optional(),
+  /** The lot this movement touched. */
+  lotId: z.string().nullable().optional(),
   lotNumber: z.string().nullable().optional(),
   byName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
 });
+
+/* --------------------- medication samples --------------------------- */
+
+/**
+ * Drug-rep samples held at a site. Deliberately separate from MedicalSupply:
+ * samples aren't purchased, they can't be reordered from a vendor, they expire
+ * hard, and the way you restock is to call the rep — so the rep is part of the
+ * record, not an afterthought.
+ */
+export const sampleForms = [
+  "box", "carton", "blister_pack", "bottle", "pen", "vial",
+  "inhaler", "tube", "sample_card", "other",
+] as const;
+export const SampleForm = z.enum(sampleForms);
+export type SampleForm = z.infer<typeof SampleForm>;
+
+/** The rep to call for more. One rep usually covers several products. */
+export const DrugRep = z.object({
+  ...base,
+  name: z.string(),
+  company: z.string().nullable().optional(),      // manufacturer they represent
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  territory: z.string().nullable().optional(),
+  lastContactDate: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+});
+export type DrugRep = z.infer<typeof DrugRep>;
+
+export const MedSample = z.object({
+  ...base,
+  name: z.string(),
+  strength: z.string().nullable().optional(),     // "50 mg", "100 mcg/actuation"
+  form: SampleForm.default("box"),
+  manufacturer: z.string().nullable().optional(),
+  ndc: z.string().nullable().optional(),
+  /** Which site holds this stock. Murray and Lehi are tracked separately. */
+  locationId: z.string().nullable().optional(),
+  room: z.string().nullable().optional(),         // closet / cabinet
+  quantityOnHand: z.number().default(0),
+  unit: z.string().default("box"),
+  /** Optional floor. Runway is computed from pace; par is a simple backstop. */
+  parLevel: z.number().default(0),
+  lotNumber: z.string().nullable().optional(),
+  expirationDate: z.string().nullable().optional(),
+  repId: z.string().nullable().optional(),
+  // Photo classification, mirroring inventory and medical supplies.
+  imageUrl: z.string().nullable().optional(),
+  capturedAt: z.string().nullable().optional(),
+  capturedLat: z.number().nullable().optional(),
+  capturedLng: z.number().nullable().optional(),
+  aiIdentified: z.boolean().default(false),
+  aiConfidence: z.string().nullable().optional(),
+  active: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+});
+export type MedSample = z.infer<typeof MedSample>;
+
+export const sampleActions = ["dispensed", "received", "adjusted", "discarded", "expired"] as const;
+export const SampleAction = z.enum(sampleActions);
+export type SampleAction = z.infer<typeof SampleAction>;
+
+export const MedSampleLog = z.object({
+  ...base,
+  sampleId: z.string(),
+  action: SampleAction.default("dispensed"),
+  quantityDelta: z.number().default(0),           // +received / -dispensed
+  balanceAfter: z.number().nullable().optional(),
+  /** When it actually happened — not when it was typed in. Burn rate uses this
+   *  so a back-dated entry still lands in the right week. */
+  occurredAt: z.string().nullable().optional(),
+  lotNumber: z.string().nullable().optional(),
+  byName: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type MedSampleLog = z.infer<typeof MedSampleLog>;
 export type MedicalSupplyLog = z.infer<typeof MedicalSupplyLog>;
 
 /* ------------------------- HR: time clock -------------------------- */
@@ -1576,3 +1844,178 @@ export const DeaRecord = z.object({
   notes: z.string().optional(),
 });
 export type DeaRecord = z.infer<typeof DeaRecord>;
+
+/* ------------------------- emergency alert ------------------------- */
+// LP Alert (the Base44 emergency-code app), rebuilt inside the Hub. Incident
+// AUDIO never lives here — it streams to admin devices and is saved only there;
+// incidents carry clip metadata alone (see supabase/migrations/0026).
+
+export const alarmSounds = ["default", "fire_alarm", "beep_fast", "beep_slow", "siren_high", "siren_low", "triple_beep", "silent"] as const;
+export const AlarmSound = z.enum(alarmSounds);
+export type AlarmSound = z.infer<typeof AlarmSound>;
+
+export const EmergencyCode = z.object({
+  ...base,
+  name: z.string(),                                 // "Code Blue"
+  description: z.string().nullable().optional(),
+  priority: z.string(),                             // "CRITICAL PRIORITY"
+  colorHex: z.string(),
+  alarmSound: AlarmSound,
+  requiredRoles: z.array(z.string()),
+  audioRecordingEnabled: z.boolean(),
+  sortOrder: z.number(),
+  active: z.boolean(),
+});
+export type EmergencyCode = z.infer<typeof EmergencyCode>;
+
+/** How one site relates to the others in an emergency (mutual aid, shared walls, where the AED lives). */
+export const EmergencySiteSettings = z.object({
+  ...base,
+  locationId: z.string(),
+  responseZone: z.string().nullable().optional(),
+  mutualAidLocationIds: z.array(z.string()),
+  connectedLocationIds: z.array(z.string()),
+  refugeForLocationIds: z.array(z.string()),
+  aedSourceLocationId: z.string().nullable().optional(),
+  crashCartSourceLocationId: z.string().nullable().optional(),
+});
+export type EmergencySiteSettings = z.infer<typeof EmergencySiteSettings>;
+
+export const AudioClipMeta = z.object({
+  clipIndex: z.number(),
+  recordedAt: z.string(),
+  durationSec: z.number().optional(),
+  /** Device label of the admin app that saved it; absent while still on the phone. */
+  heldBy: z.string().optional(),
+});
+export type AudioClipMeta = z.infer<typeof AudioClipMeta>;
+
+export const evacuationStatuses = ["pending", "evacuate", "shelter"] as const;
+export const EmergencyIncident = z.object({
+  ...base,
+  codeId: z.string().nullable().optional(),
+  codeName: z.string(),
+  locationId: z.string().nullable().optional(),
+  locationName: z.string().nullable().optional(),
+  internalLocation: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  triggeredBy: z.string().nullable().optional(),    // auth user id
+  triggeredByName: z.string().nullable().optional(),
+  triggeredAt: z.string(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
+  isRemote: z.boolean(),
+  remoteAddress: z.string().nullable().optional(),
+  remoteCity: z.string().nullable().optional(),
+  remoteState: z.string().nullable().optional(),
+  isTest: z.boolean(),
+  evacuationStatus: z.enum(evacuationStatuses),
+  threatLocationDetails: z.string().nullable().optional(),
+  resolved: z.boolean(),
+  resolvedAt: z.string().nullable().optional(),
+  resolvedByName: z.string().nullable().optional(),
+  audioClips: z.array(AudioClipMeta),
+  legacyId: z.string().nullable().optional(),
+});
+export type EmergencyIncident = z.infer<typeof EmergencyIncident>;
+
+export const responseStatuses = ["responding", "on_site", "standby", "completed"] as const;
+export const ResponseStatus = z.enum(responseStatuses);
+export type ResponseStatus = z.infer<typeof ResponseStatus>;
+
+export const EmergencyResponse = z.object({
+  ...base,
+  incidentId: z.string(),
+  userId: z.string().nullable().optional(),         // auth user id
+  responderName: z.string().nullable().optional(),
+  respondedAt: z.string(),
+  responseRole: z.string().nullable().optional(),
+  assistanceType: z.string().nullable().optional(),
+  itemsBringing: z.array(z.string()),
+  estimatedArrival: z.string().nullable().optional(),
+  status: ResponseStatus,
+  statusUpdates: z.array(z.object({ status: z.string(), message: z.string().optional(), timestamp: z.string() })),
+  message: z.string().nullable().optional(),
+  isRemote: z.boolean(),
+  distanceMeters: z.number().nullable().optional(),
+  legacyId: z.string().nullable().optional(),
+});
+export type EmergencyResponse = z.infer<typeof EmergencyResponse>;
+
+export const AssistanceRequest = z.object({
+  ...base,
+  requestedBy: z.string().nullable().optional(),
+  requestedByName: z.string(),
+  locationId: z.string().nullable().optional(),
+  locationName: z.string().nullable().optional(),
+  assistanceType: z.string(),
+  urgency: z.enum(["now", "within_5_mins"]),
+  notes: z.string().nullable().optional(),
+  responders: z.array(z.object({ userId: z.string(), name: z.string(), eta: z.string().optional(), respondedAt: z.string() })),
+  resolved: z.boolean(),
+  resolvedAt: z.string().nullable().optional(),
+  resolvedByName: z.string().nullable().optional(),
+  legacyId: z.string().nullable().optional(),
+});
+export type AssistanceRequest = z.infer<typeof AssistanceRequest>;
+
+export const ResponseDefaults = z.object({
+  assistanceType: z.string().optional(),
+  itemsBringing: z.array(z.string()).optional(),
+  estimatedArrival: z.string().optional(),
+});
+export type ResponseDefaults = z.infer<typeof ResponseDefaults>;
+
+export const weekDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+export type WeekDay = (typeof weekDays)[number];
+
+/** A person's emergency setup: where they are on a given day, their usual role, per-code defaults. */
+export const EmergencyResponderProfile = z.object({
+  ...base,
+  /** Anchored on the employee so admins can set people up before they have a login. */
+  employeeId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),         // auth user id, when known
+  fullName: z.string().nullable().optional(),
+  emergencyRole: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  /** A location id, or "remote". */
+  defaultLocationId: z.string().nullable().optional(),
+  clockedInLocationId: z.string().nullable().optional(),
+  clockedInDate: z.string().nullable().optional(), // YYYY-MM-DD the override is valid for
+  /** Day → location id | "remote" | "off". */
+  weeklySchedule: z.record(z.string(), z.string()),
+  seniority: z.number().nullable().optional(),
+  codeDefaults: z.record(z.string(), ResponseDefaults),
+  canListenAudio: z.boolean(),
+  showInContacts: z.boolean(),
+  appQuizPassedAt: z.string().nullable().optional(),
+  sopQuizPassedAt: z.string().nullable().optional(),
+});
+export type EmergencyResponderProfile = z.infer<typeof EmergencyResponderProfile>;
+
+export const EmergencyLocationRole = z.object({
+  ...base,
+  employeeId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  locationId: z.string(),
+  codeName: z.string(),
+  responseRole: z.string(),
+  expectedAssistance: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type EmergencyLocationRole = z.infer<typeof EmergencyLocationRole>;
+
+export const EmergencyAudioLog = z.object({
+  ...base,
+  incidentId: z.string().nullable().optional(),
+  incidentLabel: z.string().nullable().optional(),
+  action: z.enum(["listened_live", "saved_clip", "played_clip", "exported_clip", "deleted_clip", "accessed", "downloaded_clip", "downloaded_all", "deleted_audio"]),
+  performedBy: z.string().nullable().optional(),
+  performedByName: z.string(),
+  performedByEmail: z.string().nullable().optional(),
+  clipIndex: z.number().nullable().optional(),
+  clipCount: z.number().nullable().optional(),
+  deviceLabel: z.string().nullable().optional(),
+  details: z.string().nullable().optional(),
+});
+export type EmergencyAudioLog = z.infer<typeof EmergencyAudioLog>;

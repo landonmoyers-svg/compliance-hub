@@ -590,7 +590,7 @@ function FormFiller({
                   <h3 className="font-semibold">Does this form contain patient information?</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Before saving, confirm whether you entered any <strong>patient PHI</strong> — a patient&apos;s name, date of birth, MRN, diagnosis, or anything that identifies a specific patient. Compliance Hub stores your practice&apos;s own records, not PHI.
+                  Before saving, confirm whether you entered any <strong>patient PHI</strong> — a patient&apos;s name, date of birth, MRN, diagnosis, or anything that identifies a specific patient. Lone Peak Compliance stores your practice&apos;s own records, not PHI.
                 </p>
                 <div className="mt-5 flex flex-col gap-2">
                   <Button onClick={doSubmit} disabled={saving}>
@@ -608,7 +608,7 @@ function FormFiller({
                   <h3 className="font-semibold">Keep this one out of the app</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Because it contains patient information, don&apos;t save it here. Generate a <strong>local copy</strong> (below) and file it in the patient&apos;s chart / your HIPAA-compliant records — it&apos;s created on your device and never sent to Compliance Hub. Then log a <strong>de-identified</strong> version here (patient initials or MRN last 4) for your compliance tracking.
+                  Because it contains patient information, don&apos;t save it here. Generate a <strong>local copy</strong> (below) and file it in the patient&apos;s chart / your HIPAA-compliant records — it&apos;s created on your device and never sent to Lone Peak Compliance. Then log a <strong>de-identified</strong> version here (patient initials or MRN last 4) for your compliance tracking.
                 </p>
                 <div className="mt-5 flex flex-col gap-2">
                   <Button onClick={downloadLocalCopy}>Download a local copy for the chart</Button>

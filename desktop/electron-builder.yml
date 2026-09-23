@@ -1,5 +1,5 @@
 appId: com.lonepeakpsychiatry.compliancehub
-productName: Compliance Hub
+productName: Lone Peak Compliance
 copyright: © Lone Peak Psychiatry
 
 directories:
@@ -24,6 +24,15 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   notarize: false
+  # Emergency Alert records incident audio from the device that calls a code
+  # and uses location to tell an on-site alert from a remote one. macOS blocks
+  # both (silently) without these usage strings, and the hardened runtime also
+  # needs the audio-input entitlement once the app is signed.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: "Compliance Hub records audio during an emergency you call, so admins can review the incident. Recordings are kept only on admin devices."
+    NSLocationWhenInUseUsageDescription: "Compliance Hub uses your location when you call or respond to an emergency, to tell whether you're at the clinic."
 
 dmg:
   title: Compliance Hub

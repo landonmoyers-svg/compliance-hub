@@ -3,6 +3,10 @@
     {
       "path": "/api/notifications/scan",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/regulatory/scan",
+      "schedule": "0 14 * * 1"
     }
   ]
 }

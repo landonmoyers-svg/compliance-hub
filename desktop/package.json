@@ -1,6 +1,6 @@
 {
   "name": "compliance-hub-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Compliance Hub desktop app (native shell around the hosted web app).",
   "author": "Lone Peak Psychiatry",
   "license": "UNLICENSED",

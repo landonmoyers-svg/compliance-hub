@@ -41,3 +41,40 @@ self.addEventListener("fetch", (event) => {
     ),
   );
 });
+
+/*
+  Emergency Alert push. The server sends {title, body, tag, url, urgent}; we
+  show it even when no Hub tab is open. requireInteraction keeps it on screen
+  until someone acts; renotify makes a repeat alert for the same incident
+  (e.g. "evacuate now") vibrate and sound again.
+*/
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: "Compliance Hub", body: event.data ? event.data.text() : "" }; }
+  const title = data.title || "Emergency alert";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      tag: data.tag || "emergency",
+      renotify: !!data.urgent,
+      requireInteraction: true,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      vibrate: [300, 150, 300, 150, 600],
+      data: { url: data.url || "/emergency" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/emergency", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if (w.url.startsWith(self.location.origin)) { w.focus(); return w.navigate(url); }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

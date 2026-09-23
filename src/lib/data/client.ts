@@ -1,4 +1,12 @@
 import type {
+  AssistanceRequest,
+  EmergencyAudioLog,
+  EmergencyCode,
+  EmergencyIncident,
+  EmergencyLocationRole,
+  EmergencyResponderProfile,
+  EmergencyResponse,
+  EmergencySiteSettings,
   AuditLog,
   Benefit,
   ChatMessage,
@@ -25,6 +33,8 @@ import type {
   CeRecord,
   EmergencyPlan,
   InventoryItem,
+  LawAlert,
+  LawObligation,
   Notification,
   OrganizationSettings,
   OSHARecord,
@@ -54,10 +64,15 @@ import type {
   SupplyMovement,
   MedicalSupply,
   MedicalSupplyLog,
+  MedicalSupplyLot,
+  DrugRep,
+  MedSample,
+  MedSampleLog,
   TimeClockEntry,
   TimeOffRequest,
   TrainingAssignment,
   TrainingAttempt,
+  TrainingImport,
   TrainingModule,
   TrainingQuestion,
   VendorRecord,
@@ -78,6 +93,17 @@ export interface Collection<T extends { id: string }> {
   create(input: Omit<T, "id" | "createdDate">): Promise<T>;
   update(id: string, patch: Partial<Omit<T, "id" | "createdDate">>): Promise<T>;
   remove(id: string): Promise<void>;
+  /**
+   * Re-insert records from a backup, keeping their original ids and created
+   * dates (so references between records survive). Insert-only: a record whose
+   * id already exists is reported as failed, never overwritten.
+   */
+  restore(records: T[]): Promise<RestoreResult>;
+}
+
+export interface RestoreResult {
+  inserted: number;
+  failed: { id: string; error: string }[];
 }
 
 export interface DataClient {
@@ -94,6 +120,10 @@ export interface DataClient {
   supplyMovements: Collection<SupplyMovement>;
   medicalSupplies: Collection<MedicalSupply>;
   medicalSupplyLogs: Collection<MedicalSupplyLog>;
+  medicalSupplyLots: Collection<MedicalSupplyLot>;
+  drugReps: Collection<DrugRep>;
+  medSamples: Collection<MedSample>;
+  medSampleLogs: Collection<MedSampleLog>;
   riskCases: Collection<RiskManagementCase>;
   incidents: Collection<Incident>;
   correctiveActions: Collection<CorrectiveAction>;
@@ -134,6 +164,9 @@ export interface DataClient {
   auditLogs: Collection<AuditLog>;
   trainingQuestions: Collection<TrainingQuestion>;
   trainingAttempts: Collection<TrainingAttempt>;
+  trainingImports: Collection<TrainingImport>;
+  lawObligations: Collection<LawObligation>;
+  lawAlerts: Collection<LawAlert>;
   formTemplates: Collection<FillableFormTemplate>;
   formAssignments: Collection<FormAssignment>;
   completedForms: Collection<CompletedForm>;
@@ -146,6 +179,14 @@ export interface DataClient {
   organizationSettings: Collection<OrganizationSettings>;
   chatMessages: Collection<ChatMessage>;
   sopRegulationLinks: Collection<SopRegulationLink>;
+  emergencyCodes: Collection<EmergencyCode>;
+  emergencySiteSettings: Collection<EmergencySiteSettings>;
+  emergencyIncidents: Collection<EmergencyIncident>;
+  emergencyResponses: Collection<EmergencyResponse>;
+  assistanceRequests: Collection<AssistanceRequest>;
+  emergencyResponderProfiles: Collection<EmergencyResponderProfile>;
+  emergencyLocationRoles: Collection<EmergencyLocationRole>;
+  emergencyAudioLog: Collection<EmergencyAudioLog>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

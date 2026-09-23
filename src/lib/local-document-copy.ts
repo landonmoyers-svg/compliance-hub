@@ -50,7 +50,7 @@ export function openLocalDocumentCopy(d: LocalDocument): boolean {
 </style></head>
 <body>
   <div class="noprint"><button class="btn" onclick="window.print()">Print / Save as PDF</button></div>
-  <div class="banner"><strong>Local copy — not saved in Compliance Hub.</strong> This document was generated on your device and was never stored in the app. Because it may contain protected health information, file it in the patient's chart / your HIPAA-compliant records, and log only a de-identified summary in Compliance Hub.</div>
+  <div class="banner"><strong>Local copy — not saved in Lone Peak Compliance.</strong> This document was generated on your device and was never stored in the app. Because it may contain protected health information, file it in the patient's chart / your HIPAA-compliant records, and log only a de-identified summary in Lone Peak Compliance.</div>
   <header>
     <div class="k">${esc(d.docLabel)}${d.orgName ? " — " + esc(d.orgName) : ""}</div>
     <h1>${esc(d.title) || "(untitled)"}</h1>
@@ -58,7 +58,7 @@ export function openLocalDocumentCopy(d: LocalDocument): boolean {
   </header>
   ${rowsHtml}
   ${sigHtml}
-  <footer>Generated locally by Compliance Hub for filing in your HIPAA-compliant records. The app itself does not store patient PHI.</footer>
+  <footer>Generated locally by Lone Peak Compliance for filing in your HIPAA-compliant records. The app itself does not store patient PHI.</footer>
 </body></html>`;
   win.document.open();
   win.document.write(html);

@@ -20,6 +20,7 @@ import {
   Heart,
   Inbox,
   Landmark,
+  Scale,
   Layers,
   LayoutDashboard,
   MessageSquare,
@@ -27,7 +28,11 @@ import {
   Package,
   Boxes,
   Syringe,
+  Pill,
   Shield,
+  Siren,
+  Settings2,
+  History,
   Sparkles,
   Star,
   Upload,
@@ -70,6 +75,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Setup Guide", href: "/compliance-concierge", icon: Sparkles, adminOnly: true },
     ],
   },
+  // Emergency Alert (LP Alert, rebuilt in the Hub 2026-09-21). Its own top tab
+  // so calling a code is one click from anywhere; every role can reach the page.
+  {
+    label: "Emergency", shortLabel: "Emergency",
+    items: [
+      { label: "Emergency", href: "/emergency", icon: Siren },
+      { label: "Incident History", href: "/emergency/history", icon: History, adminOnly: true },
+      { label: "Emergency Setup", href: "/emergency/setup", icon: Settings2, adminOnly: true },
+    ],
+  },
   // 2. Personal, daily-use tools every signed-in user has.
   {
     label: "My Workspace", shortLabel: "My Work",
@@ -106,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Risk & Compliance", shortLabel: "Risk",
     items: [
       { label: "Incidents & Corrective Actions", href: "/incidents", icon: Inbox },
+      { label: "Employment Law", href: "/employment-law", icon: Scale, adminOnly: true },
       { label: "Security Risk Assessment", href: "/security-risk-assessment", icon: Shield, adminOnly: true },
       { label: "Audits & Mock Surveys", href: "/audits", icon: ClipboardCheck, adminOnly: true },
       { label: "Exclusion Screening", href: "/exclusion-screening", icon: CheckCircle2, adminOnly: true },
@@ -120,11 +136,25 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "OSHA Tracker", href: "/osha-tracker", icon: ClipboardCheck, adminOnly: true },
       { label: "SDS Library", href: "/sds-library", icon: FlaskConical },
-      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
       { label: "Emergency Prep", href: "/emergency-preparedness", icon: AlertTriangle, adminOnly: true },
+    ],
+  },
+  // Inventory got its own two top-bar tabs (Landon, 2026-09-15): day-to-day
+  // counting and ordering is its own job, not a corner of Safety. Medication
+  // stock — including controlled substances — sits apart from general goods.
+  {
+    label: "Medical Inventory", shortLabel: "Medical Inventory",
+    items: [
+      { label: "Medical Supplies", href: "/medical-supplies", icon: Syringe },
+      { label: "Med Samples", href: "/med-samples", icon: Pill, adminOnly: true },
+      { label: "Controlled Substances", href: "/controlled-substances", icon: FlaskConical, adminOnly: true },
+    ],
+  },
+  {
+    label: "General Inventory", shortLabel: "General Inventory",
+    items: [
       { label: "Inventory", href: "/inventory", icon: Package },
       { label: "Staff Supplies", href: "/staff-supplies", icon: Boxes },
-      { label: "Medical Supplies", href: "/medical-supplies", icon: Syringe },
     ],
   },
   {

@@ -8,6 +8,7 @@ import { JaneSidebar } from "./jane-sidebar";
 import { AssistantWidget } from "@/components/ai/assistant-widget";
 import { GuideProvider } from "@/lib/guide/context";
 import { GuideDock } from "@/components/guide/guide-dock";
+import { EmergencyLayer } from "@/components/emergency-alert/emergency-layer";
 import { useAuth } from "@/lib/auth/context";
 import { useCollection } from "@/lib/data/hooks";
 import { canAccessPath, findNavItem } from "@/lib/nav";
@@ -137,6 +138,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* The Guide's walkthrough dock (panel / tour / chat) */}
       <GuideDock />
+      {/* Emergency alarms reach every page, for everyone signed in. */}
+      <EmergencyLayer />
     </div>
     </GuideProvider>
   );

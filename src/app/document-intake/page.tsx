@@ -386,7 +386,7 @@ export default function DocumentIntakePage() {
         case "training":
           created = await createTraining.mutateAsync({
             title, description: r.summary || undefined, trainingType: "compliance",
-            passingScore: 80, active: true,
+            passingScore: 80, active: true, delivery: "in_app", evidenceRequired: false,
           });
           break;
       }
