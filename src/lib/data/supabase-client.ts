@@ -2390,6 +2390,8 @@ function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
     discrepancyNote: (r.discrepancy_note as string | null) ?? undefined,
     amendsRecordId: (r.amends_record_id as string | null) ?? undefined,
     amendmentReason: (r.amendment_reason as string | null) ?? undefined,
+    archiveKey: (r.archive_key as string | null) ?? undefined,
+    fileHashes: (r.file_hashes as Record<string, string> | null) ?? {},
   };
 }
 function deaRecordTo(d: Partial<DeaRecord>) {
@@ -2421,6 +2423,8 @@ function deaRecordTo(d: Partial<DeaRecord>) {
     ...(d.discrepancyNote !== undefined && { discrepancy_note: d.discrepancyNote }),
     ...(d.amendsRecordId !== undefined && { amends_record_id: d.amendsRecordId }),
     ...(d.amendmentReason !== undefined && { amendment_reason: d.amendmentReason }),
+    ...(d.archiveKey !== undefined && { archive_key: d.archiveKey }),
+    ...(d.fileHashes !== undefined && { file_hashes: d.fileHashes }),
   };
 }
 

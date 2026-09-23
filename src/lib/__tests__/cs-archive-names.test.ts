@@ -1,0 +1,58 @@
+import { archiveFolderName, folderLabel, inboxFileName, parseInboxFileName, sanitize } from "../cs-archive/archive-names";
+
+let pass = 0, fail = 0;
+const chk = (name: string, got: unknown, want: unknown) => {
+  const ok = JSON.stringify(got) === JSON.stringify(want);
+  ok ? pass++ : fail++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : `\n        got ${JSON.stringify(got)}  want ${JSON.stringify(want)}`}`);
+};
+
+// The folder is named for the period the log covers, so it sorts by when the
+// log happened rather than when somebody got round to filing it.
+chk("folder label from the period", folderLabel({
+  substanceName: "Ketamine", recordTypeLabel: "Administration log",
+  periodStart: "2024-03-01", periodEnd: "2024-03-31",
+}), "2024-03 Ketamine administration log");
+
+chk("falls back to the record date", folderLabel({
+  substanceName: "Ketamine", recordTypeLabel: "Vial log", recordDate: "2023-11-14",
+}), "2023-11 Ketamine vial log");
+
+chk("survives a missing substance", folderLabel({
+  recordTypeLabel: "Count sheet", recordDate: "2024-01-02",
+}), "2024-01 Controlled substance count sheet");
+
+// SharePoint refuses these, and our own separator would break the parse.
+chk("illegal characters are removed", sanitize('Keta/mine: "50%" #1'), "Keta-mine- -50- -1");
+chk("the separator can't appear inside a part", sanitize("a__b"), "a-b");
+
+// Round trip: what the browser writes is what the flow reads.
+const key = "a3f1c8d2";
+const label = "2024-03 Ketamine administration log";
+const upload = inboxFileName(key, label, "page-1.jpg");
+chk("upload name carries its destination", upload, "a3f1c8d2__2024-03 Ketamine administration log__page-1.jpg");
+
+const parsed = parseInboxFileName(upload)!;
+chk("the flow reads the key back", parsed.archiveKey, key);
+chk("and the folder", parsed.folderLabel, label);
+chk("and the original filename", parsed.fileName, "page-1.jpg");
+chk("and where it goes", parsed.archivePath, "2024-03 Ketamine administration log [a3f1c8d2]/page-1.jpg");
+
+chk("folder name pairs the label with the key", archiveFolderName(key, label), "2024-03 Ketamine administration log [a3f1c8d2]");
+
+// An amendment reuses its parent's key, so it lands in the same folder.
+const amendment = parseInboxFileName(inboxFileName(key, label, "amendment-page-1.jpg"))!;
+chk("an amendment lands beside the original",
+  amendment.archivePath.split("/")[0], parsed.archivePath.split("/")[0]);
+
+// Underscores in the original filename must not confuse the parse.
+const odd = parseInboxFileName(inboxFileName(key, label, "scan__final_v2.jpg"))!;
+chk("a filename containing the separator still parses", odd.fileName, "scan-final_v2.jpg");
+
+// Anything that doesn't carry a destination is left alone rather than guessed at.
+chk("a file dropped in by hand has no destination", parseInboxFileName("random.pdf"), null);
+chk("a half-formed name has none either", parseInboxFileName("abc__only-two-parts"), null);
+chk("empty parts are refused", parseInboxFileName("__label__file.jpg"), null);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+if (fail) process.exit(1);

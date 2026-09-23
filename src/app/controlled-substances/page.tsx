@@ -19,6 +19,7 @@ import { PaperLogDetail } from "@/components/controlled-substances/paper-log-det
 import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
 import { hasPermission } from "@/lib/auth/roles";
 import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
+import { folderLabel as archiveFolderLabel } from "@/lib/cs-archive/archive-names";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType } from "@/lib/data/schema";
@@ -732,6 +733,12 @@ export default function ControlledSubstancesPage() {
   const amendableLogs = useMemo(
     () => amendableRecords(deaQ.data ?? [], PAPER_LOG_TYPES).map((r) => ({
       id: r.id,
+      archiveKey: r.archiveKey,
+      folderLabel: archiveFolderLabel({
+        substanceName: r.substanceName,
+        recordTypeLabel: DEA_RECORD_LABEL[r.recordType],
+        periodStart: r.periodStart, periodEnd: r.periodEnd, recordDate: r.recordDate,
+      }),
       label: [r.substanceName ?? "Controlled substance", DEA_RECORD_LABEL[r.recordType].toLowerCase(),
               r.periodStart && r.periodEnd ? `${formatDate(r.periodStart)}–${formatDate(r.periodEnd)}`
               : r.recordDate ? formatDate(r.recordDate) : ""].filter(Boolean).join(" · "),

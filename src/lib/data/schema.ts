@@ -1902,6 +1902,13 @@ export const DeaRecord = z.object({
      newest in a chain counts towards reconciliation. */
   amendsRecordId: z.string().nullable().optional(),
   amendmentReason: z.string().nullable().optional(),
+
+  /* Where it sits in the archive, and what it was when it got there. An
+     amendment shares its parent's key so both land in one folder; the hashes
+     are computed before the bytes leave the browser, so the record of what was
+     filed lives in a different system from the file itself. */
+  archiveKey: z.string().nullable().optional(),
+  fileHashes: z.record(z.string(), z.string()).optional(),
 });
 export type DeaRecord = z.infer<typeof DeaRecord>;
 

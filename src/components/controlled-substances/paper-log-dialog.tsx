@@ -32,6 +32,7 @@ import { auditLogMovement } from "@/lib/cs-archive/audit";
 import { localOcrAvailable, ocrEngine, readPageLocally, releaseOcr, rowsToText } from "@/lib/cs-archive/local-ocr";
 import { fullRecordCsv, hubEntries, parsePage, type ParsedRow } from "@/lib/cs-archive/parse-entries";
 import { reconcile } from "@/lib/cs-archive/reconcile";
+import { folderLabel, hashFile, inboxFileName, newArchiveKey } from "@/lib/cs-archive/archive-names";
 import { csEntryActions, type CsArchiveEntry, type DeaRecordType } from "@/lib/data/schema";
 import { dateInputToISO, todayInput } from "@/lib/dates";
 import {
@@ -56,6 +57,8 @@ export interface PaperLogPayload {
   containsPatientIdentifiers: boolean;
   externalUrl: string | null;
   externalSystem: string | null;
+  archiveKey: string;
+  fileHashes: Record<string, string>;
   entries: CsArchiveEntry[];
   notes?: string;
 }
@@ -80,7 +83,7 @@ const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
 export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   locations: { id: string; name: string }[];
   /** Logs already on file that this one could be correcting. */
-  amendable: { id: string; label: string }[];
+  amendable: { id: string; label: string; archiveKey?: string | null; folderLabel?: string | null }[];
   onClose: () => void;
   onSave: (p: PaperLogPayload) => Promise<void>;
 }) {
@@ -183,14 +186,31 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
     try {
       // The pages themselves are the DEA record; the CSV is the index into
       // them. Both go to SharePoint, neither goes to the Hub.
-      const stamp = (periodEnd || recordDate || todayInput()).replace(/-/g, "");
-      const base = `${substanceName || "controlled-substance"}-${recordType}-${stamp}`;
+      // An amendment joins its parent's folder; an original starts one. The
+      // destination rides in the filename, because the flow that files these
+      // away can't ask the Hub where they belong (see archive-names.ts).
+      const parent = amendsRecordId ? amendable.find((r) => r.id === amendsRecordId) : undefined;
+      const archiveKey = parent?.archiveKey || newArchiveKey();
+      const destination = parent?.folderLabel || folderLabel({
+        substanceName,
+        recordTypeLabel: LOG_TYPES.find((t) => t.value === recordType)?.label ?? "Log",
+        periodStart, periodEnd, recordDate,
+      });
+
+      // Hashed here, before the bytes leave, so what the Hub records and what
+      // SharePoint holds can be compared later from outside SharePoint.
+      const fileHashes: Record<string, string> = {};
+      const prefix = amendsRecordId ? "amendment-" : "";
 
       for (const file of files) {
-        await msUpload(folder, `${base}-${file.name}`, file);
+        const name = inboxFileName(archiveKey, destination, `${prefix}${file.name}`);
+        fileHashes[name] = await hashFile(file);
+        await msUpload(folder, name, file);
       }
       const csv = new Blob([fullRecordCsv(rows, label)], { type: "text/csv" });
-      const index = await msUpload(folder, `${base}-entries.csv`, csv);
+      const csvName = inboxFileName(archiveKey, destination, `${prefix}entries.csv`);
+      fileHashes[csvName] = await hashFile(csv);
+      const index = await msUpload(folder, csvName, csv);
 
       auditLogMovement({ ...audit, outcome: "succeeded" });
 
@@ -206,6 +226,8 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
         openingBalance: numOrNull(opening),
         closingBalance: numOrNull(closing),
         containsPatientIdentifiers: hasIdentifiers,
+        archiveKey,
+        fileHashes,
         amendsRecordId: amendsRecordId || null,
         amendmentReason: amendsRecordId ? (amendmentReason.trim() || null) : null,
         externalUrl: index.webUrl,
