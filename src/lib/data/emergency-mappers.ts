@@ -9,6 +9,7 @@
 
 import type {
   AssistanceRequest,
+  CsArchiveLog,
   CsBox,
   CsManifest,
   EmergencyAudioLog,
@@ -208,5 +209,31 @@ export const csBoxMap = mapper<CsBox>([
   ["strengthPerUnit", "strength_per_unit"],
   ["locationId", "location_id"],
   ["opened", "opened", false],
+  ["notes", "notes"],
+]);
+
+export const csArchiveLogMap = mapper<CsArchiveLog>([
+  ["title", "title"],
+  ["logType", "log_type", "vial_log"],
+  ["locationId", "location_id"],
+  ["substanceName", "substance_name"],
+  ["periodStart", "period_start"],
+  ["periodEnd", "period_end"],
+  ["containsPatientIdentifiers", "contains_patient_identifiers", false],
+  ["externalUrl", "external_url"],
+  ["externalSystem", "external_system"],
+  ["documentUrl", "document_url"],
+  ["entries", "entries", []],
+  ["openingBalance", "opening_balance"],
+  ["receivedTotal", "received_total"],
+  ["administeredTotal", "administered_total"],
+  ["wastedTotal", "wasted_total"],
+  ["closingBalance", "closing_balance"],
+  ["unit", "unit"],
+  ["reconciled", "reconciled", false],
+  ["reconciledByName", "reconciled_by_name"],
+  ["reconciledAt", "reconciled_at"],
+  ["discrepancy", "discrepancy", false],
+  ["discrepancyNote", "discrepancy_note"],
   ["notes", "notes"],
 ]);

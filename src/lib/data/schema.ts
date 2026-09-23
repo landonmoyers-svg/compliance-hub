@@ -2081,3 +2081,61 @@ export const CsBox = z.object({
   notes: z.string().nullable().optional(),
 });
 export type CsBox = z.infer<typeof CsBox>;
+
+/* ------------- controlled substances: archived paper logs ------------- */
+// The paper logs from before the Hub (and from the retired Murray Clinic 1
+// log). Pages that carry patient chart numbers stay in SharePoint, which the
+// practice's Microsoft BAA covers; the Hub keeps the link plus the
+// de-identified facts needed to reconcile a vial. The DB enforces that.
+
+export const csLogTypes = ["vial_log", "administration_log", "count_sheet", "destruction", "transfer", "other"] as const;
+export const CsLogType = z.enum(csLogTypes);
+export type CsLogType = z.infer<typeof CsLogType>;
+
+export const csEntryActions = ["received", "administered", "wasted", "destroyed", "transferred", "returned", "count"] as const;
+export const CsEntryAction = z.enum(csEntryActions);
+export type CsEntryAction = z.infer<typeof CsEntryAction>;
+
+/** One line off a paper log. Deliberately has no patient field. */
+export const CsArchiveEntry = z.object({
+  date: z.string().nullable().optional(),
+  vialLabel: z.string().nullable().optional(),
+  action: CsEntryAction,
+  amount: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  staff: z.string().nullable().optional(),
+  witness: z.string().nullable().optional(),
+  /** Which page/line this came off, so a discrepancy can be traced to the chart. */
+  pageRef: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+export type CsArchiveEntry = z.infer<typeof CsArchiveEntry>;
+
+export const CsArchiveLog = z.object({
+  ...base,
+  title: z.string(),
+  logType: CsLogType,
+  locationId: z.string().nullable().optional(),
+  substanceName: z.string().nullable().optional(),
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
+  /** True for pages with chart numbers — those may only be linked, never uploaded here. */
+  containsPatientIdentifiers: z.boolean(),
+  externalUrl: z.string().nullable().optional(),
+  externalSystem: z.string().nullable().optional(),
+  documentUrl: z.string().nullable().optional(),
+  entries: z.array(CsArchiveEntry),
+  openingBalance: z.number().nullable().optional(),
+  receivedTotal: z.number().nullable().optional(),
+  administeredTotal: z.number().nullable().optional(),
+  wastedTotal: z.number().nullable().optional(),
+  closingBalance: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  reconciled: z.boolean(),
+  reconciledByName: z.string().nullable().optional(),
+  reconciledAt: z.string().nullable().optional(),
+  discrepancy: z.boolean(),
+  discrepancyNote: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CsArchiveLog = z.infer<typeof CsArchiveLog>;

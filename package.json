@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium",
-    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts && tsx src/lib/__tests__/stock-lots.test.ts && tsx src/lib/__tests__/emergency-rules.test.ts && tsx src/lib/__tests__/backup-restore.test.ts && tsx src/lib/__tests__/cs-labels.test.ts"
+    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts && tsx src/lib/__tests__/stock-lots.test.ts && tsx src/lib/__tests__/emergency-rules.test.ts && tsx src/lib/__tests__/backup-restore.test.ts && tsx src/lib/__tests__/cs-labels.test.ts && tsx src/lib/__tests__/cs-archive-parse.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
@@ -46,6 +46,7 @@
     "recharts": "^3.9.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
+    "tesseract.js": "^7.0.0",
     "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },

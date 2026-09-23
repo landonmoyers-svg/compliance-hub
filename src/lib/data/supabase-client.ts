@@ -22,6 +22,7 @@ import {
   emergencySiteSettingsMap,
   csManifestMap,
   csBoxMap,
+  csArchiveLogMap,
 } from "./emergency-mappers";
 import type {
   AuditLog,
@@ -2604,5 +2605,6 @@ export function createSupabaseDataClient(): DataClient {
     emergencyAudioLog:  makeCollection(supabase, "emergency_audio_log",  emergencyAudioLogMap.from,   emergencyAudioLogMap.to),
     csManifests:        makeCollection(supabase, "cs_manifests",        csManifestMap.from,          csManifestMap.to),
     csBoxes:            makeCollection(supabase, "cs_boxes",            csBoxMap.from,               csBoxMap.to),
+    csArchiveLogs:      makeCollection(supabase, "cs_archive_logs",    csArchiveLogMap.from,        csArchiveLogMap.to),
   };
 }
