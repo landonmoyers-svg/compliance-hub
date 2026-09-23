@@ -1,6 +1,6 @@
 # Compliance Hub — Handoff (start here)
 
-**Last updated:** 2026-09-21 · **Written for:** any Claude chat (local or cloud) picking this project up cold.
+**Last updated:** 2026-09-23 · **Written for:** any Claude chat (local or cloud) picking this project up cold.
 **Contains no secrets.** Credentials, API keys and passwords are never written here — Landon enters those himself.
 
 If you read only one section, read **§0**. Everything else is reference.
@@ -15,16 +15,19 @@ If you read only one section, read **§0**. Everything else is reference.
 
 | | Commit | State |
 |---|---|---|
-| `main` on GitHub | `0d8d1ca` (2026-08-23) | **This is what is live in production.** |
-| `feature/external-training-mineral` | 7+ commits ahead of `main` | **All work since 2026-09-01 lives here. Not merged. Not deployed.** |
+| `main` on GitHub | `c62f60e` (2026-09-23) | **Live in production.** Everything below is now merged — there is no unmerged work. |
+
+**2026-09-23: the long-standing branch backlog was merged and deployed** — Emergency Alert, the service-worker fix, next 16.3.5, backup restore, the rename to **Lone Peak Compliance**, and all the September work (external training/Mineral, employment law, regulatory change feed, med samples, usage pace, medical-supply lots + ordering, inventory tabs). `feature/emergency-alert` and `feature/external-training-mineral` are both fully contained in `main`; don't branch from them again.
 
 Commits on the feature branch, oldest first: `f0f36bc` external training (Mineral) · `63b9dab` fixes to it · `4d13cc9` employment-law register · `57dda39` `npm run typecheck` script · `06298ee` regulatory change feed · `db0963f` med samples · `8689ad7` usage-pace engine for medical supplies · `030828d` this handoff · `52d69dd` multi-tenancy migrations captured into the repo · `754a7da` supplies lot-level expiry, use-first and ordering. The branch is pushed to GitHub (it existed only on one Mac until 2026-09-15).
 
 **The production database is ahead of production code.** These migrations are applied to prod, but the code that uses them is only on the feature branch: `external_training_and_verification`, `training_certificate_can_view_object`, `law_obligations`, `seed_law_obligations`, `law_alerts`, `med_samples_module`, `med_samples_can_view_object`, `medical_supply_logs_occurred_at`, `medical_supply_lots_and_ordering`. All are additive, so production is not broken — but do not assume `main` reflects the schema.
 
-**NEW 2026-09-21 — Emergency Alert (LP Alert rebuilt in the Hub) is on branch `feature/emergency-alert`** (cut from the feature branch above, commit `91640fe`+). Not merged, not deployed. Its migrations **0026–0028 ARE applied to prod** and LP Alert's data is imported. See **§8a**. LP Alert on Base44 stays the live emergency system until Landon switches over.
+**Emergency Alert** (LP Alert rebuilt in the Hub) is live — see **§8a**. LP Alert on Base44 stays the emergency system of record until staff have logins and a two-device drill passes.
 
-**Pending decision (Landon's):** merge the whole feature branch into `main`, or cherry-pick only some. Do not merge it without asking.
+**The product is now "Lone Peak Compliance"** ("Let's reach the peak together"). The two-factor issuer stays "Compliance Hub" on purpose — changing it orphans existing authenticator entries.
+
+**Domain:** `app.lone-peak.app` is attached to the Vercel project and verified; it goes live when a `CNAME app → cname.vercel-dns.com` is added at WordPress (which holds DNS for lone-peak.app and serves the marketing site at the root). The vercel.app address keeps working. Both are allowed hosts in the Mac and Electron shells already.
 
 **Nothing is half-built right now.** The most recent feature (supplies expiry + ordering) is finished and committed — see **§8**, including the one thing not yet verified (the page rendered in a browser).
 

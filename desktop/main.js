@@ -14,7 +14,8 @@ const APP_URL = process.env.COMPLIANCE_HUB_URL || "https://compliance-hub-lone-p
 // Hosts the app window may navigate to internally (the app + its Supabase auth).
 // Anything else opens in the user's default browser.
 const ALLOWED_HOSTS = new Set([
-  "compliance-hub-lone-peak.vercel.app",
+  "app.lone-peak.app",                      // the app's own address
+  "compliance-hub-lone-peak.vercel.app",    // the old address, still served
   "gkrhxfthvqprmnztoxxw.supabase.co",
 ]);
 
