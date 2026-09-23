@@ -188,6 +188,10 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
 
   async function save() {
     if (!locationId) { toast.error("Choose the clinic — Murray and Lehi keep separate logs and file to separate folders."); return; }
+    // An amendment with no stated reason is a worse record than the one it
+    // corrects. Years later — at a DEA inspection, say — "why was this
+    // changed?" is the whole question, and nobody will remember.
+    if (amendsRecordId && !amendmentReason.trim()) { toast.error("Say why this log is being corrected — it goes on the record."); return; }
     if (!folder) { toast.error("Choose the SharePoint folder for this clinic first."); return; }
     if (rows.length === 0) { toast.error("No entries were read off these pages."); return; }
 
@@ -241,7 +245,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
         archiveKey,
         fileHashes,
         amendsRecordId: amendsRecordId || null,
-        amendmentReason: amendsRecordId ? (amendmentReason.trim() || null) : null,
+        amendmentReason: amendsRecordId ? amendmentReason.trim() : null,
         externalUrl: index.webUrl,
         externalSystem: "SharePoint",
         entries: hubEntries(rows),
@@ -343,8 +347,9 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Why it&apos;s being corrected</label>
-                    <input className="input w-full" value={amendmentReason} onChange={(e) => setAmendmentReason(e.target.value)} placeholder="e.g. a page was missed" />
+                    <label className="text-sm font-medium">Why it&apos;s being corrected <span className="text-destructive">*</span></label>
+                    <input className="input w-full" value={amendmentReason} onChange={(e) => setAmendmentReason(e.target.value)} placeholder="e.g. a page was missed; amended at DEA request" />
+                    <p className="text-[11px] text-muted-foreground">Kept on the record permanently. Years from now this is what answers &quot;why was this changed?&quot;</p>
                   </div>
                 </div>
               )}
