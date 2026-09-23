@@ -22,9 +22,9 @@ import {
   emergencySiteSettingsMap,
   csManifestMap,
   csBoxMap,
-  csArchiveLogMap,
 } from "./emergency-mappers";
 import type {
+  CsArchiveEntry,
   AuditLog,
   Benefit,
   ChatMessage,
@@ -2372,6 +2372,22 @@ function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
     filedByName: r.filed_by_name as string | undefined,
     documentUrl: (r.document_url as string | null) ?? undefined,
     notes: r.notes as string | undefined,
+    containsPatientIdentifiers: (r.contains_patient_identifiers as boolean | null) ?? false,
+    externalUrl: (r.external_url as string | null) ?? undefined,
+    externalSystem: (r.external_system as string | null) ?? undefined,
+    substanceName: (r.substance_name as string | null) ?? undefined,
+    entries: (r.entries as CsArchiveEntry[] | null) ?? [],
+    openingBalance: (r.opening_balance as number | null) ?? undefined,
+    receivedTotal: (r.received_total as number | null) ?? undefined,
+    administeredTotal: (r.administered_total as number | null) ?? undefined,
+    wastedTotal: (r.wasted_total as number | null) ?? undefined,
+    closingBalance: (r.closing_balance as number | null) ?? undefined,
+    unit: (r.unit as string | null) ?? undefined,
+    reconciled: (r.reconciled as boolean | null) ?? false,
+    reconciledByName: (r.reconciled_by_name as string | null) ?? undefined,
+    reconciledAt: toISO(r.reconciled_at as string),
+    discrepancy: (r.discrepancy as boolean | null) ?? false,
+    discrepancyNote: (r.discrepancy_note as string | null) ?? undefined,
   };
 }
 function deaRecordTo(d: Partial<DeaRecord>) {
@@ -2385,6 +2401,22 @@ function deaRecordTo(d: Partial<DeaRecord>) {
     ...(d.filedByName !== undefined && { filed_by_name: d.filedByName }),
     ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
     ...(d.notes !== undefined && { notes: d.notes }),
+    ...(d.containsPatientIdentifiers !== undefined && { contains_patient_identifiers: d.containsPatientIdentifiers }),
+    ...(d.externalUrl !== undefined && { external_url: d.externalUrl }),
+    ...(d.externalSystem !== undefined && { external_system: d.externalSystem }),
+    ...(d.substanceName !== undefined && { substance_name: d.substanceName }),
+    ...(d.entries !== undefined && { entries: d.entries }),
+    ...(d.openingBalance !== undefined && { opening_balance: d.openingBalance }),
+    ...(d.receivedTotal !== undefined && { received_total: d.receivedTotal }),
+    ...(d.administeredTotal !== undefined && { administered_total: d.administeredTotal }),
+    ...(d.wastedTotal !== undefined && { wasted_total: d.wastedTotal }),
+    ...(d.closingBalance !== undefined && { closing_balance: d.closingBalance }),
+    ...(d.unit !== undefined && { unit: d.unit }),
+    ...(d.reconciled !== undefined && { reconciled: d.reconciled }),
+    ...(d.reconciledByName !== undefined && { reconciled_by_name: d.reconciledByName }),
+    ...(d.reconciledAt !== undefined && { reconciled_at: d.reconciledAt }),
+    ...(d.discrepancy !== undefined && { discrepancy: d.discrepancy }),
+    ...(d.discrepancyNote !== undefined && { discrepancy_note: d.discrepancyNote }),
   };
 }
 
@@ -2605,6 +2637,5 @@ export function createSupabaseDataClient(): DataClient {
     emergencyAudioLog:  makeCollection(supabase, "emergency_audio_log",  emergencyAudioLogMap.from,   emergencyAudioLogMap.to),
     csManifests:        makeCollection(supabase, "cs_manifests",        csManifestMap.from,          csManifestMap.to),
     csBoxes:            makeCollection(supabase, "cs_boxes",            csBoxMap.from,               csBoxMap.to),
-    csArchiveLogs:      makeCollection(supabase, "cs_archive_logs",    csArchiveLogMap.from,        csArchiveLogMap.to),
   };
 }

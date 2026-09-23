@@ -24,8 +24,14 @@ import { toast } from "sonner";
 const DEA_RECORD_LABEL: Record<DeaRecordType, string> = {
   order_222: "DEA Form 222 order", csos_order: "CSOS electronic order", biennial_inventory: "Biennial inventory",
   form_41_destruction: "Form 41 — destruction", form_106_loss: "Form 106 — theft / loss",
-  power_of_attorney: "Power of attorney (222)", registration: "DEA registration", other: "Other DEA record",
+  power_of_attorney: "Power of attorney (222)", registration: "DEA registration",
+  vial_log: "Vial log (paper)", administration_log: "Administration log (paper)", count_sheet: "Count sheet (paper)",
+  other: "Other DEA record",
 };
+
+/** The paper logs — kept as DEA records, but they carry entries and reconcile. */
+const PAPER_LOG_TYPES: DeaRecordType[] = ["vial_log", "administration_log", "count_sheet"];
+const isPaperLog = (t: DeaRecordType) => PAPER_LOG_TYPES.includes(t);
 
 const CAPA_STATUS_VARIANT: Record<CorrectiveAction["status"], "warning" | "outline" | "success" | "secondary"> = {
   open: "warning", in_progress: "warning", verifying: "outline", complete: "success", cancelled: "secondary",

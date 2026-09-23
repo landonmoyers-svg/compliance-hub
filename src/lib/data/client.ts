@@ -8,7 +8,6 @@ import type {
   EmergencyResponse,
   EmergencySiteSettings,
   AuditLog,
-  CsArchiveLog,
   CsBox,
   CsManifest,
   Benefit,
@@ -192,7 +191,6 @@ export interface DataClient {
   emergencyAudioLog: Collection<EmergencyAudioLog>;
   csManifests: Collection<CsManifest>;
   csBoxes: Collection<CsBox>;
-  csArchiveLogs: Collection<CsArchiveLog>;
 }
 
 /** Keys of the collection-typed properties on DataClient. */

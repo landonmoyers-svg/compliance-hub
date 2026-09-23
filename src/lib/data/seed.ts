@@ -213,6 +213,5 @@ export function buildSeed(): SeedData {
     emergencyAudioLog: [],
     csManifests: [],
     csBoxes: [],
-    csArchiveLogs: [],
   };
 }
