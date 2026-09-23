@@ -37,9 +37,12 @@ export const PERMISSIONS = [
   "canManageRisk",
   // Controlled-substance paper logs. Two permissions, because filing a log and
   // reading one back are different acts: the person filing is holding the page
-  // and has already read the chart numbers on it, while everyone else only
-  // needs the de-identified entries the Hub keeps. Opening a filed record
-  // means fetching a document that identifies patients.
+  // and has already read the chart numbers on it, while retrieving a filed
+  // record months later reaches for patient identifiers with no page in hand.
+  // So filing is wide — the MAs and nurses who keep the logs — while opening
+  // stops at the people who supervise them: owner, admin, clinical leadership
+  // and managers. Staff can file a page they are holding, not go back for
+  // somebody else's months later.
   "canFileControlledSubstanceLogs",
   "canOpenIdentifiedLogs",
 ] as const;
@@ -72,8 +75,11 @@ const ROLE_PERMISSIONS: Record<AccountRole, Permission[]> = {
     "canViewOSHA",
     "canUseChatbot",
   ],
-  manager: ["canViewAllSOPs", "canViewCredentialing", "canViewSDS", "canUseChatbot"],
-  staff: ["canViewSDS", "canUseChatbot"],
+  // MAs and nurses keep the controlled-substance logs, so they file them. They
+  // are not given canOpenIdentifiedLogs: filing a page you are holding is not
+  // the same as retrieving other people's pages months later.
+  manager: ["canViewAllSOPs", "canViewCredentialing", "canViewSDS", "canUseChatbot", "canFileControlledSubstanceLogs", "canOpenIdentifiedLogs"],
+  staff: ["canViewSDS", "canUseChatbot", "canFileControlledSubstanceLogs"],
   contractor: ["canViewSDS", "canUseChatbot"],
   read_only: [],
   inactive: [],

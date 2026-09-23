@@ -47,6 +47,15 @@ export interface NavItem {
   icon: LucideIcon;
   /** Hidden from non-admins. */
   adminOnly?: boolean;
+  /**
+   * A narrower default than `adminOnly` for pages where "privileged" is still
+   * too many people. `adminOnly` admits HR and clinical leadership as well as
+   * owners and admins, which is right for most of the Hub and wrong for the
+   * audit trail — the record of who looked at what should be readable by the
+   * fewest people who can still do their job. An org can still widen or narrow
+   * this in Role Permissions; this is only the default.
+   */
+  defaultRoles?: readonly AccountRole[];
   /** Emphasized (e.g. Setup Concierge) with a gradient highlight. */
   highlight?: boolean;
 }
@@ -177,7 +186,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "User Management", href: "/user-management", icon: Users, adminOnly: true },
       { label: "Role Permissions", href: "/access-matrix", icon: Shield, adminOnly: true },
       { label: "Settings", href: "/settings", icon: Building2, adminOnly: true },
-      { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true },
+      { label: "Audit Trail", href: "/audit-trail", icon: Shield, adminOnly: true, defaultRoles: ["owner", "admin"] },
       { label: "Daily Activity Log", href: "/activity-log", icon: Activity, adminOnly: true },
       { label: "Data Backup", href: "/backup", icon: DatabaseBackup, adminOnly: true },
     ],
@@ -211,6 +220,8 @@ export function allPages(): PageDef[] {
 export function allowedRolesFor(href: string, adminOnly: boolean, pageRoles: Record<string, string[]>): string[] {
   const cfg = pageRoles[href];
   if (cfg !== undefined) return cfg; // explicit override wins, incl. [] = locked to no roles
+  const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.href === href);
+  if (item?.defaultRoles) return [...item.defaultRoles];
   return adminOnly ? [...PRIVILEGED_ROLES] : (SELECTABLE_ROLES as string[]);
 }
 

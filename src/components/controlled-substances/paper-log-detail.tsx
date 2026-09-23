@@ -24,10 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/context";
 import { hasPermission } from "@/lib/auth/roles";
-import { logAccess } from "@/lib/audit-client";
+import { auditLogMovement, logLabel } from "@/lib/cs-archive/audit";
 import { formatDate } from "@/lib/dates";
 import { reconcile } from "@/lib/cs-archive/reconcile";
-import { msAccount, msConfigured, msDownload, saveBlob } from "@/lib/ms-graph";
+import { msConfigured, msDownload, saveBlob } from "@/lib/ms-graph";
 import type { DeaRecord } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -49,23 +49,26 @@ export function PaperLogDetail({ record }: { record: DeaRecord }) {
 
   async function download() {
     if (!external) return;
-    // Logged BEFORE the fetch: an attempt that fails at SharePoint is still an
-    // attempt, and that is exactly the kind of thing an audit wants to see.
-    logAccess({
-      action: "export",
-      entityType: "dea_record",
-      entityId: record.id,
-      entityLabel: `${record.substanceName ?? "Controlled substance"} log${record.recordDate ? ` — ${formatDate(record.recordDate)}` : ""}`,
-      details: `Fetched the identified record from ${record.externalSystem ?? "SharePoint"}${msAccount() ? ` as ${msAccount()}` : ""}`,
-      riskLevel: "high",
-    });
+    const audit = {
+      movement: "download" as const,
+      recordId: record.id,
+      label: logLabel(record),
+      location: record.externalSystem ?? "SharePoint",
+      identified: !!record.containsPatientIdentifiers,
+    };
+    // Logged BEFORE the fetch, and again after: an attempt refused by
+    // SharePoint is exactly what an audit most wants to see.
+    auditLogMovement({ ...audit, outcome: "attempted" });
     setFetching(true);
     try {
       const { blob, name } = await msDownload(external);
       saveBlob(blob, name);
+      auditLogMovement({ ...audit, outcome: "succeeded" });
       toast.success("Record downloaded from SharePoint");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't fetch the record.");
+      const message = err instanceof Error ? err.message : "Couldn't fetch the record.";
+      auditLogMovement({ ...audit, outcome: "failed", error: message });
+      toast.error(message);
     } finally {
       setFetching(false);
     }

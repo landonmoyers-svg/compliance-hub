@@ -13,6 +13,9 @@ import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSort, SortHeader } from "@/components/shared/sortable";
 import { humanizeLabel } from "@/lib/format";
+import { useAuth } from "@/lib/auth/context";
+import { hasPermission } from "@/lib/auth/roles";
+import { logAccess } from "@/lib/audit-client";
 import type { AuditLog } from "@/lib/data/schema";
 
 type ActionType = AuditLog["action"];
@@ -107,6 +110,8 @@ function mapAudit(r: Record<string, unknown>): AuditLog {
 }
 
 export default function AuditTrailPage() {
+  const { profile } = useAuth();
+  const mayView = hasPermission(profile?.accountRole, "canViewAuditLogs");
   const supabase = useMemo(() => createClient(), []);
   const orgQ = useCollection("organizationSettings");
   const retentionYears = orgQ.data?.[0]?.auditRetentionYears ?? 7;
@@ -120,6 +125,20 @@ export default function AuditTrailPage() {
   const [filterDevice, setFilterDevice] = useState<string>("all");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+
+  // Reading the record of who looked at what is itself something to record.
+  // Once per visit, not per filter — a row for every keystroke would bury the
+  // thing an auditor is actually looking for.
+  useEffect(() => {
+    if (!mayView) return;
+    logAccess({
+      action: "view",
+      entityType: "audit_trail",
+      entityLabel: "Audit Trail",
+      details: "Opened the audit trail",
+      riskLevel: "high",
+    });
+  }, [mayView]);
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,6 +254,16 @@ export default function AuditTrailPage() {
       e.deviceType ?? "",
       e.userAgent ?? "",
     ]);
+    // Taking the audit trail out of the Hub is the highest-risk thing this page
+    // does: it is a copy of everybody's access history, and once it is a file on
+    // someone's laptop the Hub has no further say over it.
+    logAccess({
+      action: "export",
+      entityType: "audit_trail",
+      entityLabel: "Audit Trail",
+      details: `Exported ${rows.length} audit ${rows.length === 1 ? "entry" : "entries"} to CSV (${tab} view, last ${rangeDays} days)`,
+      riskLevel: "critical",
+    });
     const csv = [header, ...body].map((r) => r.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -243,6 +272,21 @@ export default function AuditTrailPage() {
     a.download = "audit-trail.csv";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Defence in depth: the nav already restricts this page to owners and admins,
+  // but the page had no check of its own, so a direct URL was enough.
+  if (profile && !mayView) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Audit Trail" description="Who did what, and from where" />
+        <EmptyState
+          icon={Shield}
+          title="You don't have access to the audit trail"
+          description="The record of who looked at what is limited to owners and administrators. Ask one of them if you need something from it."
+        />
+      </div>
+    );
   }
 
   if (loadError) {
