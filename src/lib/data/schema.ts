@@ -1931,6 +1931,10 @@ export const DeaRecord = z.object({
      newest in a chain counts towards reconciliation. */
   /** The DEA registration this record was kept under. */
   registrationId: z.string().nullable().optional(),
+  /** The clinician who directed these treatments. Not the registrant, and not
+   *  whoever administered each dose — a log row names the person who gave it,
+   *  working under someone else's direction and on someone else's number. */
+  directedByName: z.string().nullable().optional(),
   amendsRecordId: z.string().nullable().optional(),
   amendmentReason: z.string().nullable().optional(),
 

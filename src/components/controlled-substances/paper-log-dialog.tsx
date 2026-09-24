@@ -58,6 +58,7 @@ export interface PaperLogPayload {
   externalUrl: string | null;
   externalSystem: string | null;
   registrationId: string | null;
+  directedByName: string | null;
   archiveKey: string;
   fileHashes: Record<string, string>;
   entries: CsArchiveEntry[];
@@ -84,7 +85,9 @@ const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
 export interface FilingRegistration {
   id: string;
   label: string;          // "Murray Clinic 1 · DEA AB1234563 (Landon Moyers)"
+  registrantName: string;
   locationId: string;
+  registrantType: "individual" | "location";
   retired: boolean;
 }
 
@@ -113,6 +116,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
   const [opening, setOpening] = useState("");
   const [closing, setClosing] = useState("");
   const [registrationId, setRegistrationId] = useState(registrations[0]?.id ?? "");
+  const [directedByName, setDirectedByName] = useState(registrations[0]?.registrantName ?? "");
   const [locationId, setLocationId] = useState(registrations[0]?.locationId ?? locations[0]?.id ?? "");
   const [hasIdentifiers, setHasIdentifiers] = useState(true);
 
@@ -140,7 +144,13 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
   function chooseRegistration(id: string) {
     setRegistrationId(id);
     const reg = registrations.find((r) => r.id === id);
-    if (reg) setLocationId(reg.locationId);
+    if (reg) {
+      setLocationId(reg.locationId);
+      // A sensible default, not an assumption: with an individual registration
+      // the registrant usually is the directing clinician, but with a location
+      // registration the registrant is the practice and this must be a person.
+      if (reg.registrantType === "individual") setDirectedByName(reg.registrantName);
+    }
     const remembered = rememberedFolder(id);
     setFolder(remembered);
     setFolderUrl(remembered?.webUrl ?? "");
@@ -263,6 +273,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
         periodStart: periodStart ? dateInputToISO(periodStart) : null,
         periodEnd: periodEnd ? dateInputToISO(periodEnd) : null,
         registrationId: registrationId || null,
+        directedByName: directedByName.trim() || null,
         locationId: locationId || null,
         openingBalance: numOrNull(opening),
         closingBalance: numOrNull(closing),
@@ -336,6 +347,11 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
                 ))}
               </select>
               <p className="text-[11px] text-muted-foreground">Records are kept per registration, and each files to its own folder.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Under the direction of</label>
+              <input className="input w-full" value={directedByName} onChange={(e) => setDirectedByName(e.target.value)} placeholder="e.g. the medical director" />
+              <p className="text-[11px] text-muted-foreground">The clinician who directed these treatments — not necessarily whoever administered each dose.</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Where it was used</label>

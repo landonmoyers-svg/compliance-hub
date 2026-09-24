@@ -737,6 +737,15 @@ export default function ControlledSubstancesPage() {
   /* A site can hold more than one registration over time — an individual
      number, then a location number — so filing is chosen by registration.
      A retired one still accepts amendments, but only from supervisors. */
+  /** Every registration by id, for labelling records however old. */
+  const registrationLabels = useMemo(() => {
+    const byId = new Map((locationsQ.data ?? []).map((l) => [l.id, l.name]));
+    return new Map((registrationsQ.data ?? []).map((r) => [
+      r.id,
+      `${byId.get(r.locationId) ?? "Unknown site"} · DEA ${r.deaNumber} (${r.registrantName})`,
+    ]));
+  }, [registrationsQ.data, locationsQ.data]);
+
   const filingRegistrations = useMemo(() => {
     const byId = new Map((locationsQ.data ?? []).map((l) => [l.id, l.name]));
     return (registrationsQ.data ?? [])
@@ -744,6 +753,8 @@ export default function ControlledSubstancesPage() {
       .map((r) => ({
         id: r.id,
         locationId: r.locationId,
+        registrantName: r.registrantName,
+        registrantType: r.registrantType,
         retired: !!r.retiredOn,
         label: `${byId.get(r.locationId) ?? "Unknown site"} · DEA ${r.deaNumber} (${r.registrantName})`,
       }));
@@ -1352,7 +1363,7 @@ export default function ControlledSubstancesPage() {
                     openDea === r.id && (
                       <tr key={`${r.id}-detail`} className="border-b border-border/50">
                         <td colSpan={5} className="space-y-3 py-3">
-                          <PaperLogDetail record={r} />
+                          <PaperLogDetail record={r} registrationLabel={r.registrationId ? registrationLabels.get(r.registrationId) : undefined} />
                           {/* What this one replaced. Kept and still readable —
                               a record you can erase is one you can't defend. */}
                           {(deaChains.find((c) => c.current.id === r.id)?.superseded ?? []).map((old) => (
@@ -1364,7 +1375,7 @@ export default function ControlledSubstancesPage() {
                                   : ""}
                                 {" · not counted towards reconciliation"}
                               </p>
-                              <PaperLogDetail record={old} />
+                              <PaperLogDetail record={old} registrationLabel={old.registrationId ? registrationLabels.get(old.registrationId) : undefined} />
                             </div>
                           ))}
                         </td>

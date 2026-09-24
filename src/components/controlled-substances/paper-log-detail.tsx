@@ -43,7 +43,12 @@ import { toast } from "sonner";
 const num = (n: number | null | undefined, unit?: string | null) =>
   typeof n === "number" ? `${n}${unit ? ` ${unit}` : ""}` : "—";
 
-export function PaperLogDetail({ record }: { record: DeaRecord }) {
+export function PaperLogDetail({ record, registrationLabel }: {
+  record: DeaRecord;
+  /** "Murray Clinic 1 · DEA AB1234563 (Landon Moyers)" — the authority these
+   *  treatments were given under, which is rarely the person named in a row. */
+  registrationLabel?: string;
+}) {
   const { profile } = useAuth();
   const [fetching, setFetching] = useState(false);
 
@@ -94,6 +99,18 @@ export function PaperLogDetail({ record }: { record: DeaRecord }) {
               <span className="text-muted-foreground"> · {formatDate(record.periodStart)}–{formatDate(record.periodEnd)}</span>
             )}
           </p>
+          {/* Whose authority this log was kept under. A row names the person who
+              gave the dose; they were routinely working under someone else's
+              direction and on someone else's registration, and a log read
+              without that looks like it claims their own authority. */}
+          {(registrationLabel || record.directedByName) && (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs">
+              {registrationLabel && <span className="font-medium">{registrationLabel}</span>}
+              {record.directedByName && (
+                <span className="text-muted-foreground">directed by {record.directedByName}</span>
+              )}
+            </p>
+          )}
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {record.containsPatientIdentifiers ? (
               <><Lock className="size-3.5" /> Full record held in {record.externalSystem ?? "SharePoint"} — the Hub keeps only the entries below</>
