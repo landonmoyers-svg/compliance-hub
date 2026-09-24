@@ -17,6 +17,7 @@ import { uploadFile } from "@/lib/storage";
 import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-substances/shipment-dialog";
 import { PaperLogDetail } from "@/components/controlled-substances/paper-log-detail";
 import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
+import { RegistrationsPanel, type RegistrationDraft } from "@/components/controlled-substances/registrations-panel";
 import { hasPermission } from "@/lib/auth/roles";
 import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
 import { folderLabel as archiveFolderLabel } from "@/lib/cs-archive/archive-names";
@@ -696,6 +697,8 @@ export default function ControlledSubstancesPage() {
   const deaQ = useCollection("deaRecords");
   const registrationsQ = useCollection("deaRegistrations");
   const createDea = useCreate("deaRecords");
+  const createRegistration = useCreate("deaRegistrations");
+  const updateRegistration = useUpdate("deaRegistrations");
   const createItem = useCreate("controlledSubstanceItems");
   const updateItem = useUpdate("controlledSubstanceItems");
   const createEvent = useCreate("controlledSubstanceEvents");
@@ -1056,6 +1059,19 @@ export default function ControlledSubstancesPage() {
    * succeeded — the dialog does not call this otherwise. So what arrives here
    * is only ever the de-identified half plus a link to the rest.
    */
+  async function saveRegistration(d: RegistrationDraft, id: string | null) {
+    setSaving(true);
+    try {
+      if (id) await updateRegistration.mutateAsync({ id, patch: d });
+      else await createRegistration.mutateAsync(d);
+      toast.success(id ? "Registration updated" : "Registration added");
+    } catch {
+      toast.error("Couldn't save the registration.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function savePaperLog(p: PaperLogPayload) {
     await createDea.mutateAsync({
       ...p,
@@ -1304,6 +1320,14 @@ export default function ControlledSubstancesPage() {
           )}
         </CardContent>
       </Card>
+
+      <RegistrationsPanel
+        registrations={registrationsQ.data ?? []}
+        locations={locations}
+        canManage={maySupervise}
+        onSave={saveRegistration}
+        saving={saving}
+      />
 
       {/* CS-3: DEA regulatory records register (222/CSOS, biennial inventory, Form 41/106). */}
       <Card>
