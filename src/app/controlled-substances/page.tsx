@@ -19,12 +19,14 @@ import { PaperLogDetail } from "@/components/controlled-substances/paper-log-det
 import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
 import { RegistrationsPanel, type RegistrationDraft } from "@/components/controlled-substances/registrations-panel";
 import { RecoveryPanel, type RecoveryDraft } from "@/components/controlled-substances/recovery-panel";
+import { openInspectionPack } from "@/lib/cs-archive/inspection-pack";
+import { logAccess } from "@/lib/audit-client";
 import { hasPermission } from "@/lib/auth/roles";
 import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
 import { folderLabel as archiveFolderLabel } from "@/lib/cs-archive/archive-names";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
-import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType } from "@/lib/data/schema";
+import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType, DeaRegistration } from "@/lib/data/schema";
 import { deaRecordTypes } from "@/lib/data/schema";
 import { toast } from "sonner";
 
@@ -1076,6 +1078,33 @@ export default function ControlledSubstancesPage() {
     }
   }
 
+  /**
+   * Everything kept under one registration, in one document — which is what an
+   * inspector asks the registrant for, at the address on the registration.
+   * Built from the de-identified entries, so the pack itself carries no
+   * patient identifier and can be printed or handed over as it is.
+   */
+  function printPack(registration: DeaRegistration) {
+    const opened = openInspectionPack({
+      registration,
+      locationName: locations.find((l) => l.id === registration.locationId)?.name ?? "Unknown site",
+      records: (deaQ.data ?? []).filter((r) => r.registrationId === registration.id),
+      recovery: (recoveryQ.data ?? []).filter((r) => r.registrationId === registration.id),
+      locationNameFor: (id) => locations.find((l) => l.id === id)?.name ?? "—",
+      preparedBy: profile?.fullName ?? "Unknown",
+      today: todayInput(),
+    });
+    if (!opened) toast.error("Allow pop-ups to open the record pack.");
+    else logAccess({
+      action: "export",
+      entityType: "dea_registration",
+      entityId: registration.id,
+      entityLabel: `DEA ${registration.deaNumber}`,
+      details: `Produced the record pack for DEA ${registration.deaNumber}`,
+      riskLevel: "medium",
+    });
+  }
+
   async function saveRecovery(d: RecoveryDraft, id: string | null) {
     setSaving(true);
     try {
@@ -1342,7 +1371,9 @@ export default function ControlledSubstancesPage() {
         registrations={registrationsQ.data ?? []}
         locations={locations}
         canManage={maySupervise}
+        canPrintPack={maySupervise}
         onSave={saveRegistration}
+        onPrintPack={printPack}
         saving={saving}
       />
 

@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { BadgeCheck, Building2, Pencil, Plus, TriangleAlert, User, X } from "lucide-react";
+import { BadgeCheck, Building2, Pencil, Plus, Printer, TriangleAlert, User, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,11 +160,14 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
   );
 }
 
-export function RegistrationsPanel({ registrations, locations, canManage, onSave, saving }: {
+export function RegistrationsPanel({ registrations, locations, canManage, canPrintPack, onSave, onPrintPack, saving }: {
   registrations: DeaRegistration[];
   locations: { id: string; name: string }[];
   canManage: boolean;
+  /** Producing the pack means producing the practice's record of a registration. */
+  canPrintPack: boolean;
   onSave: (d: RegistrationDraft, id: string | null) => void;
+  onPrintPack: (registration: DeaRegistration) => void;
   saving: boolean;
 }) {
   const [editing, setEditing] = useState<DeaRegistration | null>(null);
@@ -232,9 +235,19 @@ export function RegistrationsPanel({ registrations, locations, canManage, onSave
                         {r.schedules ? ` · Schedules ${r.schedules}` : ""}
                       </p>
                     </div>
-                    {canManage && (
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(r)}><Pencil className="size-3.5" /> Edit</Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {canPrintPack && (
+                        <Button
+                          variant="ghost" size="sm" onClick={() => onPrintPack(r)}
+                          title="Everything kept under this number, as one printable document"
+                        >
+                          <Printer className="size-3.5" /> Record pack
+                        </Button>
+                      )}
+                      {canManage && (
+                        <Button variant="ghost" size="sm" onClick={() => setEditing(r)}><Pencil className="size-3.5" /> Edit</Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
