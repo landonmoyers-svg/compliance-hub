@@ -33,6 +33,7 @@ export interface RegistrationDraft {
   registrantName: string;
   registrantType: "individual" | "location";
   locationId: string;
+  recordsFrom: string | null;
   effectiveFrom: string | null;
   expiresOn: string | null;
   retiredOn: string | null;
@@ -54,6 +55,7 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
   const [registrantName, setRegistrantName] = useState(existing?.registrantName ?? "");
   const [registrantType, setRegistrantType] = useState<"individual" | "location">(existing?.registrantType ?? "individual");
   const [locationId, setLocationId] = useState(existing?.locationId ?? locations[0]?.id ?? "");
+  const [recordsFrom, setRecordsFrom] = useState(toInput(existing?.recordsFrom));
   const [effectiveFrom, setEffectiveFrom] = useState(toInput(existing?.effectiveFrom));
   const [expiresOn, setExpiresOn] = useState(toInput(existing?.expiresOn));
   const [retiredOn, setRetiredOn] = useState(toInput(existing?.retiredOn));
@@ -135,15 +137,23 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
             <p className="text-[11px] text-muted-foreground">A DEA number is tied to one address — the same person holds a different number at each site.</p>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Our records start</label>
+            <input type="date" className="input w-full" value={recordsFrom} onChange={(e) => setRecordsFrom(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground">
+              When this practice became answerable for what is kept under this number — usually when it opened, or when the registration moved to this address. A number renews every three years and follows the registrant, so it can be older than the practice; reconciliation measures from this date, not the certificate.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Effective from</label>
+              <label className="text-sm font-medium">Current term from</label>
               <input type="date" className="input w-full" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Expires on</label>
               <input type="date" className="input w-full" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
-              <p className="text-[11px] text-muted-foreground">From the certificate — when it needs renewing.</p>
+              <p className="text-[11px] text-muted-foreground">Both as printed on the current certificate.</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Retired on</label>
@@ -194,6 +204,7 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
               registrantName: registrantName.trim(),
               registrantType,
               locationId,
+              recordsFrom: recordsFrom ? dateInputToISO(recordsFrom) : null,
               effectiveFrom: effectiveFrom ? dateInputToISO(effectiveFrom) : null,
               expiresOn: expiresOn ? dateInputToISO(expiresOn) : null,
               retiredOn: retiredOn ? dateInputToISO(retiredOn) : null,
@@ -284,7 +295,8 @@ export function RegistrationsPanel({ registrations, locations, canManage, canPri
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {r.effectiveFrom ? `From ${formatDate(r.effectiveFrom)}` : "No start date recorded"}
+                        {r.recordsFrom ? `Records from ${formatDate(r.recordsFrom)}` : "No record start date"}
+                        {r.effectiveFrom ? ` · term from ${formatDate(r.effectiveFrom)}` : ""}
                         {r.expiresOn ? ` · Renews ${formatDate(r.expiresOn)}` : ""}
                         {r.schedules ? ` · Schedules ${r.schedules}` : ""}
                       </p>

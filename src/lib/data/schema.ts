@@ -1871,6 +1871,14 @@ export const DeaRegistration = z.object({
   registrantName: z.string(),
   registrantType: z.enum(["individual", "location"]).default("individual"),
   locationId: z.string(),
+  /** The date from which THIS practice keeps records under this number.
+   *  A registration renews every three years, so the certificate shows only
+   *  the current term — and the number follows the registrant, so it may have
+   *  been issued years earlier at somebody else's address. Coverage is
+   *  measured from here: not the term, which would hide years of archive, and
+   *  not first issue, which would claim records that were another practice's. */
+  recordsFrom: z.string().nullable().optional(),
+  /** The current term, exactly as printed on the certificate. */
   effectiveFrom: z.string().nullable().optional(),
   /** When it needs renewing. Distinct from retiredOn — a registration can
    *  expire while still very much in use, which is the problem. */

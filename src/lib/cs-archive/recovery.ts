@@ -82,10 +82,14 @@ const total = (spans: Span[]) => spans.reduce((n, s) => n + days(s), 0);
  */
 export function recoveryPicture(
   items: RecordRecoveryItem[],
-  registration: { effectiveFrom?: string | null; retiredOn?: string | null },
+  registration: { recordsFrom?: string | null; effectiveFrom?: string | null; retiredOn?: string | null },
   until: string,
 ): RecoveryPicture {
-  const start = registration.effectiveFrom?.slice(0, 10);
+  // Measured from when THIS practice's records under the number begin, not
+  // from the current renewal term. A registration on its third term has
+  // records going back two renewals, and measuring from the certificate would
+  // quietly put those years outside the window so they never show up as gaps.
+  const start = (registration.recordsFrom ?? registration.effectiveFrom)?.slice(0, 10);
   if (!start) return { whole: null, recovered: [], inFlight: [], gaps: [], coverage: null };
 
   const end = (registration.retiredOn?.slice(0, 10) ?? until);
