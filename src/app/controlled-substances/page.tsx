@@ -769,6 +769,7 @@ export default function ControlledSubstancesPage() {
         registrantType: r.registrantType,
         retired: !!r.retiredOn,
         inboxFolderUrl: r.inboxFolderUrl,
+        archiveFolderUrl: r.archiveFolderUrl,
         label: `${byId.get(r.locationId) ?? "Unknown site"} · DEA ${r.deaNumber} (${r.registrantName})`,
       }));
   }, [registrationsQ.data, locationsQ.data, maySupervise]);

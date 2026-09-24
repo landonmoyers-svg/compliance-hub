@@ -33,7 +33,7 @@ import { localOcrAvailable, ocrEngine, readPageLocally, releaseOcr, rowsToText }
 import { fullRecordCsv, hubEntries, parsePage, type ParsedRow } from "@/lib/cs-archive/parse-entries";
 import { reconcile } from "@/lib/cs-archive/reconcile";
 import { checkQuantities } from "@/lib/cs-archive/quantities";
-import { folderLabel, hashFile, inboxFileName, newArchiveKey } from "@/lib/cs-archive/archive-names";
+import { folderLabel, hashFile, inboxFileName, libraryFromUrl, newArchiveKey } from "@/lib/cs-archive/archive-names";
 import { csEntryActions, csEntryBases, type CsArchiveEntry, type DeaRecordType } from "@/lib/data/schema";
 import { dateInputToISO, todayInput } from "@/lib/dates";
 import {
@@ -92,6 +92,8 @@ export interface FilingRegistration {
   retired: boolean;
   /** Configured once on the registration, so nobody pastes it per browser. */
   inboxFolderUrl?: string | null;
+  /** Which archive this registration's records are moved into. */
+  archiveFolderUrl?: string | null;
 }
 
 export function PaperLogDialog({ locations, registrations, amendable, onClose, onSave }: {
@@ -253,6 +255,10 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
       // away can't ask the Hub where they belong (see archive-names.ts).
       const parent = amendsRecordId ? amendable.find((r) => r.id === amendsRecordId) : undefined;
       const archiveKey = parent?.archiveKey || newArchiveKey();
+      // Which archive, carried on the file, so the flow never has to be told
+      // about a registration added later.
+      const archiveLibrary = libraryFromUrl(registrations.find((r) => r.id === registrationId)?.archiveFolderUrl);
+      if (!archiveLibrary) { toast.error("This registration has no archive folder set — an administrator needs to add it."); return; }
       const destination = parent?.folderLabel || folderLabel({
         locationName: registrations.find((r) => r.id === registrationId)?.label,
         substanceName,
@@ -266,12 +272,12 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
       const prefix = amendsRecordId ? "amendment-" : "";
 
       for (const file of files) {
-        const name = inboxFileName(archiveKey, destination, `${prefix}${file.name}`);
+        const name = inboxFileName(archiveKey, archiveLibrary, destination, `${prefix}${file.name}`);
         fileHashes[name] = await hashFile(file);
         await msUpload(folder, name, file);
       }
       const csv = new Blob([fullRecordCsv(rows, label)], { type: "text/csv" });
-      const csvName = inboxFileName(archiveKey, destination, `${prefix}entries.csv`);
+      const csvName = inboxFileName(archiveKey, archiveLibrary, destination, `${prefix}entries.csv`);
       fileHashes[csvName] = await hashFile(csv);
       const index = await msUpload(folder, csvName, csv);
 

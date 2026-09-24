@@ -1,4 +1,4 @@
-import { archiveFolderName, folderLabel, inboxFileName, parseInboxFileName, sanitize } from "../cs-archive/archive-names";
+import { archiveFolderName, folderLabel, inboxFileName, libraryFromUrl, parseInboxFileName, sanitize } from "../cs-archive/archive-names";
 
 let pass = 0, fail = 0;
 const chk = (name: string, got: unknown, want: unknown) => {
@@ -36,11 +36,14 @@ chk("the separator can't appear inside a part", sanitize("a__b"), "a-b");
 // Round trip: what the browser writes is what the flow reads.
 const key = "a3f1c8d2";
 const label = "2024-03 Ketamine administration log";
-const upload = inboxFileName(key, label, "page-1.jpg");
-chk("upload name carries its destination", upload, "a3f1c8d2__2024-03 Ketamine administration log__page-1.jpg");
+const library = "Clinic 2 Archive";
+const upload = inboxFileName(key, library, label, "page-1.jpg");
+chk("upload name carries its destination", upload,
+  "a3f1c8d2__Clinic 2 Archive__2024-03 Ketamine administration log__page-1.jpg");
 
 const parsed = parseInboxFileName(upload)!;
 chk("the flow reads the key back", parsed.archiveKey, key);
+chk("and which archive", parsed.archiveLibrary, library);
 chk("and the folder", parsed.folderLabel, label);
 chk("and the original filename", parsed.fileName, "page-1.jpg");
 chk("and where it goes", parsed.archivePath, "2024-03 Ketamine administration log [a3f1c8d2]/page-1.jpg");
@@ -48,18 +51,25 @@ chk("and where it goes", parsed.archivePath, "2024-03 Ketamine administration lo
 chk("folder name pairs the label with the key", archiveFolderName(key, label), "2024-03 Ketamine administration log [a3f1c8d2]");
 
 // An amendment reuses its parent's key, so it lands in the same folder.
-const amendment = parseInboxFileName(inboxFileName(key, label, "amendment-page-1.jpg"))!;
+const amendment = parseInboxFileName(inboxFileName(key, library, label, "amendment-page-1.jpg"))!;
 chk("an amendment lands beside the original",
   amendment.archivePath.split("/")[0], parsed.archivePath.split("/")[0]);
 
 // Underscores in the original filename must not confuse the parse.
-const odd = parseInboxFileName(inboxFileName(key, label, "scan__final_v2.jpg"))!;
+const odd = parseInboxFileName(inboxFileName(key, library, label, "scan__final_v2.jpg"))!;
 chk("a filename containing the separator still parses", odd.fileName, "scan-final_v2.jpg");
 
 // Anything that doesn't carry a destination is left alone rather than guessed at.
 chk("a file dropped in by hand has no destination", parseInboxFileName("random.pdf"), null);
-chk("a half-formed name has none either", parseInboxFileName("abc__only-two-parts"), null);
-chk("empty parts are refused", parseInboxFileName("__label__file.jpg"), null);
+chk("a half-formed name has none either", parseInboxFileName("abc__only-three__parts"), null);
+chk("empty parts are refused", parseInboxFileName("__lib__label__file.jpg"), null);
+
+// One inbox can feed several archives, so the library has to survive the trip.
+chk("library out of a folder url",
+  libraryFromUrl("https://x.sharepoint.com/sites/ControlledSubstanceRecords/Clinic%202%20Archive"), "Clinic 2 Archive");
+chk("trailing slashes and queries don't confuse it",
+  libraryFromUrl("https://x.sharepoint.com/sites/CSR/Lehi%20Archive/?view=1"), "Lehi Archive");
+chk("nothing in, nothing out", libraryFromUrl(null), "");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

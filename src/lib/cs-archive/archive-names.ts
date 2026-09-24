@@ -9,10 +9,15 @@
  *
  * So the destination travels IN THE FILENAME:
  *
- *     <archiveKey>__<folderLabel>__<originalName>
- *     a3f1c8d2__2024-03 Ketamine administration log__page-1.jpg
- *                └─ becomes ─┘
- *     Archive/2024-03 Ketamine administration log [a3f1c8d2]/page-1.jpg
+ *     <archiveKey>__<archiveLibrary>__<folderLabel>__<originalName>
+ *     a3f1c8d2__Clinic 2 Archive__2024-03 Ketamine administration log__page-1.jpg
+ *               └──── which library ────┘└──── which folder in it ────┘
+ *
+ * The LIBRARY matters as much as the folder. One inbox can feed more than one
+ * archive — a site keeps its individual registration's records and later its
+ * location registration's records, and those are separate bodies an inspector
+ * asks for separately. If the flow had to know which archive to use, adding a
+ * registration would mean editing the flow. It doesn't: the file says.
  *
  * The folder is named for the ORIGINAL filing, and an amendment reuses its
  * parent's key — so a correction lands beside what it corrects, and the folder
@@ -63,9 +68,19 @@ export function folderLabel(input: {
     .filter(Boolean).join(" "));
 }
 
-/** The name a file is uploaded under, carrying its destination with it. */
-export function inboxFileName(archiveKey: string, label: string, originalName: string): string {
-  return [sanitize(archiveKey), sanitize(label), sanitize(originalName)].join(SEPARATOR);
+/** The name a file is uploaded under, carrying its whole destination with it. */
+export function inboxFileName(archiveKey: string, archiveLibrary: string, label: string, originalName: string): string {
+  return [sanitize(archiveKey), sanitize(archiveLibrary), sanitize(label), sanitize(originalName)].join(SEPARATOR);
+}
+
+/**
+ * The library name out of a SharePoint folder URL, which is what the Hub
+ * stores on a registration. ".../sites/X/Clinic 2 Archive" -> "Clinic 2 Archive".
+ */
+export function libraryFromUrl(url: string | null | undefined): string {
+  const path = (url ?? "").split("?")[0].replace(/\/+$/, "");
+  const last = path.split("/").pop() ?? "";
+  try { return sanitize(decodeURIComponent(last)); } catch { return sanitize(last); }
 }
 
 /** The folder the flow should move it into, relative to the Archive library. */
@@ -75,9 +90,11 @@ export function archiveFolderName(archiveKey: string, label: string): string {
 
 export interface ParsedName {
   archiveKey: string;
+  /** Which archive library it belongs in. */
+  archiveLibrary: string;
   folderLabel: string;
   fileName: string;
-  /** Where it belongs, relative to the Archive library root. */
+  /** Where it belongs inside that library. */
   archivePath: string;
 }
 
@@ -88,12 +105,13 @@ export interface ParsedName {
  */
 export function parseInboxFileName(name: string): ParsedName | null {
   const parts = name.split(SEPARATOR);
-  if (parts.length < 3) return null;
-  const [archiveKey, label, ...rest] = parts;
+  if (parts.length < 4) return null;
+  const [archiveKey, archiveLibrary, label, ...rest] = parts;
   const fileName = rest.join(SEPARATOR);
-  if (!archiveKey.trim() || !label.trim() || !fileName.trim()) return null;
+  if (!archiveKey.trim() || !archiveLibrary.trim() || !label.trim() || !fileName.trim()) return null;
   return {
     archiveKey,
+    archiveLibrary,
     folderLabel: label,
     fileName,
     archivePath: `${archiveFolderName(archiveKey, label)}/${fileName}`,
