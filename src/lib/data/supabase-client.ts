@@ -2376,6 +2376,9 @@ function deaRegistrationFrom(r: Record<string, unknown>): DeaRegistration {
     expiresOn: toISO(r.expires_on as string),
     retiredOn: toISO(r.retired_on as string),
     documentUrl: (r.document_url as string | null) ?? undefined,
+    inboxFolderUrl: (r.inbox_folder_url as string | null) ?? undefined,
+    archiveFolderUrl: (r.archive_folder_url as string | null) ?? undefined,
+    active: (r.active as boolean | null) ?? true,
     schedules: (r.schedules as string | null) ?? undefined,
     notes: (r.notes as string | null) ?? undefined,
   };
@@ -2391,6 +2394,9 @@ function deaRegistrationTo(d: Partial<DeaRegistration>) {
     ...(d.expiresOn !== undefined && { expires_on: d.expiresOn }),
     ...(d.retiredOn !== undefined && { retired_on: d.retiredOn }),
     ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
+    ...(d.inboxFolderUrl !== undefined && { inbox_folder_url: d.inboxFolderUrl }),
+    ...(d.archiveFolderUrl !== undefined && { archive_folder_url: d.archiveFolderUrl }),
+    ...(d.active !== undefined && { active: d.active }),
     ...(d.schedules !== undefined && { schedules: d.schedules }),
     ...(d.notes !== undefined && { notes: d.notes }),
   };

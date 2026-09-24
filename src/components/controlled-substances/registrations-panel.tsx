@@ -40,6 +40,9 @@ export interface RegistrationDraft {
   schedules: string | null;
   notes: string | null;
   documentUrl: string | null;
+  inboxFolderUrl: string | null;
+  archiveFolderUrl: string | null;
+  active: boolean;
 }
 
 const toInput = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
@@ -60,6 +63,9 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
   const [expiresOn, setExpiresOn] = useState(toInput(existing?.expiresOn));
   const [retiredOn, setRetiredOn] = useState(toInput(existing?.retiredOn));
   const [documentUrl, setDocumentUrl] = useState(existing?.documentUrl ?? "");
+  const [inboxFolderUrl, setInboxFolderUrl] = useState(existing?.inboxFolderUrl ?? "");
+  const [archiveFolderUrl, setArchiveFolderUrl] = useState(existing?.archiveFolderUrl ?? "");
+  const [active, setActive] = useState(existing?.active ?? true);
   const [uploading, setUploading] = useState(false);
 
   async function attach(file: File) {
@@ -183,6 +189,32 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
             <input className="input w-full" value={schedules} onChange={(e) => setSchedules(e.target.value)} placeholder="e.g. II, III, IV, V" />
           </div>
 
+          <div className="space-y-3 rounded-md border border-border bg-secondary/10 p-3">
+            <div>
+              <p className="text-sm font-medium">Where its records live</p>
+              <p className="text-[11px] text-muted-foreground">
+                Set once, for everybody — copy each folder&apos;s address from SharePoint. An inspector asks per registration, so each has its own archive.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Inbox folder</label>
+              <input className="input w-full text-xs" value={inboxFolderUrl} onChange={(e) => setInboxFolderUrl(e.target.value)} placeholder="where filed pages are uploaded" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Archive folder</label>
+              <input className="input w-full text-xs" value={archiveFolderUrl} onChange={(e) => setArchiveFolderUrl(e.target.value)} placeholder="where they are moved to and kept" />
+            </div>
+            <label className="flex items-start gap-2 text-xs">
+              <input type="checkbox" className="mt-0.5" checked={active} onChange={(e) => setActive(e.target.checked)} />
+              <span>
+                <span className="font-medium">In use</span>
+                <span className="block text-muted-foreground">
+                  Untick to map a registration ahead of time — its folders exist and nothing is offered for filing until the number is actually issued.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <textarea
             className="input w-full resize-none" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="Anything worth knowing later — when it replaced another registration, why it retired."
@@ -209,6 +241,9 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
               expiresOn: expiresOn ? dateInputToISO(expiresOn) : null,
               retiredOn: retiredOn ? dateInputToISO(retiredOn) : null,
               documentUrl: documentUrl || null,
+              inboxFolderUrl: inboxFolderUrl.trim() || null,
+              archiveFolderUrl: archiveFolderUrl.trim() || null,
+              active,
               schedules: schedules.trim() || null,
               notes: notes.trim() || null,
             }, existing?.id ?? null)}
@@ -286,7 +321,9 @@ export function RegistrationsPanel({ registrations, locations, canManage, canPri
                         {r.registrantType === "location"
                           ? <Badge variant="secondary"><Building2 className="size-3" /> Practice</Badge>
                           : <Badge variant="secondary"><User className="size-3" /> Individual</Badge>}
-                        {r.retiredOn ? <Badge variant="outline">Retired {formatDate(r.retiredOn)}</Badge> : <Badge variant="success">In use</Badge>}
+                        {!r.active ? <Badge variant="secondary">Mapped, not in use</Badge>
+                          : r.retiredOn ? <Badge variant="outline">Retired {formatDate(r.retiredOn)}</Badge>
+                          : <Badge variant="success">In use</Badge>}
                         {!r.retiredOn && r.expiresOn && isExpired(r.expiresOn) && (
                           <Badge variant="warning"><TriangleAlert className="size-3" /> Expired {formatDate(r.expiresOn)}</Badge>
                         )}

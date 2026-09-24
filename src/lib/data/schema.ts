@@ -1915,6 +1915,14 @@ export const DeaRegistration = z.object({
   retiredOn: z.string().nullable().optional(),
   /** The certificate. A business record naming no patient, so the Hub holds it. */
   documentUrl: z.string().nullable().optional(),
+
+  /* Where this registration's records live. Held here rather than in each
+     person's browser, so filing is configured once for everybody and a new
+     registration needs no code change — only these two URLs. */
+  inboxFolderUrl: z.string().nullable().optional(),
+  archiveFolderUrl: z.string().nullable().optional(),
+  /** False for a registration mapped ahead of time but not yet in use. */
+  active: z.boolean().optional(),
   schedules: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
 });

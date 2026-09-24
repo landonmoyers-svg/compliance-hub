@@ -758,6 +758,9 @@ export default function ControlledSubstancesPage() {
   const filingRegistrations = useMemo(() => {
     const byId = new Map((locationsQ.data ?? []).map((l) => [l.id, l.name]));
     return (registrationsQ.data ?? [])
+      // A registration mapped ahead of its issue date isn't offered at all —
+      // its folders exist so nothing has to change when the number arrives.
+      .filter((r) => r.active !== false)
       .filter((r) => maySupervise || !r.retiredOn)
       .map((r) => ({
         id: r.id,
@@ -765,6 +768,7 @@ export default function ControlledSubstancesPage() {
         registrantName: r.registrantName,
         registrantType: r.registrantType,
         retired: !!r.retiredOn,
+        inboxFolderUrl: r.inboxFolderUrl,
         label: `${byId.get(r.locationId) ?? "Unknown site"} · DEA ${r.deaNumber} (${r.registrantName})`,
       }));
   }, [registrationsQ.data, locationsQ.data, maySupervise]);

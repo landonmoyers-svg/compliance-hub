@@ -90,6 +90,8 @@ export interface FilingRegistration {
   locationId: string;
   registrantType: "individual" | "location";
   retired: boolean;
+  /** Configured once on the registration, so nobody pastes it per browser. */
+  inboxFolderUrl?: string | null;
 }
 
 export function PaperLogDialog({ locations, registrations, amendable, onClose, onSave }: {
@@ -128,7 +130,9 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
   // per clinic. Changing the clinic swaps the folder rather than keeping the
   // last one — otherwise the second clinic quietly files into the first's inbox.
   const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder(registrations[0]?.id));
-  const [folderUrl, setFolderUrl] = useState(() => rememberedFolder(registrations[0]?.id)?.webUrl ?? "");
+  const [folderUrl, setFolderUrl] = useState(
+    () => registrations[0]?.inboxFolderUrl || rememberedFolder(registrations[0]?.id)?.webUrl || "",
+  );
   const [resolving, setResolving] = useState(false);
 
   /**
@@ -147,6 +151,10 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
     const reg = registrations.find((r) => r.id === id);
     if (reg) {
       setLocationId(reg.locationId);
+      // The registration says where its records go, so most people never see
+      // the folder field at all. A locally remembered folder is only a
+      // fallback for a registration nobody has configured yet.
+      if (reg.inboxFolderUrl) setFolderUrl(reg.inboxFolderUrl);
       // A sensible default, not an assumption: with an individual registration
       // the registrant usually is the directing clinician, but with a location
       // registration the registrant is the practice and this must be a person.
@@ -521,7 +529,12 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
 
           {/* where the full record goes */}
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">SharePoint folder</h3>
+            <h3 className="text-sm font-medium">
+              SharePoint folder
+              {registrations.find((r) => r.id === registrationId)?.inboxFolderUrl && (
+                <span className="ml-2 font-normal text-xs text-muted-foreground">set on the registration</span>
+              )}
+            </h3>
             {!msConfigured() ? (
               <p className="rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
                 Microsoft 365 isn&apos;t connected to the Hub yet, so the full record can&apos;t be filed from here. An administrator needs to finish that setup.
