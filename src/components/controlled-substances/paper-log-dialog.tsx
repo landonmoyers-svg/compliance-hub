@@ -33,7 +33,7 @@ import { localOcrAvailable, ocrEngine, readPageLocally, releaseOcr, rowsToText }
 import { fullRecordCsv, hubEntries, parsePage, type ParsedRow } from "@/lib/cs-archive/parse-entries";
 import { reconcile } from "@/lib/cs-archive/reconcile";
 import { checkQuantities } from "@/lib/cs-archive/quantities";
-import { folderLabel, hashFile, inboxFileName, libraryFromUrl, newArchiveKey } from "@/lib/cs-archive/archive-names";
+import { archiveFolderUrl, hashFile, inboxFileName, libraryFromUrl, logFolderLabel, newArchiveKey, PAPER_LOG_LABEL, type PaperLogType } from "@/lib/cs-archive/archive-names";
 import { csEntryActions, csEntryBases, type CsArchiveEntry, type DeaRecordType } from "@/lib/data/schema";
 import { dateInputToISO, todayInput } from "@/lib/dates";
 import {
@@ -66,11 +66,10 @@ export interface PaperLogPayload {
   notes?: string;
 }
 
-const LOG_TYPES: { value: DeaRecordType; label: string }[] = [
-  { value: "vial_log", label: "Vial log" },
-  { value: "administration_log", label: "Administration log" },
-  { value: "count_sheet", label: "Count sheet" },
-];
+// The same names the folder is built from, so what someone picks here and what
+// the archive folder ends up called never drift apart.
+const LOG_TYPES: { value: PaperLogType; label: string }[] =
+  (Object.keys(PAPER_LOG_LABEL) as PaperLogType[]).map((value) => ({ value, label: PAPER_LOG_LABEL[value] }));
 
 function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -96,12 +95,34 @@ export interface FilingRegistration {
   archiveFolderUrl?: string | null;
 }
 
+/**
+ * A log already on file that this one could be correcting.
+ *
+ * It carries what the log IS, not just its name, because a correction is the
+ * same log filed again — same period, same substance, same site. Without that
+ * the amendment saved with no period at all and the original's period vanished
+ * from the record the moment it was superseded.
+ */
+export interface AmendableLog {
+  id: string;
+  label: string;
+  archiveKey?: string | null;
+  folderLabel?: string | null;
+  recordType: PaperLogType;
+  substanceName?: string | null;
+  unit?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  locationId?: string | null;
+  registrationId?: string | null;
+}
+
 export function PaperLogDialog({ locations, registrations, amendable, onClose, onSave }: {
   locations: { id: string; name: string }[];
   /** The DEA registrations this person may file against. */
   registrations: FilingRegistration[];
   /** Logs already on file that this one could be correcting. */
-  amendable: { id: string; label: string; archiveKey?: string | null; folderLabel?: string | null }[];
+  amendable: AmendableLog[];
   onClose: () => void;
   onSave: (p: PaperLogPayload) => Promise<void>;
 }) {
@@ -112,7 +133,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
   const [reading, setReading] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [recordType, setRecordType] = useState<DeaRecordType>("administration_log");
+  const [recordType, setRecordType] = useState<PaperLogType>("administration_log");
   const [substanceName, setSubstanceName] = useState("Ketamine");
   const [unit, setUnit] = useState("mg");
   const [recordDate, setRecordDate] = useState(todayInput());
@@ -165,6 +186,35 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
     const remembered = rememberedFolder(id);
     setFolder(remembered);
     setFolderUrl(remembered?.webUrl ?? "");
+  }
+
+  /**
+   * Choosing the log being corrected describes THIS filing too.
+   *
+   * A correction is the same log filed again — the same period, substance and
+   * site — and leaving the person to retype that is how an amendment ends up
+   * on the record with no period, taking the original's period with it when it
+   * supersedes it. Prefilled, not forced: a correction that also fixes a wrong
+   * date has to be able to say so.
+   *
+   * The record date is deliberately NOT inherited. It is when this correction
+   * was filed, which is its own fact and part of why both versions are kept.
+   */
+  function chooseAmended(id: string) {
+    setAmendsRecordId(id);
+    const parent = amendable.find((r) => r.id === id);
+    if (!parent) return;
+    setRecordType(parent.recordType);
+    if (parent.substanceName) setSubstanceName(parent.substanceName);
+    if (parent.unit) setUnit(parent.unit);
+    setPeriodStart(parent.periodStart ? parent.periodStart.slice(0, 10) : "");
+    setPeriodEnd(parent.periodEnd ? parent.periodEnd.slice(0, 10) : "");
+    if (parent.locationId) setLocationId(parent.locationId);
+    // The registration too, so a correction is filed under the number the
+    // original was — and lands in that registration's archive, not another's.
+    if (parent.registrationId && registrations.some((r) => r.id === parent.registrationId)) {
+      chooseRegistration(parent.registrationId);
+    }
   }
 
   const engine = ocrEngine();
@@ -257,12 +307,16 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
       const archiveKey = parent?.archiveKey || newArchiveKey();
       // Which archive, carried on the file, so the flow never has to be told
       // about a registration added later.
-      const archiveLibrary = libraryFromUrl(registrations.find((r) => r.id === registrationId)?.archiveFolderUrl);
+      const registration = registrations.find((r) => r.id === registrationId);
+      const archiveLibrary = libraryFromUrl(registration?.archiveFolderUrl);
       if (!archiveLibrary) { toast.error("This registration has no archive folder set — an administrator needs to add it."); return; }
-      const destination = parent?.folderLabel || folderLabel({
-        locationName: registrations.find((r) => r.id === registrationId)?.label,
+      // The location where it was used, NOT the registration label — an
+      // amendment derives this same label from the saved record, which knows
+      // only the location. See logFolderLabel.
+      const destination = parent?.folderLabel || logFolderLabel({
+        recordType,
+        locationName: locations.find((l) => l.id === locationId)?.name,
         substanceName,
-        recordTypeLabel: LOG_TYPES.find((t) => t.value === recordType)?.label ?? "Log",
         periodStart, periodEnd, recordDate,
       });
 
@@ -283,6 +337,12 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
 
       auditLogMovement({ ...audit, outcome: "succeeded" });
 
+      // Where these will BE, not where they were just put. The upload's own URL
+      // points at the inbox copy, which the flow deletes once it has archived
+      // it — so storing that gives every record a link that dies a minute
+      // after it is filed. See archiveFolderUrl.
+      const archived = archiveFolderUrl(registration?.archiveFolderUrl, archiveKey, destination);
+
       // Only now does anything reach the Hub, and only the de-identified half.
       await onSave({
         recordType,
@@ -301,7 +361,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
         fileHashes,
         amendsRecordId: amendsRecordId || null,
         amendmentReason: amendsRecordId ? amendmentReason.trim() : null,
-        externalUrl: index.webUrl,
+        externalUrl: archived ?? index.webUrl,
         externalSystem: "SharePoint",
         entries: hubEntries(rows),
         notes: `Filed by ${profile?.fullName ?? "unknown"} from ${files.length} ${files.length === 1 ? "page" : "pages"}, read on this device with ${engine === "vision" ? "Apple Vision" : "Tesseract"}.`,
@@ -337,7 +397,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
           <section className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Log type</label>
-              <select className="input w-full" value={recordType} onChange={(e) => setRecordType(e.target.value as DeaRecordType)}>
+              <select className="input w-full" value={recordType} onChange={(e) => setRecordType(e.target.value as PaperLogType)}>
                 {LOG_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
@@ -404,7 +464,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox" className="mt-1" checked={!!amendsRecordId}
-                  onChange={(e) => setAmendsRecordId(e.target.checked ? (amendable[0]?.id ?? "") : "")}
+                  onChange={(e) => chooseAmended(e.target.checked ? (amendable[0]?.id ?? "") : "")}
                 />
                 <span>
                   <span className="font-medium">This corrects a log already on file</span>
@@ -417,7 +477,7 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
                 <div className="grid gap-3 pl-6 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Which log</label>
-                    <select className="input w-full" value={amendsRecordId} onChange={(e) => setAmendsRecordId(e.target.value)}>
+                    <select className="input w-full" value={amendsRecordId} onChange={(e) => chooseAmended(e.target.value)}>
                       {amendable.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                     </select>
                   </div>

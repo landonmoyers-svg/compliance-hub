@@ -1,4 +1,4 @@
-import { archiveFolderName, folderLabel, inboxFileName, libraryFromUrl, parseInboxFileName, sanitize } from "../cs-archive/archive-names";
+import { archiveFolderName, archiveFolderUrl, folderLabel, inboxFileName, libraryFromUrl, logFolderLabel, parseInboxFileName, sanitize } from "../cs-archive/archive-names";
 
 let pass = 0, fail = 0;
 const chk = (name: string, got: unknown, want: unknown) => {
@@ -70,6 +70,53 @@ chk("library out of a folder url",
 chk("trailing slashes and queries don't confuse it",
   libraryFromUrl("https://x.sharepoint.com/sites/CSR/Lehi%20Archive/?view=1"), "Lehi Archive");
 chk("nothing in, nothing out", libraryFromUrl(null), "");
+
+
+// The link a record keeps must point where the file ENDS UP, not where it was
+// uploaded. The inbox copy is deleted as soon as the flow archives it, so a
+// link built from the upload is dead within a minute of being stored.
+const archiveUrl = archiveFolderUrl(
+  "https://x.sharepoint.com/sites/ControlledSubstanceRecords/Clinic%202%20Archive", key, label);
+chk("a record links to the folder its pages will be in", archiveUrl,
+  "https://x.sharepoint.com/sites/ControlledSubstanceRecords/Clinic%202%20Archive/Forms/AllItems.aspx"
+  + "?id=%2Fsites%2FControlledSubstanceRecords%2FClinic%202%20Archive%2F2024-03%20Ketamine%20administration%20log%20%5Ba3f1c8d2%5D");
+
+// An amendment reuses the key, so both resolve to one folder — which is the
+// point of reusing it.
+chk("an amendment links to the same folder",
+  archiveFolderUrl("https://x.sharepoint.com/sites/CSR/Lehi%20Archive", key, label),
+  archiveFolderUrl("https://x.sharepoint.com/sites/CSR/Lehi%20Archive/", key, label));
+
+// A registration nobody has finished configuring gives nothing, and the caller
+// falls back rather than storing a malformed link.
+chk("no archive folder, no link", archiveFolderUrl(null, key, label), null);
+chk("nor from something that isn't a url", archiveFolderUrl("Clinic 2 Archive", key, label), null);
+
+// An amendment has to land in its parent's folder, and the two labels are
+// computed at different moments from different objects: one from what is on
+// the filing screen, one from the record as saved. If those ever disagree the
+// amendment quietly starts a folder of its own carrying the same key, which is
+// the exact failure reusing the key exists to prevent.
+const whenFiled = logFolderLabel({
+  recordType: "administration_log",
+  locationName: "Murray Clinic 2",       // the site, off the "where it was used" field
+  substanceName: "Ketamine",
+  periodStart: "2026-09-23", periodEnd: "2026-09-23", recordDate: "2026-09-24",
+});
+const whenAmended = logFolderLabel({
+  recordType: "administration_log",
+  locationName: "Murray Clinic 2",       // the same site, off the saved record
+  substanceName: "Ketamine",
+  periodStart: "2026-09-23", periodEnd: "2026-09-23", recordDate: "2026-09-24",
+});
+chk("filing and amending agree on the folder", whenFiled, whenAmended);
+chk("and it names the site, not the registration", whenFiled,
+  "2026-09 Murray Clinic 2 Ketamine administration log (paper)");
+
+// The registration label must never end up in here: it carries the DEA number
+// and the registrant's full name, and the record as saved has no way to
+// reproduce it.
+chk("no DEA number in a folder name", /DEA\s/.test(whenFiled), false);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -48,15 +48,22 @@ Basic seat and a spare Office 365 E3 seat, so no purchase is needed.
 **Group membership.** The service account goes in `CS Records - Filing Service`.
 Nothing else should be in that group.
 
-**One flow per inbox.** Five eventually; three that are in use now:
+**One flow per inbox.** All five exist, owned by
+`cs-filing@lonepeakpsychiatry.com` (Controlled Substance Filing Service), on the
+Lone Peak Psychiatry default environment. The two whose registrations have not
+been issued are built and turned off, so that when the numbers arrive nothing
+has to be designed — only switched on.
 
-| Trigger library | Registration |
-|---|---|
-| `Clinic 1 Inbox` | MM5304819 — retired, amendments only |
-| `Clinic 2 Inbox` | MM8601898 |
-| `Lehi Inbox` | Dr Bentley's |
-| `Murray Location DEA Inbox` | not yet issued |
-| `Lehi Location DEA Inbox` | not yet issued |
+| Flow | Trigger library | Registration | State |
+|---|---|---|---|
+| `CS filing - Clinic 1 Inbox` | `Clinic 1 Inbox` | MM5304819 — retired, amendments only | on |
+| `CS filing - Clinic 2 Inbox` | `Clinic 2 Inbox` | MM8601898 | on |
+| `CS filing - Lehi Inbox` | `Lehi Inbox` | Dr Bentley's | on |
+| `CS filing - Murray Location DEA Inbox` | `Murray Location DEA Inbox` | not yet issued | off |
+| `CS filing - Lehi Location DEA Inbox` | `Lehi Location DEA Inbox` | not yet issued | off |
+
+Adding the sixth is Save As from any of them and changing one dropdown, because
+nothing else in the flow knows which registration it serves.
 
 ## The flow
 
@@ -100,10 +107,16 @@ The Hub's integrity check is what notices it later.
 concat(variables('parts')[2], ' [', variables('parts')[0], ']')
 ```
 
-Set this action's **Configure run after** to continue on failure as well as
-success. The folder already existing is the normal case for the second and
-later pages of a log, and for every amendment — an amendment reuses its
-parent's key precisely so it lands in the same folder.
+This is expressed as a run-after on the NEXT action: *Create file* runs after
+*Create new folder* **is successful OR has failed**. The folder already existing
+is the normal case for the second and later pages of a log, and for every
+amendment — an amendment reuses its parent's key precisely so it lands in the
+same folder.
+
+When you pick a library from the dropdown the designer stores its GUID, but
+this step is given a library *title*, because the title is what travels in the
+filename. That is fine: the connector resolves a title, confirmed by a real
+filing returning 200 for `table: "Clinic 2 Archive"`.
 
 ### 6. *Create file* — SharePoint
 
@@ -145,7 +158,44 @@ every record it filed, and can say which ones have no file behind them.
 key in the folder name, so they do not collide.
 
 **An amendment.** Reuses its parent's key, so it lands in the same folder as
-what it corrects, beside it rather than somewhere else. This is intended.
+what it corrects, beside it rather than somewhere else. This is intended. Its
+pages are prefixed `amendment-`, so they sit beside the originals instead of
+replacing them. Choosing the log being corrected also fills in what that log
+IS — period, substance, site, registration — because a correction is the same
+log filed again, and an amendment saved without a period takes the original's
+period off the record when it supersedes it.
+
+## The link the Hub keeps
+
+A filed record stores a link, and it is built from the DESTINATION, not from
+the upload. The URL SharePoint returns when a page is uploaded identifies the
+inbox copy by its unique id; this flow archives by copying and then deleting,
+so the archived file is a different item with a different id and that link dies
+the moment filing succeeds. The Hub would be left holding a record it could not
+produce the pages for.
+
+So the Hub builds `<archive library>/Forms/AllItems.aspx?id=<folder>` at filing
+time — it already knows the library and the folder, because it chose them. It
+points at the folder rather than a page, which is also what somebody wants: all
+the pages, the entry index, and any later amendment.
+
+That link and the folder the flow creates are the same string arrived at twice,
+so they have to be derived the same way. They are, by `logFolderLabel` in
+`archive-names.ts`, which takes the log rather than pre-formatted pieces —
+after a version where the filing screen used the registration label and an
+amendment used the location name, and an amendment therefore started a folder
+of its own carrying its parent's key.
+
+## Two things the designer will tell you that aren't true
+
+**"This expression has a problem."** The expression editor flags every
+`variables('parts')[n]` as a problem. It saves, validates and runs regardless —
+the editor simply won't index into an array it can't see the contents of. Check
+the action's **Code view** instead; that shows what will actually be submitted.
+
+**"There's a potential problem with this flow."** On a freshly copied flow, open
+the Flow checker and the only finding is *this flow is off*. Turning the flow on
+clears it.
 
 ## Testing it
 
@@ -159,3 +209,17 @@ File one log with a single page against Clinic 2, from the Hub, and watch:
 
 If step 2 happens and step 3 doesn't, the file has been deleted without being
 copied — stop and check step 7's run-after setting before filing anything else.
+
+The trigger polls once a minute, so "within a minute or so" is the honest
+figure; two is not a fault.
+
+## The service account's sign-in
+
+`cs-filing` is prompted to register for MFA when it signs in interactively.
+This does not affect the flows — they run on the stored connection, not on an
+interactive session — but it does mean the account cannot be signed into to
+check anything without someone completing that registration. It is worth
+deciding deliberately: a service account with a registered authenticator nobody
+holds is worse than one with none. Whatever is chosen, the connection under
+**Data > Connections** is what actually keeps the filing working, and it is the
+thing to watch.

@@ -70,6 +70,47 @@ export function folderLabel(input: {
     .filter(Boolean).join(" "));
 }
 
+/** What the three paper logs are called, everywhere. */
+export const PAPER_LOG_LABEL = {
+  vial_log: "Vial log (paper)",
+  administration_log: "Administration log (paper)",
+  count_sheet: "Count sheet (paper)",
+} as const;
+
+export type PaperLogType = keyof typeof PAPER_LOG_LABEL;
+
+/**
+ * The folder label for a paper log, derived from the log itself.
+ *
+ * This exists because the label is computed TWICE and the two must agree
+ * exactly: once when a log is filed, and again when an amendment to it is
+ * filed and has to reuse its parent's folder. They were assembled separately,
+ * from different inputs — one used the location's name, the other the whole
+ * registration label — so an amendment landed in a folder of its own with the
+ * same key, which is precisely what reusing the key is supposed to prevent.
+ *
+ * So there is one function, it takes the log rather than pre-formatted pieces,
+ * and neither caller gets to decide what goes in.
+ */
+export function logFolderLabel(log: {
+  recordType: PaperLogType;
+  /** The site where the doses were given — not the registration it was ordered on. */
+  locationName?: string | null;
+  substanceName?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  recordDate?: string | null;
+}): string {
+  return folderLabel({
+    locationName: log.locationName,
+    substanceName: log.substanceName,
+    recordTypeLabel: PAPER_LOG_LABEL[log.recordType],
+    periodStart: log.periodStart,
+    periodEnd: log.periodEnd,
+    recordDate: log.recordDate,
+  });
+}
+
 /** The name a file is uploaded under, carrying its whole destination with it. */
 export function inboxFileName(archiveKey: string, archiveLibrary: string, label: string, originalName: string): string {
   return [sanitize(archiveKey), sanitize(archiveLibrary), sanitize(label), sanitize(originalName)].join(SEPARATOR);
@@ -88,6 +129,39 @@ export function libraryFromUrl(url: string | null | undefined): string {
 /** The folder the flow should move it into, relative to the Archive library. */
 export function archiveFolderName(archiveKey: string, label: string): string {
   return `${sanitize(label)} [${sanitize(archiveKey)}]`;
+}
+
+/**
+ * Where a filed log will live, as a link that can be stored before it gets
+ * there.
+ *
+ * The obvious thing — keep the URL SharePoint hands back when the page is
+ * uploaded — is wrong, and quietly so. That URL identifies the INBOX copy by
+ * its unique id, and the flow archives by copying and then deleting; the
+ * archived file is a different item with a different id. So the link dies at
+ * the moment filing succeeds, and the Hub is left holding a record it can't
+ * produce the pages for — which is the one thing the link is for.
+ *
+ * This is built from the destination instead, which is already decided here:
+ * the archive library on the registration, plus the folder the flow will make.
+ * It points at the FOLDER rather than a page, because the folder is what a
+ * person actually wants — every page, the entry index, and later any amendment,
+ * which reuses this key and so lands in this same folder.
+ */
+export function archiveFolderUrl(libraryUrl: string | null | undefined, archiveKey: string, label: string): string | null {
+  const base = (libraryUrl ?? "").split("?")[0].replace(/\/+$/, "");
+  if (!base) return null;
+
+  let library: URL;
+  try { library = new URL(base); } catch { return null; }
+
+  // The id parameter wants the server-relative path unencoded, then encoded
+  // once as a whole. A stored URL may arrive either way round.
+  let libraryPath = library.pathname;
+  try { libraryPath = decodeURIComponent(libraryPath); } catch { /* already decoded */ }
+
+  const folder = `${libraryPath}/${archiveFolderName(archiveKey, label)}`;
+  return `${library.origin}${library.pathname}/Forms/AllItems.aspx?id=${encodeURIComponent(folder)}`;
 }
 
 export interface ParsedName {

@@ -23,7 +23,7 @@ import { openInspectionPack } from "@/lib/cs-archive/inspection-pack";
 import { logAccess } from "@/lib/audit-client";
 import { hasPermission } from "@/lib/auth/roles";
 import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
-import { folderLabel as archiveFolderLabel } from "@/lib/cs-archive/archive-names";
+import { logFolderLabel, PAPER_LOG_LABEL, type PaperLogType } from "@/lib/cs-archive/archive-names";
 import { boxLabel as csBoxLabel, boxOfVial, logCodeForSite, nextBoxLabels, vialId } from "@/lib/cs-labels";
 import { formatDate, dateInputToISO, isExpired, todayInput } from "@/lib/dates";
 import type { CsBox, CsManifest, ControlledSubstanceItem, ControlledSubstanceEvent, CSItemState, CSEventType, CorrectiveAction, DeaRecordType, DeaRegistration } from "@/lib/data/schema";
@@ -34,7 +34,7 @@ const DEA_RECORD_LABEL: Record<DeaRecordType, string> = {
   order_222: "DEA Form 222 order", csos_order: "CSOS electronic order", biennial_inventory: "Biennial inventory",
   form_41_destruction: "Form 41 — destruction", form_106_loss: "Form 106 — theft / loss",
   power_of_attorney: "Power of attorney (222)", registration: "DEA registration",
-  vial_log: "Vial log (paper)", administration_log: "Administration log (paper)", count_sheet: "Count sheet (paper)",
+  ...PAPER_LOG_LABEL,
   other: "Other DEA record",
 };
 
@@ -786,15 +786,24 @@ export default function ControlledSubstancesPage() {
     () => amendableRecords(deaQ.data ?? [], PAPER_LOG_TYPES).map((r) => ({
       id: r.id,
       archiveKey: r.archiveKey,
-      folderLabel: archiveFolderLabel({
+      folderLabel: logFolderLabel({
+        recordType: r.recordType as PaperLogType,
         locationName: locations.find((l) => l.id === r.locationId)?.name,
         substanceName: r.substanceName,
-        recordTypeLabel: DEA_RECORD_LABEL[r.recordType],
         periodStart: r.periodStart, periodEnd: r.periodEnd, recordDate: r.recordDate,
       }),
       label: [r.substanceName ?? "Controlled substance", DEA_RECORD_LABEL[r.recordType].toLowerCase(),
               r.periodStart && r.periodEnd ? `${formatDate(r.periodStart)}–${formatDate(r.periodEnd)}`
               : r.recordDate ? formatDate(r.recordDate) : ""].filter(Boolean).join(" · "),
+      // What the log IS, so a correction is filed as the same log rather than
+      // as a new one that happens to supersede it.
+      recordType: r.recordType as PaperLogType,
+      substanceName: r.substanceName,
+      unit: r.unit,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+      locationId: r.locationId,
+      registrationId: r.registrationId,
     })),
     [deaQ.data, locations],
   );
