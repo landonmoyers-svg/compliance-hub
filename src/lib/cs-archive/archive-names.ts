@@ -25,6 +25,8 @@
  *
  * Both ends of this contract are easy to break silently, which is why the
  * parsing is here, tested, rather than only as an expression inside a flow.
+ * The other end is written down in docs/controlled-substance-filing-flow.md —
+ * change one without the other and files stop moving, quietly.
  */
 
 /** Characters SharePoint refuses in a file or folder name, plus our separator. */
