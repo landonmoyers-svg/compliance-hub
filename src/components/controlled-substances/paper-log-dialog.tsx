@@ -32,8 +32,9 @@ import { auditLogMovement } from "@/lib/cs-archive/audit";
 import { localOcrAvailable, ocrEngine, readPageLocally, releaseOcr, rowsToText } from "@/lib/cs-archive/local-ocr";
 import { fullRecordCsv, hubEntries, parsePage, type ParsedRow } from "@/lib/cs-archive/parse-entries";
 import { reconcile } from "@/lib/cs-archive/reconcile";
+import { checkQuantities } from "@/lib/cs-archive/quantities";
 import { folderLabel, hashFile, inboxFileName, newArchiveKey } from "@/lib/cs-archive/archive-names";
-import { csEntryActions, type CsArchiveEntry, type DeaRecordType } from "@/lib/data/schema";
+import { csEntryActions, csEntryBases, type CsArchiveEntry, type DeaRecordType } from "@/lib/data/schema";
 import { dateInputToISO, todayInput } from "@/lib/dates";
 import {
   msConfigured, msResolveUrl, msUpload, rememberedFolder, rememberFolder,
@@ -158,6 +159,10 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
 
   const engine = ocrEngine();
   const identifierCount = useMemo(() => rows.reduce((n, r) => n + r.identifiers.length, 0), [rows]);
+  // Quantity problems are caught HERE, at review, not at reconciliation — an
+  // order-of-magnitude slip is cheap to fix while the page is still in front
+  // of you and expensive once it is the record.
+  const quantityWarnings = useMemo(() => checkQuantities(rows.map((r) => r.entry)), [rows]);
   const preview = useMemo(
     () => reconcile(rows.map((r) => r.entry), { opening: numOrNull(opening), closing: numOrNull(closing) }),
     [rows, opening, closing],
@@ -459,6 +464,8 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
                       <th className="p-2 font-medium">Action</th>
                       <th className="p-2 font-medium">Amount</th>
                       <th className="p-2 font-medium">Staff</th>
+                      <th className="p-2 font-medium">Book</th>
+                      <th className="p-2 font-medium">How known</th>
                       <th className="p-2 font-medium">Read as</th>
                     </tr>
                   </thead>
@@ -474,6 +481,12 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
                         </td>
                         <td className="p-1.5"><input className="input w-20 text-xs" inputMode="decimal" value={r.entry.amount ?? ""} onChange={(e) => editRow(i, { amount: e.target.value === "" ? null : Number(e.target.value) })} /></td>
                         <td className="p-1.5"><input className="input w-24 text-xs" value={r.entry.staff ?? ""} onChange={(e) => editRow(i, { staff: e.target.value || null })} /></td>
+                        <td className="p-1.5"><input className="input w-24 text-xs" value={r.entry.book ?? ""} onChange={(e) => editRow(i, { book: e.target.value || null })} placeholder="book / set" /></td>
+                        <td className="p-1.5">
+                          <select className="input w-28 text-xs" value={r.entry.basis ?? "transcribed"} onChange={(e) => editRow(i, { basis: e.target.value as CsArchiveEntry["basis"] })}>
+                            {csEntryBases.map((b) => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </td>
                         <td className="p-1.5 text-[11px] text-muted-foreground">
                           <span className="line-clamp-2">{r.source}</span>
                           {r.flags.length > 0 && <span className="block text-warning">{r.flags.join("; ")}</span>}
@@ -483,6 +496,17 @@ export function PaperLogDialog({ locations, registrations, amendable, onClose, o
                   </tbody>
                 </table>
               </div>
+
+              {quantityWarnings.length > 0 && (
+                <div className="space-y-1 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                  <p className="flex items-center gap-1.5 font-medium"><AlertTriangle className="size-3.5" /> Check these quantities</p>
+                  <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+                    {quantityWarnings.map(({ index, warning }) => (
+                      <li key={`${index}-${warning.kind}`}><strong>Row {index + 1}</strong> — {warning.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {preview.issues.length > 0 && (
                 <div className="space-y-1 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">

@@ -1840,6 +1840,14 @@ export const csEntryActions = ["received", "administered", "wasted", "destroyed"
 export const CsEntryAction = z.enum(csEntryActions);
 export type CsEntryAction = z.infer<typeof CsEntryAction>;
 
+/* How much a line is to be relied on. An audit that flattens these is worth
+ * less than one that doesn't: a row read off a page and a row inferred from
+ * surrounding balances are different kinds of claim, and only one of them can
+ * be checked against an original. */
+export const csEntryBases = ["transcribed", "checked", "derived", "reported"] as const;
+export const CsEntryBasis = z.enum(csEntryBases);
+export type CsEntryBasis = z.infer<typeof CsEntryBasis>;
+
 /** One line off a paper log. Deliberately has no patient field — see DeaRecord. */
 export const CsArchiveEntry = z.object({
   date: z.string().nullable().optional(),
@@ -1852,6 +1860,25 @@ export const CsArchiveEntry = z.object({
   /** Which page/line this came off, so a discrepancy can be traced to the chart. */
   pageRef: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
+
+  /** How this line is known. Defaults to transcribed — read off the page. */
+  basis: CsEntryBasis.optional(),
+  /** Which log book or issued set it belongs to: a treatment-room book, a
+   *  clinician's own bottles, a nurse's issued set. Custody structure that a
+   *  bare vial label loses. */
+  book: z.string().nullable().optional(),
+
+  /* What actually arrived, for a receipt. "15" is not a quantity — 15 what?
+     An order line reading 15 boxes of 10 and a stock log reading 15 vials are
+     the same number and a tenfold difference, and writing them the same way is
+     how 135 vials go unrecorded. */
+  packs: z.number().nullable().optional(),
+  unitsPerPack: z.number().nullable().optional(),
+  /** Strength as written, e.g. "100 mg/mL x 5 mL". Two products can both be
+   *  500 mg a vial and not be interchangeable. */
+  concentration: z.string().nullable().optional(),
+  /** Milligrams in one container. */
+  containerMg: z.number().nullable().optional(),
 });
 export type CsArchiveEntry = z.infer<typeof CsArchiveEntry>;
 
