@@ -68,8 +68,11 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
       // this is not one of the documents that has to live in SharePoint.
       setDocumentUrl(await uploadFile(file, "dea-registrations"));
       toast.success("Certificate attached");
-    } catch {
-      toast.error("Couldn't upload that file.");
+    } catch (err) {
+      // Say what actually went wrong. "Couldn't upload that file" sends
+      // somebody to retry the same thing, when the answer is usually in the
+      // message — a size limit, a rejected type, a permission.
+      toast.error(err instanceof Error ? err.message : "Couldn't upload that file.");
     } finally {
       setUploading(false);
     }
@@ -155,7 +158,10 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
               {uploading ? <Loader2 className="size-4 animate-spin text-primary" /> : documentUrl ? <Paperclip className="size-4" /> : <Upload className="size-4" />}
               {uploading ? "Uploading…" : documentUrl ? "Attached — choose another to replace it" : "Attach the DEA registration certificate"}
               <input
-                type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}
+                // No accept filter: a certificate arrives as a PDF, a photo, a
+                // scan, or whatever the DEA portal handed over, and a filter
+                // that greys out the real file looks like a broken button.
+                type="file" className="hidden" disabled={uploading}
                 onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void attach(f); }}
               />
             </label>
