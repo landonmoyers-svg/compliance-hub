@@ -16,7 +16,11 @@
  */
 
 import { useMemo, useState } from "react";
-import { BadgeCheck, Building2, Pencil, Plus, Printer, TriangleAlert, User, X } from "lucide-react";
+import { BadgeCheck, Building2, Loader2, Paperclip, Pencil, Plus, Printer, TriangleAlert, Upload, User, X } from "lucide-react";
+import { FileLink } from "@/components/shared/file-link";
+import { uploadFile } from "@/lib/storage";
+import { isExpired } from "@/lib/dates";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,9 +34,11 @@ export interface RegistrationDraft {
   registrantType: "individual" | "location";
   locationId: string;
   effectiveFrom: string | null;
+  expiresOn: string | null;
   retiredOn: string | null;
   schedules: string | null;
   notes: string | null;
+  documentUrl: string | null;
 }
 
 const toInput = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
@@ -49,7 +55,25 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
   const [registrantType, setRegistrantType] = useState<"individual" | "location">(existing?.registrantType ?? "individual");
   const [locationId, setLocationId] = useState(existing?.locationId ?? locations[0]?.id ?? "");
   const [effectiveFrom, setEffectiveFrom] = useState(toInput(existing?.effectiveFrom));
+  const [expiresOn, setExpiresOn] = useState(toInput(existing?.expiresOn));
   const [retiredOn, setRetiredOn] = useState(toInput(existing?.retiredOn));
+  const [documentUrl, setDocumentUrl] = useState(existing?.documentUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+
+  async function attach(file: File) {
+    setUploading(true);
+    try {
+      // The certificate names the registrant, the address and the schedules —
+      // and no patient. A business record, so the Hub's own storage is right;
+      // this is not one of the documents that has to live in SharePoint.
+      setDocumentUrl(await uploadFile(file, "dea-registrations"));
+      toast.success("Certificate attached");
+    } catch {
+      toast.error("Couldn't upload that file.");
+    } finally {
+      setUploading(false);
+    }
+  }
   const [schedules, setSchedules] = useState(existing?.schedules ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
 
@@ -114,10 +138,28 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
               <input type="date" className="input w-full" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </div>
             <div className="space-y-1.5">
+              <label className="text-sm font-medium">Expires on</label>
+              <input type="date" className="input w-full" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
+              <p className="text-[11px] text-muted-foreground">From the certificate — when it needs renewing.</p>
+            </div>
+            <div className="space-y-1.5">
               <label className="text-sm font-medium">Retired on</label>
               <input type="date" className="input w-full" value={retiredOn} onChange={(e) => setRetiredOn(e.target.value)} />
-              <p className="text-[11px] text-muted-foreground">Leave empty while it&apos;s in use.</p>
+              <p className="text-[11px] text-muted-foreground">Leave empty while it&apos;s in use. Different from expiring.</p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Certificate</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-secondary/10 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary/20">
+              {uploading ? <Loader2 className="size-4 animate-spin text-primary" /> : documentUrl ? <Paperclip className="size-4" /> : <Upload className="size-4" />}
+              {uploading ? "Uploading…" : documentUrl ? "Attached — choose another to replace it" : "Attach the DEA registration certificate"}
+              <input
+                type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void attach(f); }}
+              />
+            </label>
+            {documentUrl && <FileLink path={documentUrl} label="View the attached certificate" className="text-xs text-primary hover:underline" />}
           </div>
 
           <div className="space-y-1.5">
@@ -147,7 +189,9 @@ function Editor({ locations, existing, onClose, onSave, saving }: {
               registrantType,
               locationId,
               effectiveFrom: effectiveFrom ? dateInputToISO(effectiveFrom) : null,
+              expiresOn: expiresOn ? dateInputToISO(expiresOn) : null,
               retiredOn: retiredOn ? dateInputToISO(retiredOn) : null,
+              documentUrl: documentUrl || null,
               schedules: schedules.trim() || null,
               notes: notes.trim() || null,
             }, existing?.id ?? null)}
@@ -226,14 +270,21 @@ export function RegistrationsPanel({ registrations, locations, canManage, canPri
                           ? <Badge variant="secondary"><Building2 className="size-3" /> Practice</Badge>
                           : <Badge variant="secondary"><User className="size-3" /> Individual</Badge>}
                         {r.retiredOn ? <Badge variant="outline">Retired {formatDate(r.retiredOn)}</Badge> : <Badge variant="success">In use</Badge>}
+                        {!r.retiredOn && r.expiresOn && isExpired(r.expiresOn) && (
+                          <Badge variant="warning"><TriangleAlert className="size-3" /> Expired {formatDate(r.expiresOn)}</Badge>
+                        )}
                         {!check.checkDigitValid && check.wellFormed && (
                           <Badge variant="warning"><TriangleAlert className="size-3" /> Check digit</Badge>
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {r.effectiveFrom ? `From ${formatDate(r.effectiveFrom)}` : "No start date recorded"}
+                        {r.expiresOn ? ` · Renews ${formatDate(r.expiresOn)}` : ""}
                         {r.schedules ? ` · Schedules ${r.schedules}` : ""}
                       </p>
+                      {r.documentUrl
+                        ? <FileLink path={r.documentUrl} label="Certificate" className="text-xs text-primary hover:underline" />
+                        : <span className="text-xs text-muted-foreground">No certificate attached</span>}
                     </div>
                     <div className="flex items-center gap-1">
                       {canPrintPack && (

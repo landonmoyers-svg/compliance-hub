@@ -2372,7 +2372,9 @@ function deaRegistrationFrom(r: Record<string, unknown>): DeaRegistration {
     registrantType: (r.registrant_type as DeaRegistration["registrantType"]) ?? "individual",
     locationId: r.location_id as string,
     effectiveFrom: toISO(r.effective_from as string),
+    expiresOn: toISO(r.expires_on as string),
     retiredOn: toISO(r.retired_on as string),
+    documentUrl: (r.document_url as string | null) ?? undefined,
     schedules: (r.schedules as string | null) ?? undefined,
     notes: (r.notes as string | null) ?? undefined,
   };
@@ -2384,7 +2386,9 @@ function deaRegistrationTo(d: Partial<DeaRegistration>) {
     ...(d.registrantType !== undefined && { registrant_type: d.registrantType }),
     ...(d.locationId !== undefined && { location_id: d.locationId }),
     ...(d.effectiveFrom !== undefined && { effective_from: d.effectiveFrom }),
+    ...(d.expiresOn !== undefined && { expires_on: d.expiresOn }),
     ...(d.retiredOn !== undefined && { retired_on: d.retiredOn }),
+    ...(d.documentUrl !== undefined && { document_url: d.documentUrl }),
     ...(d.schedules !== undefined && { schedules: d.schedules }),
     ...(d.notes !== undefined && { notes: d.notes }),
   };

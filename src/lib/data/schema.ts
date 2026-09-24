@@ -1872,9 +1872,14 @@ export const DeaRegistration = z.object({
   registrantType: z.enum(["individual", "location"]).default("individual"),
   locationId: z.string(),
   effectiveFrom: z.string().nullable().optional(),
+  /** When it needs renewing. Distinct from retiredOn — a registration can
+   *  expire while still very much in use, which is the problem. */
+  expiresOn: z.string().nullable().optional(),
   /** Set when it stops being used. It still accepts amendments — the
    *  registrant stays responsible for the records kept under it. */
   retiredOn: z.string().nullable().optional(),
+  /** The certificate. A business record naming no patient, so the Hub holds it. */
+  documentUrl: z.string().nullable().optional(),
   schedules: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
