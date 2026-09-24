@@ -38,6 +38,7 @@ import type {
   ControlledSubstanceEvent,
   DeaRecord,
   DeaRegistration,
+  RecordRecoveryItem,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -2389,6 +2390,34 @@ function deaRegistrationTo(d: Partial<DeaRegistration>) {
   };
 }
 
+function recoveryItemFrom(r: Record<string, unknown>): RecordRecoveryItem {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    registrationId: r.registration_id as string,
+    recordKind: (r.record_kind as RecordRecoveryItem["recordKind"]) ?? "purchase",
+    sourceName: (r.source_name as string | null) ?? undefined,
+    periodStart: toISO(r.period_start as string) ?? (r.period_start as string),
+    periodEnd: toISO(r.period_end as string) ?? (r.period_end as string),
+    status: (r.status as RecordRecoveryItem["status"]) ?? "missing",
+    requestedOn: toISO(r.requested_on as string),
+    receivedOn: toISO(r.received_on as string),
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function recoveryItemTo(d: Partial<RecordRecoveryItem>) {
+  return {
+    ...(d.registrationId !== undefined && { registration_id: d.registrationId }),
+    ...(d.recordKind !== undefined && { record_kind: d.recordKind }),
+    ...(d.sourceName !== undefined && { source_name: d.sourceName }),
+    ...(d.periodStart !== undefined && { period_start: d.periodStart }),
+    ...(d.periodEnd !== undefined && { period_end: d.periodEnd }),
+    ...(d.status !== undefined && { status: d.status }),
+    ...(d.requestedOn !== undefined && { requested_on: d.requestedOn }),
+    ...(d.receivedOn !== undefined && { received_on: d.receivedOn }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -2664,6 +2693,7 @@ export function createSupabaseDataClient(): DataClient {
     controlledSubstanceItems: makeCollection(supabase, "controlled_substance_items", csItemFrom, csItemTo),
     controlledSubstanceEvents: makeCollection(supabase, "controlled_substance_events", csEventFrom, csEventTo),
     deaRegistrations:    makeCollection(supabase, "dea_registrations",    deaRegistrationFrom,    deaRegistrationTo),
+    recordRecoveryItems: makeCollection(supabase, "record_recovery_items",  recoveryItemFrom,       recoveryItemTo),
     deaRecords:          makeCollection(supabase, "dea_records",          deaRecordFrom,          deaRecordTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),

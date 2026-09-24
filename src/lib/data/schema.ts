@@ -1880,6 +1880,29 @@ export const DeaRegistration = z.object({
 });
 export type DeaRegistration = z.infer<typeof DeaRegistration>;
 
+/* Reconstructing records that were never kept.
+ *
+ * Each row is a claim about one span of time: this kind of record, for this
+ * registration, from this source, is missing / requested / recovered. The Hub
+ * works out the GAPS from them — the stretches nothing covers — because naming
+ * a gap precisely is most of what turns a worry into a task. */
+export const recordRecoveryKinds = ["purchase", "administration", "inventory", "destruction", "other"] as const;
+export const recordRecoveryStatuses = ["missing", "requested", "recovered", "not_applicable"] as const;
+
+export const RecordRecoveryItem = z.object({
+  ...base,
+  registrationId: z.string(),
+  recordKind: z.enum(recordRecoveryKinds).default("purchase"),
+  sourceName: z.string().nullable().optional(),
+  periodStart: z.string(),
+  periodEnd: z.string(),
+  status: z.enum(recordRecoveryStatuses).default("missing"),
+  requestedOn: z.string().nullable().optional(),
+  receivedOn: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type RecordRecoveryItem = z.infer<typeof RecordRecoveryItem>;
+
 // CS-3: practice-level DEA regulatory records/filings, retained ≥2 years.
 export const deaRecordTypes = [
   "order_222", "csos_order", "biennial_inventory", "form_41_destruction",

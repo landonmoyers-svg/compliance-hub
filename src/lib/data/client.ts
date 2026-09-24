@@ -23,6 +23,7 @@ import type {
   ControlledSubstanceEvent,
   DeaRecord,
   DeaRegistration,
+  RecordRecoveryItem,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -178,6 +179,7 @@ export interface DataClient {
   controlledSubstanceItems: Collection<ControlledSubstanceItem>;
   controlledSubstanceEvents: Collection<ControlledSubstanceEvent>;
   deaRegistrations: Collection<DeaRegistration>;
+  recordRecoveryItems: Collection<RecordRecoveryItem>;
   deaRecords: Collection<DeaRecord>;
   notifications: Collection<Notification>;
   organizationSettings: Collection<OrganizationSettings>;

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium",
-    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts && tsx src/lib/__tests__/stock-lots.test.ts && tsx src/lib/__tests__/emergency-rules.test.ts && tsx src/lib/__tests__/backup-restore.test.ts && tsx src/lib/__tests__/cs-labels.test.ts && tsx src/lib/__tests__/cs-archive-parse.test.ts && tsx src/lib/__tests__/cs-reconcile.test.ts && tsx src/lib/__tests__/cs-amendments.test.ts && tsx src/lib/__tests__/cs-archive-names.test.ts && tsx src/lib/__tests__/dea-number.test.ts"
+    "test:unit": "tsx src/lib/__tests__/med-samples.test.ts && tsx src/lib/__tests__/stock-lots.test.ts && tsx src/lib/__tests__/emergency-rules.test.ts && tsx src/lib/__tests__/backup-restore.test.ts && tsx src/lib/__tests__/cs-labels.test.ts && tsx src/lib/__tests__/cs-archive-parse.test.ts && tsx src/lib/__tests__/cs-reconcile.test.ts && tsx src/lib/__tests__/cs-amendments.test.ts && tsx src/lib/__tests__/cs-archive-names.test.ts && tsx src/lib/__tests__/dea-number.test.ts && tsx src/lib/__tests__/cs-recovery.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",

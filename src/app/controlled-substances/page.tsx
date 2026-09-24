@@ -18,6 +18,7 @@ import { ShipmentDialog, type ShipmentPayload } from "@/components/controlled-su
 import { PaperLogDetail } from "@/components/controlled-substances/paper-log-detail";
 import { PaperLogDialog, type PaperLogPayload } from "@/components/controlled-substances/paper-log-dialog";
 import { RegistrationsPanel, type RegistrationDraft } from "@/components/controlled-substances/registrations-panel";
+import { RecoveryPanel, type RecoveryDraft } from "@/components/controlled-substances/recovery-panel";
 import { hasPermission } from "@/lib/auth/roles";
 import { amendableRecords, buildChains } from "@/lib/cs-archive/amendments";
 import { folderLabel as archiveFolderLabel } from "@/lib/cs-archive/archive-names";
@@ -697,6 +698,9 @@ export default function ControlledSubstancesPage() {
   const deaQ = useCollection("deaRecords");
   const registrationsQ = useCollection("deaRegistrations");
   const createDea = useCreate("deaRecords");
+  const recoveryQ = useCollection("recordRecoveryItems");
+  const createRecovery = useCreate("recordRecoveryItems");
+  const updateRecovery = useUpdate("recordRecoveryItems");
   const createRegistration = useCreate("deaRegistrations");
   const updateRegistration = useUpdate("deaRegistrations");
   const createItem = useCreate("controlledSubstanceItems");
@@ -1072,6 +1076,19 @@ export default function ControlledSubstancesPage() {
     }
   }
 
+  async function saveRecovery(d: RecoveryDraft, id: string | null) {
+    setSaving(true);
+    try {
+      if (id) await updateRecovery.mutateAsync({ id, patch: d });
+      else await createRecovery.mutateAsync(d);
+      toast.success("Saved");
+    } catch {
+      toast.error("Couldn't save that period.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function savePaperLog(p: PaperLogPayload) {
     await createDea.mutateAsync({
       ...p,
@@ -1326,6 +1343,15 @@ export default function ControlledSubstancesPage() {
         locations={locations}
         canManage={maySupervise}
         onSave={saveRegistration}
+        saving={saving}
+      />
+
+      <RecoveryPanel
+        registrations={registrationsQ.data ?? []}
+        items={recoveryQ.data ?? []}
+        locationName={(id) => locations.find((l) => l.id === id)?.name ?? "Unknown site"}
+        canManage={maySupervise}
+        onSave={saveRecovery}
         saving={saving}
       />
 
