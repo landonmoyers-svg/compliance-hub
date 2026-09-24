@@ -694,6 +694,7 @@ export default function ControlledSubstancesPage() {
   const locationsQ = useCollection("locations");
   const capasQ = useCollection("correctiveActions");
   const deaQ = useCollection("deaRecords");
+  const registrationsQ = useCollection("deaRegistrations");
   const createDea = useCreate("deaRecords");
   const createItem = useCreate("controlledSubstanceItems");
   const updateItem = useUpdate("controlledSubstanceItems");
@@ -733,6 +734,20 @@ export default function ControlledSubstancesPage() {
   const staff = useMemo(() => (employeesQ.data ?? []).filter((e) => e.employmentStatus === "active").map((e) => ({ id: e.id, name: fullName(e), userId: e.userId ?? undefined })), [employeesQ.data]);
   const owners = useMemo(() => staff.map((s) => s.name).sort(), [staff]);
   const locations = useMemo(() => (locationsQ.data ?? []).map((l) => ({ id: l.id, name: l.name })), [locationsQ.data]);
+  /* A site can hold more than one registration over time — an individual
+     number, then a location number — so filing is chosen by registration.
+     A retired one still accepts amendments, but only from supervisors. */
+  const filingRegistrations = useMemo(() => {
+    const byId = new Map((locationsQ.data ?? []).map((l) => [l.id, l.name]));
+    return (registrationsQ.data ?? [])
+      .filter((r) => maySupervise || !r.retiredOn)
+      .map((r) => ({
+        id: r.id,
+        locationId: r.locationId,
+        retired: !!r.retiredOn,
+        label: `${byId.get(r.locationId) ?? "Unknown site"} · DEA ${r.deaNumber} (${r.registrantName})`,
+      }));
+  }, [registrationsQ.data, locationsQ.data, maySupervise]);
   const filingLocations = useMemo(
     () => (locationsQ.data ?? [])
       .filter((l) => maySupervise || !l.restrictedFiling)
@@ -1203,7 +1218,7 @@ export default function ControlledSubstancesPage() {
       {receiving && <ReceiveDialog locations={locations} existingBoxLabels={existingBoxLabels} onClose={() => setReceiving(false)} onSave={receiveBox} saving={saving} />}
       {checkingOut && <CheckoutDialog bottles={availableBottles} staff={staff} onClose={() => setCheckingOut(false)} onSave={checkoutBottles} saving={saving} />}
       {addingDea && <DeaDialog locations={locations} onClose={() => setAddingDea(false)} onSave={saveDea} saving={saving} />}
-      {filingLog && <PaperLogDialog locations={filingLocations} amendable={amendableLogs} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
+      {filingLog && <PaperLogDialog locations={filingLocations} registrations={filingRegistrations} amendable={amendableLogs} onClose={() => setFilingLog(false)} onSave={savePaperLog} />}
       <PageHeader
         title="Controlled Substances"
         description="Per-bottle chain of custody, from delivery through administration, waste, or destruction. Photograph a delivery's paperwork and boxes to log the whole shipment at once, check bottles out to providers, and track every dose against its bottle."

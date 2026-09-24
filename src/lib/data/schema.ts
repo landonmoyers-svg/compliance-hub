@@ -1855,6 +1855,31 @@ export const CsArchiveEntry = z.object({
 });
 export type CsArchiveEntry = z.infer<typeof CsArchiveEntry>;
 
+/* A DEA registration: a number, held by someone, at one address.
+ *
+ * A DEA number is tied to an address, so the same prescriber holds a different
+ * one at each site — and a practice can have several registrants at once. That
+ * is why records point here rather than at a clinic: "whose number, at which
+ * address, and when did that stop" is not reconstructable later.
+ *
+ * Reconciliation runs WITHIN a registration. A vial received under one number
+ * and administered under another crossed a boundary that matters, and adding
+ * the two together would show a balance where there is a gap. */
+export const DeaRegistration = z.object({
+  ...base,
+  deaNumber: z.string(),
+  registrantName: z.string(),
+  registrantType: z.enum(["individual", "location"]).default("individual"),
+  locationId: z.string(),
+  effectiveFrom: z.string().nullable().optional(),
+  /** Set when it stops being used. It still accepts amendments — the
+   *  registrant stays responsible for the records kept under it. */
+  retiredOn: z.string().nullable().optional(),
+  schedules: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type DeaRegistration = z.infer<typeof DeaRegistration>;
+
 // CS-3: practice-level DEA regulatory records/filings, retained ≥2 years.
 export const deaRecordTypes = [
   "order_222", "csos_order", "biennial_inventory", "form_41_destruction",
@@ -1904,6 +1929,8 @@ export const DeaRecord = z.object({
      makes it defensible. A correction is a new filing that points back at what
      it corrects. The superseded record is kept and stays readable; only the
      newest in a chain counts towards reconciliation. */
+  /** The DEA registration this record was kept under. */
+  registrationId: z.string().nullable().optional(),
   amendsRecordId: z.string().nullable().optional(),
   amendmentReason: z.string().nullable().optional(),
 

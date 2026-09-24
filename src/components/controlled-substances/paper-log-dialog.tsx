@@ -57,6 +57,7 @@ export interface PaperLogPayload {
   containsPatientIdentifiers: boolean;
   externalUrl: string | null;
   externalSystem: string | null;
+  registrationId: string | null;
   archiveKey: string;
   fileHashes: Record<string, string>;
   entries: CsArchiveEntry[];
@@ -80,8 +81,17 @@ function fileToBase64(file: Blob): Promise<string> {
 
 const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
 
-export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
+export interface FilingRegistration {
+  id: string;
+  label: string;          // "Murray Clinic 1 · DEA AB1234563 (Landon Moyers)"
+  locationId: string;
+  retired: boolean;
+}
+
+export function PaperLogDialog({ locations, registrations, amendable, onClose, onSave }: {
   locations: { id: string; name: string }[];
+  /** The DEA registrations this person may file against. */
+  registrations: FilingRegistration[];
   /** Logs already on file that this one could be correcting. */
   amendable: { id: string; label: string; archiveKey?: string | null; folderLabel?: string | null }[];
   onClose: () => void;
@@ -102,7 +112,8 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   const [periodEnd, setPeriodEnd] = useState("");
   const [opening, setOpening] = useState("");
   const [closing, setClosing] = useState("");
-  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
+  const [registrationId, setRegistrationId] = useState(registrations[0]?.id ?? "");
+  const [locationId, setLocationId] = useState(registrations[0]?.locationId ?? locations[0]?.id ?? "");
   const [hasIdentifiers, setHasIdentifiers] = useState(true);
 
   const [amendsRecordId, setAmendsRecordId] = useState("");
@@ -111,12 +122,25 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   // Murray and Lehi file into different libraries, so the folder is remembered
   // per clinic. Changing the clinic swaps the folder rather than keeping the
   // last one — otherwise the second clinic quietly files into the first's inbox.
-  const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder(locations[0]?.id));
-  const [folderUrl, setFolderUrl] = useState(() => rememberedFolder(locations[0]?.id)?.webUrl ?? "");
+  const [folder, setFolder] = useState<DriveItemRef | null>(() => rememberedFolder(registrations[0]?.id));
+  const [folderUrl, setFolderUrl] = useState(() => rememberedFolder(registrations[0]?.id)?.webUrl ?? "");
   const [resolving, setResolving] = useState(false);
 
-  function chooseLocation(id: string) {
-    setLocationId(id);
+  /**
+   * Each registration files to its own folder — a site can hold more than one
+   * over time (an individual number, then a location number), and their
+   * records must not mix.
+   *
+   * Choosing a registration suggests its own address as the place of use, but
+   * does not force it. There was a period when meds ordered under one site's
+   * number were used at another, before it was widely understood that a DEA
+   * registration is tied to an address. Those records exist and have to be
+   * filable as what they actually were.
+   */
+  function chooseRegistration(id: string) {
+    setRegistrationId(id);
+    const reg = registrations.find((r) => r.id === id);
+    if (reg) setLocationId(reg.locationId);
     const remembered = rememberedFolder(id);
     setFolder(remembered);
     setFolderUrl(remembered?.webUrl ?? "");
@@ -172,7 +196,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
       const ref = await msResolveUrl(folderUrl);
       if (!ref.isFolder) throw new Error("That link points at a file — paste the address of the folder the logs go in.");
       setFolder(ref);
-      rememberFolder(ref, locationId);
+      rememberFolder(ref, registrationId);
       toast.success(`Filing to ${ref.name}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't open that folder.");
@@ -187,7 +211,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
   const label = [substanceName || "Controlled substance", LOG_TYPES.find((t) => t.value === recordType)?.label.toLowerCase(), periodStart && periodEnd ? `${periodStart} to ${periodEnd}` : recordDate].filter(Boolean).join(" · ");
 
   async function save() {
-    if (!locationId) { toast.error("Choose the clinic — Murray and Lehi keep separate logs and file to separate folders."); return; }
+    if (!registrationId) { toast.error("Choose the DEA registration this log was kept under — records are kept per registration."); return; }
     // An amendment with no stated reason is a worse record than the one it
     // corrects. Years later — at a DEA inspection, say — "why was this
     // changed?" is the whole question, and nobody will remember.
@@ -207,7 +231,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
       const parent = amendsRecordId ? amendable.find((r) => r.id === amendsRecordId) : undefined;
       const archiveKey = parent?.archiveKey || newArchiveKey();
       const destination = parent?.folderLabel || folderLabel({
-        locationName: locations.find((l) => l.id === locationId)?.name,
+        locationName: registrations.find((r) => r.id === registrationId)?.label,
         substanceName,
         recordTypeLabel: LOG_TYPES.find((t) => t.value === recordType)?.label ?? "Log",
         periodStart, periodEnd, recordDate,
@@ -238,6 +262,7 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
         recordDate: recordDate ? dateInputToISO(recordDate) : null,
         periodStart: periodStart ? dateInputToISO(periodStart) : null,
         periodEnd: periodEnd ? dateInputToISO(periodEnd) : null,
+        registrationId: registrationId || null,
         locationId: locationId || null,
         openingBalance: numOrNull(opening),
         closingBalance: numOrNull(closing),
@@ -303,11 +328,26 @@ export function PaperLogDialog({ locations, amendable, onClose, onSave }: {
               <input type="date" className="input w-full" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Clinic</label>
-              <select className="input w-full" value={locationId} onChange={(e) => chooseLocation(e.target.value)}>
+              <label className="text-sm font-medium">DEA registration</label>
+              <select className="input w-full" value={registrationId} onChange={(e) => chooseRegistration(e.target.value)}>
+                {registrations.length === 0 && <option value="">No registrations set up yet</option>}
+                {registrations.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}{r.retired ? " · retired" : ""}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">Records are kept per registration, and each files to its own folder.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Where it was used</label>
+              <select className="input w-full" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
                 <option value="">Not specified</option>
                 {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
+              {locationId && registrations.find((r) => r.id === registrationId)?.locationId !== locationId && (
+                <p className="text-[11px] text-warning">
+                  Kept under a registration for a different address. That happens — record it as it was.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Opening balance</label>

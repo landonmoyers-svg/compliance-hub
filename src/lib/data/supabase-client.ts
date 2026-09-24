@@ -37,6 +37,7 @@ import type {
   ControlledSubstanceItem,
   ControlledSubstanceEvent,
   DeaRecord,
+  DeaRegistration,
   CredentialRecord,
   DisciplinaryAction,
   EmergencyDrill,
@@ -2362,6 +2363,32 @@ function csEventTo(d: Partial<ControlledSubstanceEvent>) {
   };
 }
 
+function deaRegistrationFrom(r: Record<string, unknown>): DeaRegistration {
+  return {
+    id: r.id as string, createdDate: r.created_date as string,
+    deaNumber: r.dea_number as string,
+    registrantName: r.registrant_name as string,
+    registrantType: (r.registrant_type as DeaRegistration["registrantType"]) ?? "individual",
+    locationId: r.location_id as string,
+    effectiveFrom: toISO(r.effective_from as string),
+    retiredOn: toISO(r.retired_on as string),
+    schedules: (r.schedules as string | null) ?? undefined,
+    notes: (r.notes as string | null) ?? undefined,
+  };
+}
+function deaRegistrationTo(d: Partial<DeaRegistration>) {
+  return {
+    ...(d.deaNumber !== undefined && { dea_number: d.deaNumber }),
+    ...(d.registrantName !== undefined && { registrant_name: d.registrantName }),
+    ...(d.registrantType !== undefined && { registrant_type: d.registrantType }),
+    ...(d.locationId !== undefined && { location_id: d.locationId }),
+    ...(d.effectiveFrom !== undefined && { effective_from: d.effectiveFrom }),
+    ...(d.retiredOn !== undefined && { retired_on: d.retiredOn }),
+    ...(d.schedules !== undefined && { schedules: d.schedules }),
+    ...(d.notes !== undefined && { notes: d.notes }),
+  };
+}
+
 function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
   return {
     id: r.id as string, createdDate: r.created_date as string,
@@ -2390,6 +2417,7 @@ function deaRecordFrom(r: Record<string, unknown>): DeaRecord {
     reconciledAt: toISO(r.reconciled_at as string),
     discrepancy: (r.discrepancy as boolean | null) ?? false,
     discrepancyNote: (r.discrepancy_note as string | null) ?? undefined,
+    registrationId: (r.registration_id as string | null) ?? undefined,
     amendsRecordId: (r.amends_record_id as string | null) ?? undefined,
     amendmentReason: (r.amendment_reason as string | null) ?? undefined,
     archiveKey: (r.archive_key as string | null) ?? undefined,
@@ -2423,6 +2451,7 @@ function deaRecordTo(d: Partial<DeaRecord>) {
     ...(d.reconciledAt !== undefined && { reconciled_at: d.reconciledAt }),
     ...(d.discrepancy !== undefined && { discrepancy: d.discrepancy }),
     ...(d.discrepancyNote !== undefined && { discrepancy_note: d.discrepancyNote }),
+    ...(d.registrationId !== undefined && { registration_id: d.registrationId }),
     ...(d.amendsRecordId !== undefined && { amends_record_id: d.amendsRecordId }),
     ...(d.amendmentReason !== undefined && { amendment_reason: d.amendmentReason }),
     ...(d.archiveKey !== undefined && { archive_key: d.archiveKey }),
@@ -2632,6 +2661,7 @@ export function createSupabaseDataClient(): DataClient {
     controlledSubstanceLogs: makeCollection(supabase, "controlled_substance_logs", csLogFrom,  csLogTo),
     controlledSubstanceItems: makeCollection(supabase, "controlled_substance_items", csItemFrom, csItemTo),
     controlledSubstanceEvents: makeCollection(supabase, "controlled_substance_events", csEventFrom, csEventTo),
+    deaRegistrations:    makeCollection(supabase, "dea_registrations",    deaRegistrationFrom,    deaRegistrationTo),
     deaRecords:          makeCollection(supabase, "dea_records",          deaRecordFrom,          deaRecordTo),
     notifications:      makeCollection(supabase, "notifications",       notificationFrom,       notificationTo),
     organizationSettings: makeCollection(supabase, "organization_settings", orgSettingsFrom,     orgSettingsTo),

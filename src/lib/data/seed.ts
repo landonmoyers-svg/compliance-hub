@@ -198,6 +198,7 @@ export function buildSeed(): SeedData {
     controlledSubstanceLogs: [],
     controlledSubstanceItems: [],
     controlledSubstanceEvents: [],
+    deaRegistrations: [],
     deaRecords: [],
     notifications: [],
     organizationSettings: [],
